@@ -1,0 +1,29 @@
+[project]
+name = "pbsdata-api"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiocache==0.12.3",
+    "asyncpg==0.30.0",
+    "fastapi==0.115.6",
+    "gunicorn==23.0.0",
+    "httpx==0.28.1",
+    "pydantic==2.10.3",
+    "pydantic-settings==2.7.0",
+    "python-multipart==0.0.20",
+    "stripe==11.3.0",
+    "structlog==24.4.0",
+    "uvicorn==0.32.1",
+]
+
+[dependency-groups]
+dev = [
+    "faker==33.1.0",
+    "httpx==0.28.1",
+    "pytest==8.3.4",
+    "pytest-asyncio==0.24.0",
+    "pytest-cov==6.0.0",
+    "ruff==0.8.4",
+]
