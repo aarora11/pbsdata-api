@@ -1,0 +1,47 @@
+[
+  {
+    "pbs_code": "2622M",
+    "streamlined_authority_code": "4236",
+    "indication": "Type 2 diabetes mellitus",
+    "restriction_text": "Patient must have type 2 diabetes mellitus. Must be used as monotherapy or in combination with other PBS-listed antidiabetic agents.",
+    "prescriber_type": "MP",
+    "authority_required": false,
+    "continuation_only": false
+  },
+  {
+    "pbs_code": "2623N",
+    "streamlined_authority_code": "4236",
+    "indication": "Type 2 diabetes mellitus",
+    "restriction_text": "Patient must have type 2 diabetes mellitus. Must be used as monotherapy or in combination with other PBS-listed antidiabetic agents.",
+    "prescriber_type": "MP",
+    "authority_required": false,
+    "continuation_only": false
+  },
+  {
+    "pbs_code": "1234A",
+    "streamlined_authority_code": "8176",
+    "indication": "Severe active rheumatoid arthritis — initial",
+    "restriction_text": "Patient must have documented history of severe active rheumatoid arthritis. Patient must have failed to achieve adequate response to prior therapy with at least two disease modifying anti-rheumatic drugs (DMARDs).",
+    "prescriber_type": "SP",
+    "authority_required": false,
+    "continuation_only": false
+  },
+  {
+    "pbs_code": "1234A",
+    "streamlined_authority_code": "8177",
+    "indication": "Severe active rheumatoid arthritis — continuation",
+    "restriction_text": "Patient must have previously received PBS-subsidised treatment with this drug for this condition and must have achieved an adequate response to treatment.",
+    "prescriber_type": "SP",
+    "authority_required": false,
+    "continuation_only": true
+  },
+  {
+    "pbs_code": "5678B",
+    "streamlined_authority_code": null,
+    "indication": "Treatment resistant schizophrenia",
+    "restriction_text": "Patient must have treatment-resistant schizophrenia defined as failure to respond to adequate trials of at least two antipsychotic drugs. Authority approval is required from Services Australia prior to prescribing.",
+    "prescriber_type": "SP",
+    "authority_required": true,
+    "continuation_only": false
+  }
+]
