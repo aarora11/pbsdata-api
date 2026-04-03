@@ -1,5 +1,7 @@
+"""Schedules router — full implementation."""
 from fastapi import APIRouter, Depends, Response
 from api.middleware.rate_limit import check_rate_limit
+from api.database import get_db
 
 router = APIRouter(tags=["schedules"])
 
@@ -11,6 +13,23 @@ def _rl(response: Response, d: dict):
 
 
 @router.get("/schedules")
-async def list_schedules(response: Response, api_key_data: dict = Depends(check_rate_limit)):
+async def list_schedules(
+    response: Response,
+    api_key_data: dict = Depends(check_rate_limit),
+    db=Depends(get_db),
+):
     _rl(response, api_key_data)
-    return {"data": [], "meta": {}}
+    rows = await db.fetch(
+        """
+        SELECT id, month, released_at, is_embargo, item_count, change_count, ingest_status
+        FROM schedules
+        WHERE ingest_status = 'complete'
+        ORDER BY month DESC
+        """
+    )
+    data = []
+    for r in rows:
+        d = dict(r)
+        d["id"] = str(d["id"])
+        data.append(d)
+    return {"data": data, "meta": {"total": len(data)}}
