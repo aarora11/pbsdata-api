@@ -93,7 +93,25 @@ async def lifespan(app: FastAPI):
     await close_pool()
 
 
-app = FastAPI(title="PBSdata.io API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="PBSdata.io API",
+    version="1.0.0",
+    description=(
+        "Clean, authenticated REST API for the Australian PBS (Pharmaceutical Benefits Scheme) "
+        "drug schedule. Updated monthly from the Australian Government PBS API.\n\n"
+        "## Authentication\n\n"
+        "All requests require an `X-API-Key` header. Get a free key at `POST /v1/auth/keys`.\n\n"
+        "## Rate limits\n\n"
+        "Responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers. "
+        "Exceeding per-minute limits returns `429`. Monthly request quotas depend on your tier.\n\n"
+        "## Schedule versioning\n\n"
+        "Most endpoints accept `?schedule=YYYY-MM`. When omitted, the latest complete schedule is returned. "
+        "Historical access depends on your tier.\n\n"
+        "See the full [Developer Guide](https://github.com/your-org/pbsdata-api/blob/main/DEVELOPER_GUIDE.md) "
+        "for examples, webhook setup, and tier details."
+    ),
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
