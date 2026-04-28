@@ -1,3 +1,13 @@
+x-app: &app
+  build: .
+  image: pbsdata-api:latest
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql://pbsapi:pbsapi@postgres:5432/pbsapi
+  depends_on:
+    postgres:
+      condition: service_healthy
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -16,25 +26,17 @@ services:
       retries: 10
 
   migrate:
-    build: .
-    command: uv run python scripts/migrate.py
-    environment:
-      DATABASE_URL: postgresql://pbsapi:pbsapi@postgres:5432/pbsapi
-    env_file:
-      - .env
+    <<: *app
+    command: python scripts/migrate.py
     depends_on:
       postgres:
         condition: service_healthy
     restart: "no"
 
   api:
-    build: .
+    <<: *app
     ports:
       - "8000:8000"
-    environment:
-      DATABASE_URL: postgresql://pbsapi:pbsapi@postgres:5432/pbsapi
-    env_file:
-      - .env
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,6 +48,18 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Run manually: docker compose run --rm ingest
+  # With a specific month: docker compose run --rm ingest 2026-04
+  ingest:
+    <<: *app
+    entrypoint: ["python", "scripts/run_ingest.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    profiles:
+      - ingest
 
 volumes:
   pgdata:
