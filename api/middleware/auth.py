@@ -19,7 +19,7 @@ def hash_api_key(full_key: str) -> str:
 
 
 async def require_api_key(
-    x_api_key: str = Header(..., alias="X-API-Key"),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
     db=Depends(get_db),
 ) -> dict:
     """FastAPI dependency. Validates the API key. Raises 401 if invalid."""
