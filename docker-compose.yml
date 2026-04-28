@@ -15,5 +15,37 @@ services:
       timeout: 5s
       retries: 10
 
+  migrate:
+    build: .
+    command: uv run python scripts/migrate.py
+    environment:
+      DATABASE_URL: postgresql://pbsapi:pbsapi@postgres:5432/pbsapi
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://pbsapi:pbsapi@postgres:5432/pbsapi
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   pgdata:

@@ -7,10 +7,11 @@ from api.config import get_settings
 from api.middleware.auth import generate_api_key
 
 TIER_LIMITS = {
-    "sandbox": (500, 3),
-    "starter": (50000, 12),
-    "growth": (500000, 120),
-    "enterprise": (10000000, 999),
+    "free":       (500,        1),
+    "starter":    (10_000,     3),
+    "growth":     (100_000,    12),
+    "scale":      (500_000,    999),
+    "enterprise": (10_000_000, 999),
 }
 
 

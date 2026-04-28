@@ -1,0 +1,18 @@
+[
+  {
+    "program_code": "GE",
+    "rule_code": "RULE001",
+    "dispensing_quantity": 60,
+    "dispensing_unit": "tablet",
+    "repeats_allowed": 5,
+    "description": "General Schedule standard repeat dispensing rule"
+  },
+  {
+    "program_code": "RA",
+    "rule_code": "RULE002",
+    "dispensing_quantity": 2,
+    "dispensing_unit": "syringe",
+    "repeats_allowed": 5,
+    "description": "RA program biologic dispensing rule"
+  }
+]

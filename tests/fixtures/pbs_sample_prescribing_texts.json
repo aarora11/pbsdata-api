@@ -1,0 +1,14 @@
+[
+  {
+    "prescribing_text_id": "PT001",
+    "text_type": "Authority Required",
+    "complex_authority_required": false,
+    "prescribing_txt": "Patient must have documented evidence of severe active rheumatoid arthritis and failure of prior therapy."
+  },
+  {
+    "prescribing_text_id": "PT002",
+    "text_type": "Streamlined Authority",
+    "complex_authority_required": true,
+    "prescribing_txt": "Authority approval is required prior to prescribing. Patient must meet clinical criteria for treatment-resistant condition."
+  }
+]

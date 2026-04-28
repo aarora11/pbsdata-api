@@ -1,0 +1,5 @@
+[
+  {"fee_code": "FEE001", "fee_type": "dispensing_fee", "description": "Standard dispensing fee", "amount": "6.42", "patient_contribution": "6.42"},
+  {"fee_code": "FEE002", "fee_type": "dangerous_drug_fee", "description": "Dangerous drug additional fee", "amount": "1.50", "patient_contribution": "1.50"},
+  {"fee_code": "FEE003", "fee_type": "extemporaneous_fee", "description": "Extemporaneous dispensing fee", "amount": "8.75", "patient_contribution": "8.75"}
+]

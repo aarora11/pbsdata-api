@@ -59,6 +59,7 @@ async def client_with_data(app_client, db_pool):
     yield app_client
     # Cleanup
     async with db_pool.acquire() as conn:
+        await conn.execute("DELETE FROM item_restriction_relationships WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04')")
         await conn.execute("DELETE FROM restrictions WHERE item_id IN (SELECT id FROM items WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04'))")
         await conn.execute("DELETE FROM items WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04')")
         await conn.execute("DELETE FROM medicines")

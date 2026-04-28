@@ -67,6 +67,7 @@ async def get_item(
                i.benefit_type, i.general_charge, i.concessional_charge, i.government_price,
                i.brand_premium, i.brand_premium_counts_to_safety_net, i.sixty_day_eligible,
                i.max_quantity, i.max_repeats, i.dangerous_drug, i.formulary, i.section, i.program_code,
+               i.artg_id, i.sponsor, i.caution, i.biosimilar,
                m.ingredient, m.ingredient_lower, m.atc_code
         FROM items i
         JOIN medicines m ON m.id = i.medicine_id
@@ -91,3 +92,76 @@ async def get_item(
             result[field] = float(result[field])
 
     return result
+
+
+@router.get("/items/{pbs_code}/prescribing-texts")
+async def get_item_prescribing_texts(
+    pbs_code: str,
+    response: Response,
+    schedule: Optional[str] = Query(None),
+    api_key_data: dict = Depends(check_rate_limit),
+    db=Depends(get_db),
+):
+    _rl(response, api_key_data)
+
+    if schedule:
+        sched_row = await db.fetchrow("SELECT id FROM schedules WHERE month = $1", schedule)
+        schedule_id = sched_row["id"] if sched_row else None
+    else:
+        sched_row = await db.fetchrow(
+            "SELECT id FROM schedules WHERE ingest_status = 'complete' ORDER BY month DESC LIMIT 1"
+        )
+        schedule_id = sched_row["id"] if sched_row else None
+
+    if not schedule_id:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Schedule not found."})
+
+    rows = await db.fetch(
+        """
+        SELECT pt.prescribing_text_id, pt.text_type, pt.complex_authority_required, pt.prescribing_txt
+        FROM prescribing_texts pt
+        JOIN item_prescribing_text_relationships rel
+          ON rel.prescribing_text_id = pt.prescribing_text_id AND rel.schedule_id = pt.schedule_id
+        WHERE rel.pbs_code = $1 AND rel.schedule_id = $2
+        ORDER BY pt.prescribing_text_id
+        """,
+        pbs_code.upper(), schedule_id,
+    )
+    return {"data": [dict(r) for r in rows], "meta": {"total": len(rows)}}
+
+
+@router.get("/items/{pbs_code}/dispensing-rules")
+async def get_item_dispensing_rules(
+    pbs_code: str,
+    response: Response,
+    schedule: Optional[str] = Query(None),
+    api_key_data: dict = Depends(check_rate_limit),
+    db=Depends(get_db),
+):
+    _rl(response, api_key_data)
+
+    if schedule:
+        sched_row = await db.fetchrow("SELECT id FROM schedules WHERE month = $1", schedule)
+        schedule_id = sched_row["id"] if sched_row else None
+    else:
+        sched_row = await db.fetchrow(
+            "SELECT id FROM schedules WHERE ingest_status = 'complete' ORDER BY month DESC LIMIT 1"
+        )
+        schedule_id = sched_row["id"] if sched_row else None
+
+    if not schedule_id:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Schedule not found."})
+
+    rows = await db.fetch(
+        """
+        SELECT pdr.program_code, pdr.rule_code, pdr.dispensing_quantity,
+               pdr.dispensing_unit, pdr.repeats_allowed, pdr.description
+        FROM program_dispensing_rules pdr
+        JOIN item_dispensing_rules idr
+          ON idr.rule_code = pdr.rule_code AND idr.schedule_id = pdr.schedule_id
+        WHERE idr.pbs_code = $1 AND idr.schedule_id = $2
+        ORDER BY pdr.rule_code
+        """,
+        pbs_code.upper(), schedule_id,
+    )
+    return {"data": [dict(r) for r in rows], "meta": {"total": len(rows)}}

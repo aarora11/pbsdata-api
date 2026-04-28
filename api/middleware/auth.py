@@ -4,9 +4,9 @@ from fastapi import Header, HTTPException, Depends
 from api.database import get_db
 
 
-def generate_api_key(tier: str = "sandbox") -> tuple[str, str, str]:
+def generate_api_key(tier: str = "free") -> tuple[str, str, str]:
     """Returns (full_key, key_prefix, key_hash). full_key shown once, never stored."""
-    prefix = "sk_test_" if tier == "sandbox" else "sk_live_"
+    prefix = "sk_test_" if tier == "free" else "sk_live_"
     raw = secrets.token_urlsafe(32)
     full_key = f"{prefix}{raw}"
     key_prefix = full_key[:12]

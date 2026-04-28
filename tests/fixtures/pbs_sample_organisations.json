@@ -1,0 +1,29 @@
+[
+  {
+    "organisation_id": 1001,
+    "name": "Merck Serono Pty Ltd",
+    "abn": "12345678901",
+    "street_address": "Level 1, 10 Automation Ave",
+    "city": "Sydney",
+    "state": "NSW",
+    "postcode": "2000"
+  },
+  {
+    "organisation_id": 1002,
+    "name": "AbbVie Pty Ltd",
+    "abn": "98765432109",
+    "street_address": "Unit 5, 20 Pharma St",
+    "city": "Melbourne",
+    "state": "VIC",
+    "postcode": "3000"
+  },
+  {
+    "organisation_id": 1003,
+    "name": "Generic Pharma Co Pty Ltd",
+    "abn": "11122233344",
+    "street_address": "8 Generic Rd",
+    "city": "Brisbane",
+    "state": "QLD",
+    "postcode": "4000"
+  }
+]

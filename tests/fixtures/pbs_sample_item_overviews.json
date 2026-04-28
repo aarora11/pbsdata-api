@@ -1,0 +1,16 @@
+[
+  {
+    "pbs_code": "2622M",
+    "artg_id": "ARTG12345",
+    "sponsor": "Merck Serono Pty Ltd",
+    "caution": null,
+    "biosimilar": false
+  },
+  {
+    "pbs_code": "1234A",
+    "artg_id": "ARTG67890",
+    "sponsor": "AbbVie Pty Ltd",
+    "caution": "Biosimilar products may be available",
+    "biosimilar": false
+  }
+]

@@ -1,0 +1,16 @@
+[
+  {
+    "amt_id": "AMT001",
+    "concept_type": "MPP",
+    "preferred_term": "Metformin hydrochloride 500 mg tablet",
+    "atc_code": "A10BA02",
+    "parent_amt_id": null
+  },
+  {
+    "amt_id": "AMT002",
+    "concept_type": "CTPP",
+    "preferred_term": "Glucophage 500 mg tablet, 60",
+    "atc_code": "A10BA02",
+    "parent_amt_id": "AMT001"
+  }
+]

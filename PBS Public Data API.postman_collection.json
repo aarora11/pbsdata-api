@@ -1,0 +1,1504 @@
+{
+	"info": {
+		"_postman_id": "829fc4a1-741d-4807-b524-a492afe522bb",
+		"name": "PBS Public Data API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "38530285",
+		"_collection_link": "https://www.postman.com/hpps/pbs-public-data-api/collection/tmv2kx8/pbs-public-data-api?action=share&source=collection_link&creator=38530285"
+	},
+	"item": [
+		{
+			"name": "/schedules",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var data = pm.response.json().data;\r",
+							"var s = data.length - 1;\r",
+							"pm.collectionVariables.set(\"schedule_code\", data[s].schedule_code)\r",
+							"\r",
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "",
+						"value": "",
+						"type": "text",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"value": "",
+						"type": "text",
+						"disabled": true
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/schedules?limit=100",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"schedules"
+					],
+					"query": [
+						{
+							"key": "limit",
+							"value": "100"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/amt-items",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/amt-items?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"amt-items"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/atc-codes",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/atc-codes?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"atc-codes"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/container-organisation-relationships",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/container-organisation-relationships?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"container-organisation-relationships"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/containers",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/containers?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"containers"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/copayments",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/copayments?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"copayments"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/criteria",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/criteria?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"criteria"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/criteria-parameter-relationships",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/criteria-parameter-relationships?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"criteria-parameter-relationships"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/dispensing-rules",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/dispensing-rules?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"dispensing-rules"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/extemporaneous-ingredients",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/extemporaneous-ingredients?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"extemporaneous-ingredients"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/extemporaneous-preparations",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/extemporaneous-preparations?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"extemporaneous-preparations"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/extemporaneous-prep-sfp-relationships",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/extemporaneous-prep-sfp-relationships?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"extemporaneous-prep-sfp-relationships"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/extemporaneous-tariffs",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/extemporaneous-tariffs?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"extemporaneous-tariffs"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/fees",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/fees?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"fees"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/indications",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/indications?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"indications"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/item-atc-relationships",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/item-atc-relationships?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"item-atc-relationships"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/item-dispensing-rule-relationships",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/item-dispensing-rule-relationships?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"item-dispensing-rule-relationships"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/item-organisation-relationships",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/item-organisation-relationships?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"item-organisation-relationships"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/item-prescribing-text-relationships",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/item-prescribing-text-relationships?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"item-prescribing-text-relationships"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/item-pricing-events",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/item-pricing-events?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"item-pricing-events"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/item-restriction-relationships",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/item-restriction-relationships?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"item-restriction-relationships"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/items",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/items?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"items"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/markup-bands",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/markup-bands?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"markup-bands"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/organisations",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/organisations?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"organisations"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/parameters",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/parameters?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"parameters"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/prescribers",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/prescribers?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"prescribers"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/prescribing-texts",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/prescribing-texts?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"prescribing-texts"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/programs",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/programs?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"programs"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/restriction-prescribing-text-relationships",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/restriction-prescribing-text-relationships?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"restriction-prescribing-text-relationships"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/restrictions",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/restrictions?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"restrictions"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/standard-formula-preparations",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/standard-formula-preparations?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"standard-formula-preparations"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/summary-of-changes",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "subscription-key",
+						"value": "{{subscription-key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "text/csv",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://data-api.health.gov.au/pbs/api/v3/summary-of-changes?schedule_code={{schedule_code}}&limit={{limit}}",
+					"protocol": "https",
+					"host": [
+						"data-api",
+						"health",
+						"gov",
+						"au"
+					],
+					"path": [
+						"pbs",
+						"api",
+						"v3",
+						"summary-of-changes"
+					],
+					"query": [
+						{
+							"key": "schedule_code",
+							"value": "{{schedule_code}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "subscription-key",
+			"value": "2384af7c667342ceb5a736fe29f1dc6b"
+		},
+		{
+			"key": "schedule_code",
+			"value": 3922,
+			"type": "string"
+		},
+		{
+			"key": "limit",
+			"value": "100000"
+		}
+	]
+}

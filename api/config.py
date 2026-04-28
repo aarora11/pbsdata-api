@@ -10,10 +10,10 @@ class Settings(BaseSettings):
     DATABASE_POOL_MAX: int = 10
 
     # PBS Government API
-    PBS_API_BASE_URL: str = "https://api.pbs.gov.au/api/v3"
+    PBS_API_BASE_URL: str = "https://data-api.health.gov.au/pbs/api/v3"
     PBS_API_SUBSCRIPTION_KEY: str = "placeholder_set_in_env"
     PBS_API_EMBARGO_KEY: str = ""
-    PBS_REQUEST_DELAY_SECONDS: float = 21.0
+    PBS_REQUEST_DELAY_SECONDS: float = 1.0
 
     # Application
     APP_ENV: str = "development"
@@ -26,6 +26,9 @@ class Settings(BaseSettings):
 
     # Webhooks
     WEBHOOK_SIGNING_SECRET_SALT: str = "placeholder_set_in_env"
+
+    # Alerting
+    ALERT_SLACK_WEBHOOK_URL: str = ""
 
     # Cache TTLs
     CACHE_TTL_SCHEDULE_SECONDS: int = 86400

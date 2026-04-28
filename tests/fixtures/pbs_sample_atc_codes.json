@@ -1,0 +1,32 @@
+[
+  {
+    "atc_code": "A",
+    "atc_description": "Alimentary tract and metabolism",
+    "atc_level": 1,
+    "atc_parent_code": null
+  },
+  {
+    "atc_code": "A10",
+    "atc_description": "Drugs used in diabetes",
+    "atc_level": 2,
+    "atc_parent_code": "A"
+  },
+  {
+    "atc_code": "A10BA",
+    "atc_description": "Biguanides",
+    "atc_level": 3,
+    "atc_parent_code": "A10"
+  },
+  {
+    "atc_code": "A10BA02",
+    "atc_description": "Metformin",
+    "atc_level": 5,
+    "atc_parent_code": "A10BA"
+  },
+  {
+    "atc_code": "L04",
+    "atc_description": "Immunosuppressants",
+    "atc_level": 2,
+    "atc_parent_code": null
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "indication_id": "IND001",
+    "pbs_code": "1234A",
+    "indication_text": "Severe active rheumatoid arthritis",
+    "condition_description": "Adalimumab — initial treatment for severe RA"
+  },
+  {
+    "indication_id": "IND002",
+    "pbs_code": "5678B",
+    "indication_text": "Treatment-resistant schizophrenia",
+    "condition_description": "Clozapine — refractory schizophrenia failing prior antipsychotics"
+  }
+]

@@ -1,0 +1,16 @@
+[
+  {
+    "pbs_code": "2622M",
+    "change_type": "price_reduction",
+    "effective_date": "2026-04-01",
+    "description": "General patient charge reduced from $21.90 to $21.43",
+    "section": "S85"
+  },
+  {
+    "pbs_code": "9999X",
+    "change_type": "new_listing",
+    "effective_date": "2026-04-01",
+    "description": "New item listed on PBS Schedule",
+    "section": "S85"
+  }
+]
