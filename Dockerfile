@@ -13,8 +13,6 @@ COPY ingest/ ./ingest/
 COPY migrations/ ./migrations/
 COPY scripts/ ./scripts/
 
-RUN uv sync --frozen --no-dev
-
 # ── Runtime stage: no uv, no build tools ─────────────────────────────────────
 FROM python:3.12-slim
 
