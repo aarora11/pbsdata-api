@@ -26,6 +26,8 @@ COPY --from=builder /app/ingest ./ingest
 COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/scripts ./scripts
 
+RUN chmod +x scripts/start.sh
+
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH=/app
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -35,8 +37,4 @@ ENV WEB_CONCURRENCY=2
 
 EXPOSE 8000
 
-CMD gunicorn -w ${WEB_CONCURRENCY} -k uvicorn.workers.UvicornWorker \
-    --bind 0.0.0.0:8000 \
-    --access-logfile - \
-    --error-logfile - \
-    api.main:app
+CMD ["scripts/start.sh"]
