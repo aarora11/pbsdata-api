@@ -150,6 +150,9 @@ from api.routers import (
     medicines, items, changes, schedules, webhooks,
     fees, prescribing_texts, indications, amt, dispensing_rules, summary_of_changes,
     organisations, programs, atc_codes, copayments, restrictions,
+    containers, criteria, parameters, prescribers, markup_bands,
+    item_pricing_events, extemporaneous_ingredients, extemporaneous_preparations,
+    extemporaneous_tariffs, standard_formula_preparations,
 )
 from api.routers.auth import router as auth_router
 
@@ -170,3 +173,13 @@ app.include_router(organisations.router, prefix="/v1")
 app.include_router(programs.router, prefix="/v1")
 app.include_router(atc_codes.router, prefix="/v1")
 app.include_router(copayments.router, prefix="/v1")
+app.include_router(containers.router, prefix="/v1")
+app.include_router(criteria.router, prefix="/v1")
+app.include_router(parameters.router, prefix="/v1")
+app.include_router(prescribers.router, prefix="/v1")
+app.include_router(markup_bands.router, prefix="/v1")
+app.include_router(item_pricing_events.router, prefix="/v1")
+app.include_router(extemporaneous_ingredients.router, prefix="/v1")
+app.include_router(extemporaneous_preparations.router, prefix="/v1")
+app.include_router(extemporaneous_tariffs.router, prefix="/v1")
+app.include_router(standard_formula_preparations.router, prefix="/v1")

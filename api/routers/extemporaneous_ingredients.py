@@ -1,0 +1,98 @@
+"""Extemporaneous ingredients router — GET /v1/extemporaneous-ingredients"""
+from fastapi import APIRouter, Depends, Response, HTTPException, Query
+from api.middleware.rate_limit import check_rate_limit
+from api.database import get_db
+from typing import Optional
+
+router = APIRouter(tags=["extemporaneous"])
+
+
+def _rl(response: Response, d: dict):
+    response.headers["X-RateLimit-Limit"] = str(d.get("_rl_limit", 0))
+    response.headers["X-RateLimit-Remaining"] = str(d.get("_rl_remaining", 0))
+    response.headers["X-RateLimit-Reset"] = str(d.get("_rl_reset", 0))
+
+
+async def _resolve_schedule_id(db, schedule: Optional[str]) -> str:
+    if schedule:
+        row = await db.fetchrow("SELECT id FROM schedules WHERE month = $1", schedule)
+    else:
+        row = await db.fetchrow(
+            "SELECT id FROM schedules WHERE ingest_status = 'complete' ORDER BY month DESC LIMIT 1"
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Schedule not found."})
+    return str(row["id"])
+
+
+_NUMERIC_FIELDS = [
+    "agreed_purchasing_unit",
+    "exact_tenth_gram_per_ml_price", "exact_one_gram_per_ml_price",
+    "exact_ten_gram_per_ml_price", "exact_hundred_gram_per_ml_price",
+    "rounded_tenth_gram_per_ml_price", "rounded_one_gram_per_ml_price",
+    "rounded_ten_gram_per_ml_price", "rounded_hundred_gram_per_ml_price",
+]
+
+
+@router.get("/extemporaneous-ingredients")
+async def list_extemporaneous_ingredients(
+    response: Response,
+    schedule: Optional[str] = Query(None),
+    api_key_data: dict = Depends(check_rate_limit),
+    db=Depends(get_db),
+):
+    _rl(response, api_key_data)
+    schedule_id = await _resolve_schedule_id(db, schedule)
+
+    rows = await db.fetch(
+        """
+        SELECT pbs_code, agreed_purchasing_unit,
+               exact_tenth_gram_per_ml_price, exact_one_gram_per_ml_price,
+               exact_ten_gram_per_ml_price, exact_hundred_gram_per_ml_price,
+               rounded_tenth_gram_per_ml_price, rounded_one_gram_per_ml_price,
+               rounded_ten_gram_per_ml_price, rounded_hundred_gram_per_ml_price
+        FROM extemporaneous_ingredients WHERE schedule_id = $1 ORDER BY pbs_code
+        """,
+        schedule_id,
+    )
+    data = []
+    for row in rows:
+        r = dict(row)
+        for f in _NUMERIC_FIELDS:
+            if r.get(f) is not None:
+                r[f] = float(r[f])
+        data.append(r)
+
+    return {"data": data, "meta": {"total": len(data)}}
+
+
+@router.get("/extemporaneous-ingredients/{pbs_code}")
+async def get_extemporaneous_ingredient(
+    pbs_code: str,
+    response: Response,
+    schedule: Optional[str] = Query(None),
+    api_key_data: dict = Depends(check_rate_limit),
+    db=Depends(get_db),
+):
+    _rl(response, api_key_data)
+    schedule_id = await _resolve_schedule_id(db, schedule)
+
+    row = await db.fetchrow(
+        """
+        SELECT pbs_code, agreed_purchasing_unit,
+               exact_tenth_gram_per_ml_price, exact_one_gram_per_ml_price,
+               exact_ten_gram_per_ml_price, exact_hundred_gram_per_ml_price,
+               rounded_tenth_gram_per_ml_price, rounded_one_gram_per_ml_price,
+               rounded_ten_gram_per_ml_price, rounded_hundred_gram_per_ml_price
+        FROM extemporaneous_ingredients WHERE pbs_code = $1 AND schedule_id = $2
+        """,
+        pbs_code.upper(), schedule_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Extemporaneous ingredient not found."})
+
+    result = dict(row)
+    for f in _NUMERIC_FIELDS:
+        if result.get(f) is not None:
+            result[f] = float(result[f])
+    return result
