@@ -1,6 +1,7 @@
 """Programs router — GET /v1/programs"""
 from fastapi import APIRouter, Depends, Response, HTTPException, Query
 from api.middleware.rate_limit import check_rate_limit
+from api.middleware.tier import is_tier_or_above, require_tier, tier_label
 from api.database import get_db
 from typing import Optional
 
@@ -36,14 +37,41 @@ async def list_programs(
     schedule_id = await _resolve_schedule_id(db, schedule)
 
     rows = await db.fetch(
+        "SELECT program_code, program_title FROM programs WHERE schedule_id = $1 ORDER BY program_code",
+        schedule_id,
+    )
+
+    # T1+ subscribers receive dispensing rules embedded per program.
+    # Base subscribers receive the raw program list only.
+    if not is_tier_or_above(api_key_data, "starter"):
+        return {"data": [dict(r) for r in rows], "meta": {"total": len(rows)}}
+
+    rule_rows = await db.fetch(
         """
-        SELECT program_code, program_title
-        FROM programs WHERE schedule_id = $1
-        ORDER BY program_code
+        SELECT program_code, rule_code, dispensing_quantity, dispensing_unit, repeats_allowed, description
+        FROM program_dispensing_rules WHERE schedule_id = $1
+        ORDER BY program_code, rule_code
         """,
         schedule_id,
     )
-    return {"data": [dict(r) for r in rows], "meta": {"total": len(rows)}}
+    rules_by_program: dict[str, list] = {}
+    for r in rule_rows:
+        rules_by_program.setdefault(r["program_code"], []).append(dict(r))
+
+    programs = []
+    for r in rows:
+        p = dict(r)
+        p["dispensing_rules"] = rules_by_program.get(r["program_code"], [])
+        programs.append(p)
+
+    return {
+        "data": programs,
+        "meta": {
+            "total": len(programs),
+            "tier": tier_label(api_key_data),
+            "join_sources": ["/programs", "/program-dispensing-rules"],
+        },
+    }
 
 
 @router.get("/programs/{program_code}")

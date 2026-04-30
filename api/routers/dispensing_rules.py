@@ -1,6 +1,7 @@
 """Dispensing rules router — GET /v1/dispensing-rules"""
 from fastapi import APIRouter, Depends, Response, HTTPException, Query
 from api.middleware.rate_limit import check_rate_limit
+from api.middleware.tier import require_tier, tier_label
 from api.database import get_db
 from typing import Optional
 
@@ -56,6 +57,47 @@ async def list_dispensing_rules(
         )
 
     return {"data": [dict(r) for r in rows], "meta": {"total": len(rows)}}
+
+
+@router.get("/dispensing-rules/by-program/{program_code}")
+async def get_dispensing_rules_by_program(
+    program_code: str,
+    response: Response,
+    schedule: Optional[str] = Query(None),
+    api_key_data: dict = Depends(require_tier("starter")),
+    db=Depends(get_db),
+):
+    _rl(response, api_key_data)
+    schedule_id = await _resolve_schedule_id(db, schedule)
+
+    program = await db.fetchrow(
+        "SELECT program_code, program_title FROM programs WHERE program_code = $1 AND schedule_id = $2",
+        program_code.upper(), schedule_id,
+    )
+    if not program:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Program not found."})
+
+    rows = await db.fetch(
+        """
+        SELECT rule_code, dispensing_quantity, dispensing_unit, repeats_allowed, description
+        FROM program_dispensing_rules
+        WHERE program_code = $1 AND schedule_id = $2
+        ORDER BY rule_code
+        """,
+        program_code.upper(), schedule_id,
+    )
+    return {
+        "data": {
+            "program_code": program["program_code"],
+            "program_title": program["program_title"],
+            "dispensing_rules": [dict(r) for r in rows],
+        },
+        "meta": {
+            "total": len(rows),
+            "tier": tier_label(api_key_data),
+            "join_sources": ["/programs", "/dispensing-rules"],
+        },
+    }
 
 
 @router.get("/dispensing-rules/{rule_code}")
