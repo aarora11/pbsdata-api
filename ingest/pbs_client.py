@@ -33,16 +33,17 @@ class PBSClient:
         page = 1
         while True:
             page_params = {**params, "page": page, "limit": 10000}
-            for attempt in range(5):
+            for attempt in range(8):
                 response = await session.get(endpoint, params=page_params)
                 if response.status_code == 429:
-                    wait = 15 * (attempt + 1)
+                    retry_after = response.headers.get("Retry-After")
+                    wait = int(retry_after) if retry_after and retry_after.isdigit() else 30 * (attempt + 1)
                     await asyncio.sleep(wait)
                     continue
                 response.raise_for_status()
                 break
             else:
-                raise RuntimeError(f"Rate-limited on {endpoint} after 5 retries")
+                raise RuntimeError(f"Rate-limited on {endpoint} after 8 retries")
             content = response.text.strip()
             if not content:
                 break

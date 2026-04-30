@@ -132,9 +132,9 @@ async def run_ingest(
                     schedule_code = str(matched[-1]["schedule_code"])
                 log.info("ingest.resolved_schedule_code", schedule_code=schedule_code)
 
-                # Fetch all endpoints concurrently — max 5 in-flight at once to
+                # Fetch all endpoints concurrently — max 2 in-flight at once to
                 # stay well under the government API's rate limit.
-                sem = asyncio.Semaphore(5)
+                sem = asyncio.Semaphore(2)
 
                 async def fetch(endpoint_name, coro):
                     async with sem:
