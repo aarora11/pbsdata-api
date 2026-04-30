@@ -31,17 +31,7 @@ wait_for_complete() {
     local month="$1"
     echo "  Waiting for $month to complete..."
     while true; do
-        status=$(curl -sf "$API_BASE/v1/schedules" \
-            -H "X-API-Key: $API_KEY" 2>/dev/null | \
-            python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-for s in data.get('data', []):
-    if s['month'] == '$month':
-        print(s['ingest_status'])
-        sys.exit(0)
-print('not_found')
-" 2>/dev/null || echo "error")
+        status=$(check_status "$month")
 
         echo "  [$month] status: $status"
         if [[ "$status" == "complete" ]]; then
@@ -55,12 +45,33 @@ print('not_found')
     done
 }
 
+check_status() {
+    local month="$1"
+    curl -sf "$API_BASE/v1/schedules" \
+        -H "X-API-Key: $API_KEY" 2>/dev/null | \
+        python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for s in data.get('data', []):
+    if s['month'] == '$month':
+        print(s['ingest_status'])
+        sys.exit(0)
+print('not_found')
+" 2>/dev/null || echo "error"
+}
+
 echo "Starting backfill of ${#SCHEDULES[@]} schedules..."
 echo ""
 
 for entry in "${SCHEDULES[@]}"; do
     month=$(echo "$entry" | cut -d' ' -f1)
     schedule_date=$(echo "$entry" | cut -d' ' -f2)
+
+    current_status=$(check_status "$month")
+    if [[ "$current_status" == "complete" ]]; then
+        echo "==> Skipping $month (already complete)"
+        continue
+    fi
 
     echo "==> Triggering ingest for $month (schedule_date=$schedule_date)"
 
