@@ -1,6 +1,7 @@
 """Restrictions router — GET /v1/restrictions"""
 from fastapi import APIRouter, Depends, Response, HTTPException, Query
 from api.middleware.rate_limit import check_rate_limit
+from api.middleware.tier import is_tier_or_above, tier_label
 from api.database import get_db
 from typing import Optional
 
@@ -130,4 +131,38 @@ async def get_restriction(
 
     result = dict(row)
     result["id"] = str(result["id"])
-    return result
+
+    # T2+ subscribers receive the prescribing text chain joined in.
+    # Base subscribers receive the raw restriction record only.
+    if not is_tier_or_above(api_key_data, "growth"):
+        return result
+
+    prescribing_text_rels = await db.fetch(
+        """
+        SELECT rel.prescribing_text_id, pt.text_type, pt.prescribing_txt, pt.complex_authority_required
+        FROM restriction_prescribing_text_relationships rel
+        JOIN prescribing_texts pt ON pt.prescribing_text_id = rel.prescribing_text_id AND pt.schedule_id = rel.schedule_id
+        WHERE rel.restriction_code = $1 AND rel.schedule_id = $2
+        ORDER BY rel.prescribing_text_id
+        """,
+        restriction_code.upper(), schedule_id,
+    )
+
+    return {
+        "data": {
+            **result,
+            "prescribing_components": [
+                {
+                    "prescribing_text_id": r["prescribing_text_id"],
+                    "type": r["text_type"],
+                    "text": r["prescribing_txt"],
+                    "complex_authority_required": r["complex_authority_required"],
+                }
+                for r in prescribing_text_rels
+            ],
+        },
+        "meta": {
+            "tier": tier_label(api_key_data),
+            "join_sources": ["/restrictions", "/restriction-prescribing-text-relationships", "/prescribing-texts"],
+        },
+    }

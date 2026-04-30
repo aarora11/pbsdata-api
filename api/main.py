@@ -153,6 +153,7 @@ from api.routers import (
     containers, criteria, parameters, prescribers, markup_bands,
     item_pricing_events, extemporaneous_ingredients, extemporaneous_preparations,
     extemporaneous_tariffs, standard_formula_preparations,
+    drugs,
 )
 from api.routers.auth import router as auth_router
 
@@ -183,3 +184,4 @@ app.include_router(extemporaneous_ingredients.router, prefix="/v1")
 app.include_router(extemporaneous_preparations.router, prefix="/v1")
 app.include_router(extemporaneous_tariffs.router, prefix="/v1")
 app.include_router(standard_formula_preparations.router, prefix="/v1")
+app.include_router(drugs.router, prefix="/v1")

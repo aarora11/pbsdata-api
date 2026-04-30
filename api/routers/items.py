@@ -1,7 +1,7 @@
 """Items router — full implementation."""
 from fastapi import APIRouter, Depends, Response, HTTPException, Query
 from api.middleware.rate_limit import check_rate_limit
-from api.middleware.tier import is_tier_or_above, tier_label
+from api.middleware.tier import is_tier_or_above, require_tier, tier_label
 from api.database import get_db
 from typing import Optional
 import datetime
@@ -156,6 +156,205 @@ async def get_item(
                 "/items", "/medicines", "/restrictions",
                 "/organisations", "/programs", "/atc-codes", "/prescribers",
             ],
+        },
+    }
+
+
+@router.get("/items/{pbs_code}/price")
+async def get_item_price(
+    pbs_code: str,
+    response: Response,
+    schedule: Optional[str] = Query(None),
+    api_key_data: dict = Depends(check_rate_limit),
+    db=Depends(get_db),
+):
+    if not is_tier_or_above(api_key_data, "growth"):
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "TIER_INSUFFICIENT", "message": "This endpoint requires T2 (growth) tier or above."},
+        )
+    _rl(response, api_key_data)
+
+    if schedule:
+        sched_row = await db.fetchrow("SELECT id, month FROM schedules WHERE month = $1", schedule)
+    else:
+        sched_row = await db.fetchrow(
+            "SELECT id, month FROM schedules WHERE ingest_status = 'complete' ORDER BY month DESC LIMIT 1"
+        )
+    if not sched_row:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Schedule not found."})
+    schedule_id, schedule_month = sched_row["id"], sched_row["month"]
+
+    item = await db.fetchrow(
+        """
+        SELECT i.pbs_code, i.brand_name, i.government_price, i.general_charge,
+               i.concessional_charge, i.brand_premium, i.formulary, i.program_code,
+               m.ingredient
+        FROM items i JOIN medicines m ON m.id = i.medicine_id
+        WHERE i.pbs_code = $1 AND i.schedule_id = $2
+        """,
+        pbs_code.upper(), schedule_id,
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Item not found."})
+
+    pricing_rows = await db.fetch(
+        """
+        SELECT li_item_id, dispensing_rule_mnem, commonwealth_price,
+               max_general_patient_charge, brand_premium,
+               fee_dispensing, fee_dispensing_dangerous_drug,
+               fee_container_other, fee_container_injectable,
+               special_patient_contribution
+        FROM item_pricing
+        WHERE pbs_code = $1 AND schedule_id = $2
+        ORDER BY li_item_id, dispensing_rule_mnem
+        """,
+        pbs_code.upper(), schedule_id,
+    )
+    copayment = await db.fetchrow(
+        "SELECT general, concessional FROM copayments WHERE schedule_id = $1",
+        schedule_id,
+    )
+
+    def _f(v):
+        return float(v) if v is not None else None
+
+    contexts = []
+    for r in pricing_rows:
+        dpmq = _f(r["commonwealth_price"])
+        gen_cp = _f(copayment["general"]) if copayment else None
+        con_cp = _f(copayment["concessional"]) if copayment else None
+        max_charge = _f(r["max_general_patient_charge"])
+        gen_patient = min(dpmq, max_charge or dpmq) if dpmq is not None else None
+        gov_pays = round(dpmq - gen_patient, 2) if (dpmq is not None and gen_patient is not None) else None
+
+        contexts.append({
+            "li_item_id": r["li_item_id"],
+            "dispensing_rule_mnem": r["dispensing_rule_mnem"],
+            "commonwealth_price": dpmq,
+            "max_general_patient_charge": max_charge,
+            "brand_premium": _f(r["brand_premium"]),
+            "fees": {
+                "dispensing_fee": _f(r["fee_dispensing"]),
+                "dangerous_drug_fee": _f(r["fee_dispensing_dangerous_drug"]),
+                "container_fee_other": _f(r["fee_container_other"]),
+                "container_fee_injectable": _f(r["fee_container_injectable"]),
+            },
+            "patient_outcome": {
+                "general_patient_charge": gen_patient,
+                "concessional_patient_charge": con_cp,
+                "government_pays": gov_pays,
+            },
+        })
+
+    return {
+        "data": {
+            "pbs_code": item["pbs_code"],
+            "drug_name": item["ingredient"],
+            "brand_name": item["brand_name"],
+            "formulary": item["formulary"],
+            "government_price": _f(item["government_price"]),
+            "pricing_contexts": contexts,
+            "co_payment_reference": {
+                "general": _f(copayment["general"]) if copayment else None,
+                "concessional": _f(copayment["concessional"]) if copayment else None,
+            },
+        },
+        "meta": {
+            "schedule_code": schedule_month,
+            "tier": tier_label(api_key_data),
+            "join_sources": ["/items", "/item-dispensing-rule-relationships", "/copayments"],
+        },
+    }
+
+
+@router.get("/items/{pbs_code}/patient-cost")
+async def get_item_patient_cost(
+    pbs_code: str,
+    response: Response,
+    schedule: Optional[str] = Query(None),
+    api_key_data: dict = Depends(check_rate_limit),
+    db=Depends(get_db),
+):
+    if not is_tier_or_above(api_key_data, "growth"):
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "TIER_INSUFFICIENT", "message": "This endpoint requires T2 (growth) tier or above."},
+        )
+    _rl(response, api_key_data)
+
+    if schedule:
+        sched_row = await db.fetchrow("SELECT id, month FROM schedules WHERE month = $1", schedule)
+    else:
+        sched_row = await db.fetchrow(
+            "SELECT id, month FROM schedules WHERE ingest_status = 'complete' ORDER BY month DESC LIMIT 1"
+        )
+    if not sched_row:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Schedule not found."})
+    schedule_id = sched_row["id"]
+
+    item = await db.fetchrow(
+        "SELECT i.pbs_code, i.brand_name, i.brand_premium, m.ingredient FROM items i JOIN medicines m ON m.id = i.medicine_id WHERE i.pbs_code = $1 AND i.schedule_id = $2",
+        pbs_code.upper(), schedule_id,
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Item not found."})
+
+    pricing = await db.fetchrow(
+        "SELECT commonwealth_price, max_general_patient_charge, brand_premium FROM item_pricing WHERE pbs_code = $1 AND schedule_id = $2 ORDER BY commonwealth_price DESC NULLS LAST LIMIT 1",
+        pbs_code.upper(), schedule_id,
+    )
+    copayment = await db.fetchrow(
+        "SELECT general, concessional, safety_net_general, safety_net_concessional, increased_discount_limit FROM copayments WHERE schedule_id = $1",
+        schedule_id,
+    )
+
+    def _f(v):
+        return float(v) if v is not None else None
+
+    dpmq = _f(pricing["commonwealth_price"]) if pricing else _f(item.get("government_price"))
+    gen_cp = _f(copayment["general"]) if copayment else None
+    con_cp = _f(copayment["concessional"]) if copayment else None
+    sn_gen = _f(copayment["safety_net_general"]) if copayment else None
+    sn_con = _f(copayment["safety_net_concessional"]) if copayment else None
+    idl = _f(copayment["increased_discount_limit"]) if copayment else None
+    brand_premium = _f(pricing["brand_premium"]) if pricing else _f(item["brand_premium"])
+    max_charge = _f(pricing["max_general_patient_charge"]) if pricing else None
+
+    you_pay_gen = min(dpmq, max_charge or dpmq) if dpmq is not None else None
+    you_pay_con = min(dpmq, con_cp) if (dpmq is not None and con_cp is not None) else con_cp
+    gov_pays_gen = round(dpmq - you_pay_gen, 2) if (dpmq and you_pay_gen is not None) else None
+    gov_pays_con = round(dpmq - you_pay_con, 2) if (dpmq and you_pay_con is not None) else None
+    scripts_gen = round(sn_gen / you_pay_gen) if (sn_gen and you_pay_gen) else None
+    scripts_con = round(sn_con / you_pay_con) if (sn_con and you_pay_con) else None
+
+    return {
+        "data": {
+            "pbs_code": item["pbs_code"],
+            "drug_name": item["ingredient"],
+            "brand_name": item["brand_name"],
+            "dispensed_price": dpmq,
+            "general_patient": {
+                "copayment": gen_cp,
+                "you_pay": you_pay_gen,
+                "brand_premium": brand_premium or 0.0,
+                "total_out_of_pocket": you_pay_gen,
+                "government_pays": gov_pays_gen,
+                "safety_net_threshold": sn_gen,
+                "estimated_scripts_to_safety_net": scripts_gen,
+            },
+            "concessional_patient": {
+                "copayment": con_cp,
+                "you_pay": you_pay_con,
+                "brand_premium": brand_premium or 0.0,
+                "total_out_of_pocket": you_pay_con,
+                "government_pays": gov_pays_con,
+                "safety_net_threshold": sn_con,
+                "estimated_scripts_to_safety_net": scripts_con,
+            },
+            "discount_zone": {
+                "increased_discount_limit": idl,
+            },
         },
     }
 
