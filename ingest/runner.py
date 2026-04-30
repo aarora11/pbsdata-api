@@ -132,75 +132,84 @@ async def run_ingest(
                     schedule_code = str(matched[-1]["schedule_code"])
                 log.info("ingest.resolved_schedule_code", schedule_code=schedule_code)
 
-                # Phase 1: Core item and restriction data
-                raw_items = await client.get_all_items(schedule_code)
-                raw_restrictions = await client.get_all_restrictions(schedule_code)
-                log.info("ingest.fetched_core", items=len(raw_items), restrictions=len(raw_restrictions))
+                # Fetch all endpoints concurrently — max 5 in-flight at once to
+                # stay well under the government API's rate limit.
+                sem = asyncio.Semaphore(5)
 
-                # Phases 2–5: reference + relationship data fetched sequentially
-                raw_fees = await client.get_all_fees(schedule_code)
-                log.info("ingest.fetched", endpoint="/fees", count=len(raw_fees))
-                raw_prescribing_texts = await client.get_all_prescribing_texts(schedule_code)
-                log.info("ingest.fetched", endpoint="/prescribing-texts", count=len(raw_prescribing_texts))
-                raw_indications = await client.get_all_indications(schedule_code)
-                log.info("ingest.fetched", endpoint="/indications", count=len(raw_indications))
-                raw_amt_items = await client.get_all_amt_items(schedule_code)
-                log.info("ingest.fetched", endpoint="/amt-items", count=len(raw_amt_items))
-                raw_program_dispensing_rules = await client.get_all_program_dispensing_rules(schedule_code)
-                log.info("ingest.fetched", endpoint="/dispensing-rules", count=len(raw_program_dispensing_rules))
-                raw_organisations = await client.get_all_organisations(schedule_code)
-                log.info("ingest.fetched", endpoint="/organisations", count=len(raw_organisations))
-                raw_programs = await client.get_all_programs(schedule_code)
-                log.info("ingest.fetched", endpoint="/programs", count=len(raw_programs))
-                raw_copayments = await client.get_all_copayments(schedule_code)
-                log.info("ingest.fetched", endpoint="/copayments", count=len(raw_copayments))
-                raw_atc_codes = await client.get_all_atc_codes(schedule_code)
-                log.info("ingest.fetched", endpoint="/atc-codes", count=len(raw_atc_codes))
+                async def fetch(endpoint_name, coro):
+                    async with sem:
+                        result = await coro
+                        log.info("ingest.fetched", endpoint=endpoint_name, count=len(result))
+                        return result
+
+                (
+                    raw_items,
+                    raw_restrictions,
+                    raw_fees,
+                    raw_prescribing_texts,
+                    raw_indications,
+                    raw_amt_items,
+                    raw_program_dispensing_rules,
+                    raw_organisations,
+                    raw_programs,
+                    raw_copayments,
+                    raw_atc_codes,
+                    raw_item_dispensing_rules,
+                    raw_item_restriction_rels,
+                    raw_restriction_prescribing_text_rels,
+                    raw_item_prescribing_texts,
+                    raw_item_atc_relationships,
+                    raw_item_organisation_relationships,
+                    raw_summary_of_changes,
+                    raw_containers,
+                    raw_container_org_rels,
+                    raw_criteria,
+                    raw_criteria_parameter_rels,
+                    raw_parameters,
+                    raw_prescribers,
+                    raw_markup_bands,
+                    raw_item_pricing_events,
+                    raw_extemporaneous_ingredients,
+                    raw_extemporaneous_preparations,
+                    raw_extemporaneous_prep_sfp_rels,
+                    raw_extemporaneous_tariffs,
+                    raw_standard_formula_preparations,
+                ) = await asyncio.gather(
+                    fetch("/items",                                    client.get_all_items(schedule_code)),
+                    fetch("/restrictions",                             client.get_all_restrictions(schedule_code)),
+                    fetch("/fees",                                     client.get_all_fees(schedule_code)),
+                    fetch("/prescribing-texts",                        client.get_all_prescribing_texts(schedule_code)),
+                    fetch("/indications",                              client.get_all_indications(schedule_code)),
+                    fetch("/amt-items",                                client.get_all_amt_items(schedule_code)),
+                    fetch("/dispensing-rules",                         client.get_all_program_dispensing_rules(schedule_code)),
+                    fetch("/organisations",                            client.get_all_organisations(schedule_code)),
+                    fetch("/programs",                                 client.get_all_programs(schedule_code)),
+                    fetch("/copayments",                               client.get_all_copayments(schedule_code)),
+                    fetch("/atc-codes",                                client.get_all_atc_codes(schedule_code)),
+                    fetch("/item-dispensing-rule-relationships",       client.get_all_item_dispensing_rules(schedule_code)),
+                    fetch("/item-restriction-relationships",           client.get_all_item_restriction_relationships(schedule_code)),
+                    fetch("/restriction-prescribing-text-relationships", client.get_all_restriction_prescribing_text_relationships(schedule_code)),
+                    fetch("/item-prescribing-text-relationships",      client.get_all_item_prescribing_texts(schedule_code)),
+                    fetch("/item-atc-relationships",                   client.get_all_item_atc_relationships(schedule_code)),
+                    fetch("/item-organisation-relationships",          client.get_all_item_organisation_relationships(schedule_code)),
+                    fetch("/summary-of-changes",                       client.get_all_summary_of_changes(schedule_code)),
+                    fetch("/containers",                               client.get_all_containers(schedule_code)),
+                    fetch("/container-organisation-relationships",     client.get_all_container_organisation_relationships(schedule_code)),
+                    fetch("/criteria",                                 client.get_all_criteria(schedule_code)),
+                    fetch("/criteria-parameter-relationships",         client.get_all_criteria_parameter_relationships(schedule_code)),
+                    fetch("/parameters",                               client.get_all_parameters(schedule_code)),
+                    fetch("/prescribers",                              client.get_all_prescribers(schedule_code)),
+                    fetch("/markup-bands",                             client.get_all_markup_bands(schedule_code)),
+                    fetch("/item-pricing-events",                      client.get_all_item_pricing_events(schedule_code)),
+                    fetch("/extemporaneous-ingredients",               client.get_all_extemporaneous_ingredients(schedule_code)),
+                    fetch("/extemporaneous-preparations",              client.get_all_extemporaneous_preparations(schedule_code)),
+                    fetch("/extemporaneous-prep-sfp-relationships",    client.get_all_extemporaneous_prep_sfp_relationships(schedule_code)),
+                    fetch("/extemporaneous-tariffs",                   client.get_all_extemporaneous_tariffs(schedule_code)),
+                    fetch("/standard-formula-preparations",            client.get_all_standard_formula_preparations(schedule_code)),
+                )
 
                 raw_item_overviews = []
                 raw_item_amt = []
-                raw_item_dispensing_rules = await client.get_all_item_dispensing_rules(schedule_code)
-                log.info("ingest.fetched", endpoint="/item-dispensing-rule-relationships", count=len(raw_item_dispensing_rules))
-                raw_item_restriction_rels = await client.get_all_item_restriction_relationships(schedule_code)
-                log.info("ingest.fetched", endpoint="/item-restriction-relationships", count=len(raw_item_restriction_rels))
-                raw_restriction_prescribing_text_rels = await client.get_all_restriction_prescribing_text_relationships(schedule_code)
-                log.info("ingest.fetched", endpoint="/restriction-prescribing-text-relationships", count=len(raw_restriction_prescribing_text_rels))
-                raw_item_prescribing_texts = await client.get_all_item_prescribing_texts(schedule_code)
-                log.info("ingest.fetched", endpoint="/item-prescribing-text-relationships", count=len(raw_item_prescribing_texts))
-                raw_item_atc_relationships = await client.get_all_item_atc_relationships(schedule_code)
-                log.info("ingest.fetched", endpoint="/item-atc-relationships", count=len(raw_item_atc_relationships))
-                raw_item_organisation_relationships = await client.get_all_item_organisation_relationships(schedule_code)
-                log.info("ingest.fetched", endpoint="/item-organisation-relationships", count=len(raw_item_organisation_relationships))
-                raw_summary_of_changes = await client.get_all_summary_of_changes(schedule_code)
-                log.info("ingest.fetched", endpoint="/summary-of-changes", count=len(raw_summary_of_changes))
-
-                # New endpoints (migration 007)
-                raw_containers = await client.get_all_containers(schedule_code)
-                log.info("ingest.fetched", endpoint="/containers", count=len(raw_containers))
-                raw_container_org_rels = await client.get_all_container_organisation_relationships(schedule_code)
-                log.info("ingest.fetched", endpoint="/container-organisation-relationships", count=len(raw_container_org_rels))
-                raw_criteria = await client.get_all_criteria(schedule_code)
-                log.info("ingest.fetched", endpoint="/criteria", count=len(raw_criteria))
-                raw_criteria_parameter_rels = await client.get_all_criteria_parameter_relationships(schedule_code)
-                log.info("ingest.fetched", endpoint="/criteria-parameter-relationships", count=len(raw_criteria_parameter_rels))
-                raw_parameters = await client.get_all_parameters(schedule_code)
-                log.info("ingest.fetched", endpoint="/parameters", count=len(raw_parameters))
-                raw_prescribers = await client.get_all_prescribers(schedule_code)
-                log.info("ingest.fetched", endpoint="/prescribers", count=len(raw_prescribers))
-                raw_markup_bands = await client.get_all_markup_bands(schedule_code)
-                log.info("ingest.fetched", endpoint="/markup-bands", count=len(raw_markup_bands))
-                raw_item_pricing_events = await client.get_all_item_pricing_events(schedule_code)
-                log.info("ingest.fetched", endpoint="/item-pricing-events", count=len(raw_item_pricing_events))
-                raw_extemporaneous_ingredients = await client.get_all_extemporaneous_ingredients(schedule_code)
-                log.info("ingest.fetched", endpoint="/extemporaneous-ingredients", count=len(raw_extemporaneous_ingredients))
-                raw_extemporaneous_preparations = await client.get_all_extemporaneous_preparations(schedule_code)
-                log.info("ingest.fetched", endpoint="/extemporaneous-preparations", count=len(raw_extemporaneous_preparations))
-                raw_extemporaneous_prep_sfp_rels = await client.get_all_extemporaneous_prep_sfp_relationships(schedule_code)
-                log.info("ingest.fetched", endpoint="/extemporaneous-prep-sfp-relationships", count=len(raw_extemporaneous_prep_sfp_rels))
-                raw_extemporaneous_tariffs = await client.get_all_extemporaneous_tariffs(schedule_code)
-                log.info("ingest.fetched", endpoint="/extemporaneous-tariffs", count=len(raw_extemporaneous_tariffs))
-                raw_standard_formula_preparations = await client.get_all_standard_formula_preparations(schedule_code)
-                log.info("ingest.fetched", endpoint="/standard-formula-preparations", count=len(raw_standard_formula_preparations))
 
             finally:
                 await client.close()
