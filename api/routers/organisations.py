@@ -116,6 +116,98 @@ async def search_organisations(
     }
 
 
+@router.get("/organisations/{organisation_id}/portfolio")
+async def get_organisation_portfolio(
+    organisation_id: int,
+    response: Response,
+    schedule: Optional[str] = Query(None),
+    benefit_type: Optional[str] = Query(None, description="Filter by benefit type: U, R, A, S"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    api_key_data: dict = Depends(require_tier("scale")),
+    db=Depends(get_db),
+):
+    _rl(response, api_key_data)
+    schedule_id = await _resolve_schedule_id(db, schedule)
+
+    org = await db.fetchrow(
+        "SELECT organisation_id, name, state FROM organisations WHERE organisation_id = $1 AND schedule_id = $2",
+        organisation_id, schedule_id,
+    )
+    if not org:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Organisation not found."})
+
+    conditions = ["ior.organisation_id = $1", "ior.schedule_id = $2"]
+    params: list = [organisation_id, schedule_id]
+
+    if benefit_type:
+        params.append(benefit_type.upper())
+        conditions.append(f"i.benefit_type = ${len(params)}")
+
+    where = " AND ".join(conditions)
+    count_sql = f"""
+        SELECT COUNT(*)
+        FROM item_organisation_relationships ior
+        JOIN items i ON i.pbs_code = ior.pbs_code AND i.schedule_id = ior.schedule_id
+        WHERE {where}
+    """
+    data_sql = f"""
+        SELECT i.pbs_code, i.brand_name, i.form, i.strength, i.pack_size,
+               i.benefit_type, i.formulary, i.program_code,
+               i.general_charge, i.government_price,
+               m.ingredient, m.atc_code
+        FROM item_organisation_relationships ior
+        JOIN items i ON i.pbs_code = ior.pbs_code AND i.schedule_id = ior.schedule_id
+        JOIN medicines m ON m.id = i.medicine_id
+        WHERE {where}
+        ORDER BY m.ingredient, i.pbs_code
+        LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}
+    """
+    offset = (page - 1) * limit
+    total = await db.fetchval(count_sql, *params)
+    rows = await db.fetch(data_sql, *params, limit, offset)
+
+    def _f(v):
+        return float(v) if v is not None else None
+
+    benefit_labels = {"U": "Unrestricted", "R": "Restricted", "A": "Authority Required", "S": "Streamlined Authority"}
+    items = []
+    for r in rows:
+        bc = r["benefit_type"] or "U"
+        items.append({
+            "pbs_code": r["pbs_code"],
+            "ingredient": r["ingredient"],
+            "brand_name": r["brand_name"],
+            "form": r["form"],
+            "strength": r["strength"],
+            "pack_size": r["pack_size"],
+            "benefit_type_code": bc,
+            "benefit_type_label": benefit_labels.get(bc, bc),
+            "formulary": r["formulary"],
+            "program_code": r["program_code"],
+            "atc_code": r["atc_code"],
+            "general_charge": _f(r["general_charge"]),
+            "government_price": _f(r["government_price"]),
+        })
+
+    return {
+        "data": {
+            "organisation_id": org["organisation_id"],
+            "organisation_name": org["name"],
+            "state": org["state"],
+            "item_count": total or 0,
+            "items": items,
+        },
+        "meta": {
+            "total": total or 0,
+            "page": page,
+            "limit": limit,
+            "tier": tier_label(api_key_data),
+            "join_sources": ["/organisations", "/item-organisation-relationships", "/items"],
+        },
+    }
+
+
 @router.get("/organisations/{organisation_id}")
 async def get_organisation(
     organisation_id: int,

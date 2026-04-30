@@ -395,6 +395,105 @@ async def get_item_prescribing_texts(
     return {"data": [dict(r) for r in rows], "meta": {"total": len(rows)}}
 
 
+@router.get("/items/{li_item_id}/dispensing-context")
+async def get_item_dispensing_context(
+    li_item_id: str,
+    response: Response,
+    schedule: Optional[str] = Query(None),
+    api_key_data: dict = Depends(require_tier("scale")),
+    db=Depends(get_db),
+):
+    _rl(response, api_key_data)
+
+    if schedule:
+        sched_row = await db.fetchrow("SELECT id, month FROM schedules WHERE month = $1", schedule)
+    else:
+        sched_row = await db.fetchrow(
+            "SELECT id, month FROM schedules WHERE ingest_status = 'complete' ORDER BY month DESC LIMIT 1"
+        )
+    if not sched_row:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Schedule not found."})
+    schedule_id, schedule_month = sched_row["id"], sched_row["month"]
+
+    pricing_rows = await db.fetch(
+        """
+        SELECT ip.li_item_id, ip.pbs_code, ip.dispensing_rule_mnem,
+               ip.commonwealth_price, ip.max_general_patient_charge,
+               ip.brand_premium, ip.special_patient_contribution,
+               ip.fee_dispensing, ip.fee_dispensing_dangerous_drug,
+               ip.fee_container_other, ip.fee_container_injectable,
+               i.program_code, i.dangerous_drug
+        FROM item_pricing ip
+        JOIN items i ON i.pbs_code = ip.pbs_code AND i.schedule_id = ip.schedule_id
+        WHERE ip.li_item_id = $1 AND ip.schedule_id = $2
+        ORDER BY ip.dispensing_rule_mnem
+        """,
+        li_item_id, schedule_id,
+    )
+    if not pricing_rows:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Item not found for this li_item_id."})
+
+    def _f(v):
+        return float(v) if v is not None else None
+
+    program_code = pricing_rows[0]["program_code"]
+    contexts = []
+    for pr in pricing_rows:
+        markup_bands = await db.fetch(
+            """
+            SELECT markup_band_code, limit_amount, variable_rate, offset_amount, fixed_amount
+            FROM markup_bands
+            WHERE schedule_id = $1 AND program_code = $2 AND dispensing_rule_mnem = $3
+            ORDER BY limit_amount NULLS LAST
+            """,
+            schedule_id, program_code, pr["dispensing_rule_mnem"],
+        )
+        dpmq = _f(pr["commonwealth_price"])
+        fee_disp = _f(pr["fee_dispensing"])
+        fee_dd = _f(pr["fee_dispensing_dangerous_drug"])
+        fee_container = _f(pr["fee_container_other"])
+        total_fees = sum(x for x in [fee_disp, fee_dd if pr["dangerous_drug"] else None, fee_container] if x is not None)
+
+        contexts.append({
+            "dispensing_rule_mnem": pr["dispensing_rule_mnem"],
+            "commonwealth_price": dpmq,
+            "max_general_patient_charge": _f(pr["max_general_patient_charge"]),
+            "brand_premium": _f(pr["brand_premium"]),
+            "special_patient_contribution": _f(pr["special_patient_contribution"]),
+            "fees": {
+                "dispensing_fee": fee_disp,
+                "dangerous_drug_fee": fee_dd,
+                "container_fee_other": fee_container,
+                "container_fee_injectable": _f(pr["fee_container_injectable"]),
+                "total_fees": round(total_fees, 2),
+            },
+            "markup_bands": [
+                {
+                    "band_code": mb["markup_band_code"],
+                    "limit_amount": _f(mb["limit_amount"]),
+                    "variable_rate": _f(mb["variable_rate"]),
+                    "offset_amount": _f(mb["offset_amount"]),
+                    "fixed_amount": _f(mb["fixed_amount"]),
+                }
+                for mb in markup_bands
+            ],
+        })
+
+    return {
+        "data": {
+            "li_item_id": li_item_id,
+            "pbs_code": pricing_rows[0]["pbs_code"],
+            "program_code": program_code,
+            "dispensing_contexts": contexts,
+        },
+        "meta": {
+            "schedule_code": schedule_month,
+            "tier": tier_label(api_key_data),
+            "join_sources": ["/item-pricing", "/markup-bands", "/items"],
+        },
+    }
+
+
 @router.get("/items/{pbs_code}/dispensing-rules")
 async def get_item_dispensing_rules(
     pbs_code: str,

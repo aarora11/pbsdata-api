@@ -168,6 +168,117 @@ async def get_atc_children(
     }
 
 
+@router.get("/atc-codes/{atc_code}/items")
+async def get_atc_code_items(
+    atc_code: str,
+    response: Response,
+    schedule: Optional[str] = Query(None),
+    include_descendants: bool = Query(False, description="Include all drugs in descendant ATC codes"),
+    benefit_type: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    api_key_data: dict = Depends(require_tier("scale")),
+    db=Depends(get_db),
+):
+    _rl(response, api_key_data)
+    schedule_id = await _resolve_schedule_id(db, schedule)
+
+    if not await db.fetchval(
+        "SELECT 1 FROM atc_codes WHERE atc_code = $1 AND schedule_id = $2", atc_code.upper(), schedule_id
+    ):
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "ATC code not found."})
+
+    if include_descendants:
+        # Recursive CTE to collect all descendant ATC codes, then join to items
+        atc_filter_sql = """
+            WITH RECURSIVE descendants AS (
+                SELECT atc_code FROM atc_codes WHERE atc_code = $1 AND schedule_id = $2
+                UNION ALL
+                SELECT c.atc_code FROM atc_codes c
+                JOIN descendants d ON c.atc_parent_code = d.atc_code WHERE c.schedule_id = $2
+            )
+            SELECT DISTINCT i.pbs_code, i.brand_name, i.form, i.strength, i.pack_size,
+                   i.benefit_type, i.formulary, i.program_code, i.general_charge,
+                   m.ingredient, m.atc_code AS medicine_atc_code,
+                   iar.atc_code AS matched_atc_code
+            FROM descendants d
+            JOIN item_atc_relationships iar ON iar.atc_code = d.atc_code AND iar.schedule_id = $2
+            JOIN items i ON i.pbs_code = iar.pbs_code AND i.schedule_id = $2
+            JOIN medicines m ON m.id = i.medicine_id
+        """
+        base_params: list = [atc_code.upper(), schedule_id]
+    else:
+        atc_filter_sql = """
+            SELECT i.pbs_code, i.brand_name, i.form, i.strength, i.pack_size,
+                   i.benefit_type, i.formulary, i.program_code, i.general_charge,
+                   m.ingredient, m.atc_code AS medicine_atc_code,
+                   iar.atc_code AS matched_atc_code
+            FROM item_atc_relationships iar
+            JOIN items i ON i.pbs_code = iar.pbs_code AND i.schedule_id = $2
+            JOIN medicines m ON m.id = i.medicine_id
+            WHERE iar.atc_code = $1 AND iar.schedule_id = $2
+        """
+        base_params = [atc_code.upper(), schedule_id]
+
+    conditions = []
+    extra_params: list = []
+    if benefit_type:
+        extra_params.append(benefit_type.upper())
+        conditions.append(f"benefit_type = ${len(base_params) + len(extra_params)}")
+
+    where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    offset = (page - 1) * limit
+    all_params = base_params + extra_params
+
+    count_sql = f"SELECT COUNT(*) FROM ({atc_filter_sql}) AS sub {where_clause}"
+    data_sql = (
+        f"SELECT * FROM ({atc_filter_sql}) AS sub {where_clause} "
+        f"ORDER BY ingredient, pbs_code "
+        f"LIMIT ${len(all_params) + 1} OFFSET ${len(all_params) + 2}"
+    )
+
+    total = await db.fetchval(count_sql, *all_params)
+    rows = await db.fetch(data_sql, *all_params, limit, offset)
+
+    def _f(v):
+        return float(v) if v is not None else None
+
+    benefit_labels = {"U": "Unrestricted", "R": "Restricted", "A": "Authority Required", "S": "Streamlined Authority"}
+    data = []
+    for r in rows:
+        bc = r["benefit_type"] or "U"
+        data.append({
+            "pbs_code": r["pbs_code"],
+            "ingredient": r["ingredient"],
+            "brand_name": r["brand_name"],
+            "form": r["form"],
+            "strength": r["strength"],
+            "pack_size": r["pack_size"],
+            "benefit_type_code": bc,
+            "benefit_type_label": benefit_labels.get(bc, bc),
+            "formulary": r["formulary"],
+            "program_code": r["program_code"],
+            "matched_atc_code": r["matched_atc_code"],
+            "general_charge": _f(r["general_charge"]),
+        })
+
+    return {
+        "data": {
+            "atc_code": atc_code.upper(),
+            "include_descendants": include_descendants,
+            "item_count": total or 0,
+            "items": data,
+        },
+        "meta": {
+            "total": total or 0,
+            "page": page,
+            "limit": limit,
+            "tier": tier_label(api_key_data),
+            "join_sources": ["/atc-codes", "/item-atc-relationships", "/items"],
+        },
+    }
+
+
 @router.get("/atc-codes/{atc_code}")
 async def get_atc_code(
     atc_code: str,
