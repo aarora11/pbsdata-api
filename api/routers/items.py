@@ -1,6 +1,7 @@
 """Items router — full implementation."""
 from fastapi import APIRouter, Depends, Response, HTTPException, Query
 from api.middleware.rate_limit import check_rate_limit
+from api.middleware.tier import is_tier_or_above, tier_label
 from api.database import get_db
 from typing import Optional
 import datetime
@@ -48,18 +49,18 @@ async def get_item(
     _rl(response, api_key_data)
     check_history_limit(api_key_data, schedule)
 
-    # Get schedule
     if schedule:
-        sched_row = await db.fetchrow("SELECT id FROM schedules WHERE month = $1", schedule)
-        schedule_id = sched_row["id"] if sched_row else None
+        sched_row = await db.fetchrow("SELECT id, month FROM schedules WHERE month = $1", schedule)
     else:
         sched_row = await db.fetchrow(
-            "SELECT id FROM schedules WHERE ingest_status = 'complete' ORDER BY month DESC LIMIT 1"
+            "SELECT id, month FROM schedules WHERE ingest_status = 'complete' ORDER BY month DESC LIMIT 1"
         )
-        schedule_id = sched_row["id"] if sched_row else None
 
-    if not schedule_id:
+    if not sched_row:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Item not found."})
+
+    schedule_id = sched_row["id"]
+    schedule_month = sched_row["month"]
 
     item = await db.fetchrow(
         """
@@ -79,19 +80,84 @@ async def get_item(
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Item not found."})
 
     restrictions = await db.fetch(
-        "SELECT streamlined_code, indication, restriction_text, prescriber_type, authority_required, continuation_only FROM restrictions WHERE item_id = $1",
+        """
+        SELECT streamlined_code, indication, restriction_text, prescriber_type,
+               authority_required, continuation_only
+        FROM restrictions WHERE item_id = $1
+        """,
         item["id"],
     )
 
     result = dict(item)
     result["restrictions"] = [dict(r) for r in restrictions]
-    # Convert UUID and Decimal to serializable types
     result["id"] = str(result["id"])
     for field in ["general_charge", "concessional_charge", "government_price", "brand_premium"]:
         if result.get(field) is not None:
             result[field] = float(result[field])
 
-    return result
+    # T2+ subscribers receive an enriched response with manufacturer, ATC,
+    # program and prescriber joins resolved. Base subscribers get the raw
+    # passthrough above. See pbs_joined_api_spec.md §2.6 for the design decision.
+    if not is_tier_or_above(api_key_data, "growth"):
+        return result
+
+    # ── T2+ enrichment ────────────────────────────────────────────────────────
+
+    # Manufacturer (primary organisation for this pbs_code)
+    org_row = await db.fetchrow(
+        """
+        SELECT o.organisation_id, o.name, o.state, o.abn
+        FROM item_organisation_relationships ior
+        JOIN organisations o
+          ON o.organisation_id = ior.organisation_id AND o.schedule_id = ior.schedule_id
+        WHERE ior.pbs_code = $1 AND ior.schedule_id = $2
+        LIMIT 1
+        """,
+        pbs_code.upper(), schedule_id,
+    )
+
+    # Program title
+    program_row = await db.fetchrow(
+        "SELECT program_title FROM programs WHERE program_code = $1 AND schedule_id = $2",
+        result.get("program_code"), schedule_id,
+    )
+
+    # Primary ATC classification (highest priority)
+    atc_row = await db.fetchrow(
+        """
+        SELECT iar.atc_code, iar.atc_priority_pct, a.atc_description, a.atc_level, a.atc_parent_code
+        FROM item_atc_relationships iar
+        JOIN atc_codes a ON a.atc_code = iar.atc_code AND a.schedule_id = iar.schedule_id
+        WHERE iar.pbs_code = $1 AND iar.schedule_id = $2
+        ORDER BY iar.atc_priority_pct DESC NULLS LAST
+        LIMIT 1
+        """,
+        pbs_code.upper(), schedule_id,
+    )
+
+    # Authorised prescribers
+    prescriber_rows = await db.fetch(
+        "SELECT prescriber_code, prescriber_type FROM item_prescribers WHERE pbs_code = $1 AND schedule_id = $2",
+        pbs_code.upper(), schedule_id,
+    )
+
+    return {
+        "data": {
+            **result,
+            "manufacturer": dict(org_row) if org_row else None,
+            "program_title": program_row["program_title"] if program_row else None,
+            "primary_atc": dict(atc_row) if atc_row else None,
+            "prescribers": [dict(p) for p in prescriber_rows],
+        },
+        "meta": {
+            "schedule_code": schedule_month,
+            "tier": tier_label(api_key_data),
+            "join_sources": [
+                "/items", "/medicines", "/restrictions",
+                "/organisations", "/programs", "/atc-codes", "/prescribers",
+            ],
+        },
+    }
 
 
 @router.get("/items/{pbs_code}/prescribing-texts")
