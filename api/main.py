@@ -1,6 +1,7 @@
 """PBSdata.io API — FastAPI application."""
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+import time
 import httpx
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -8,6 +9,18 @@ from fastapi import FastAPI, Request, HTTPException, Header, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from api.database import create_pool, close_pool, get_pool
 from api.config import get_settings
+
+structlog.configure(
+    processors=[
+        structlog.stdlib.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.JSONRenderer(),
+    ],
+    wrapper_class=structlog.stdlib.BoundLogger,
+    context_class=dict,
+    logger_factory=structlog.PrintLoggerFactory(),
+)
 
 log = structlog.get_logger()
 _scheduler = AsyncIOScheduler(timezone="UTC")
@@ -27,11 +40,14 @@ async def _alert_slack(message: str) -> None:
 async def _run_ingest_and_notify(month: str, schedule_date: str, is_embargo: bool):
     from ingest.runner import run_ingest
     from api.services.webhook_sender import deliver_webhook
+    from api.cache import cache_invalidate_schedule
 
     pool = await get_pool()
 
     try:
-        await run_ingest(pool, month, schedule_date, is_embargo=is_embargo)
+        schedule_id = await run_ingest(pool, month, schedule_date, is_embargo=is_embargo)
+        if schedule_id:
+            cache_invalidate_schedule(str(schedule_id))
     except Exception as exc:
         log.error("ingest.background_failed", month=month, error=str(exc))
         await _alert_slack(f":x: *PBSdata ingest failed* for `{month}`\n```{exc}```")
@@ -122,6 +138,28 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = round((time.perf_counter() - start) * 1000, 1)
+
+    # Skip noisy health checks
+    if request.url.path == "/health":
+        return response
+
+    level = "warning" if response.status_code >= 400 else "info"
+    getattr(log, level)(
+        "request",
+        method=request.method,
+        path=request.url.path,
+        status=response.status_code,
+        duration_ms=duration_ms,
+        api_key=request.headers.get("X-API-Key", "")[:12] or None,
+    )
+    return response
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "version": "1.0.0"}
@@ -153,7 +191,7 @@ from api.routers import (
     containers, criteria, parameters, prescribers, markup_bands,
     item_pricing_events, extemporaneous_ingredients, extemporaneous_preparations,
     extemporaneous_tariffs, standard_formula_preparations,
-    drugs, extemporaneous, schedule_changes,
+    drugs, extemporaneous, schedule_changes, market,
 )
 from api.routers.auth import router as auth_router
 
@@ -187,3 +225,4 @@ app.include_router(standard_formula_preparations.router, prefix="/v1")
 app.include_router(drugs.router, prefix="/v1")
 app.include_router(extemporaneous.router, prefix="/v1")
 app.include_router(schedule_changes.router, prefix="/v1")
+app.include_router(market.router, prefix="/v1")

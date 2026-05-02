@@ -1,7 +1,10 @@
 import hashlib
 import secrets
+import structlog
 from fastapi import Header, HTTPException, Depends
 from api.database import get_db
+
+log = structlog.get_logger()
 
 
 def generate_api_key(tier: str = "free") -> tuple[str, str, str]:
@@ -24,6 +27,7 @@ async def require_api_key(
 ) -> dict:
     """FastAPI dependency. Validates the API key. Raises 401 if invalid."""
     if not x_api_key or len(x_api_key) < 20:
+        log.warning("auth.rejected", reason="missing_or_malformed", key_prefix=None)
         raise HTTPException(
             status_code=401,
             detail={"code": "INVALID_API_KEY", "message": "Missing or malformed API key."}
@@ -38,6 +42,7 @@ async def require_api_key(
         key_hash,
     )
     if not row or not row["is_active"]:
+        log.warning("auth.rejected", reason="invalid_or_revoked", key_prefix=x_api_key[:12])
         raise HTTPException(
             status_code=401,
             detail={"code": "INVALID_API_KEY", "message": "Invalid or revoked API key."}
