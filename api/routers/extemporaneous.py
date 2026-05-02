@@ -1,16 +1,12 @@
 """Extemporaneous router — T3 Intelligence endpoints for /v1/extemporaneous/..."""
 from fastapi import APIRouter, Depends, Response, HTTPException, Query
 from api.middleware.tier import require_tier, tier_label
+from api.routers.shared import _rl
 from api.database import get_db
 from typing import Optional
 
 router = APIRouter(tags=["extemporaneous"])
 
-
-def _rl(response: Response, d: dict):
-    response.headers["X-RateLimit-Limit"] = str(d.get("_rl_limit", 0))
-    response.headers["X-RateLimit-Remaining"] = str(d.get("_rl_remaining", 0))
-    response.headers["X-RateLimit-Reset"] = str(d.get("_rl_reset", 0))
 
 
 async def _resolve_schedule(db, schedule: Optional[str]) -> tuple[str, str]:

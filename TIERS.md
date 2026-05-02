@@ -6,13 +6,13 @@ PBSdata.io uses a five-tier access model. Higher tiers unlock joined, enriched, 
 
 ## Tier Overview
 
-| Tier | Internal Name | Monthly Requests | History | Target Use Case |
-|------|--------------|-----------------|---------|-----------------|
-| **Base** | `free` | 500 | 1 month | Evaluation / hobby projects |
-| **Core** | `starter` | 10,000 | 3 months | Small apps, internal tools |
-| **Clinical** | `growth` | 100,000 | 12 months | Patient-facing apps, clinical decision support |
-| **Intelligence** | `scale` | 500,000 | Full history | Analytics platforms, formulary tools |
-| **Market** | `enterprise` | 10,000,000 | Full history | Market intelligence, pharma strategy |
+| Tier | Internal Name | Monthly Requests | Per-Minute Burst | History | Webhooks | Target Use Case |
+|------|--------------|-----------------|-----------------|---------|----------|-----------------|
+| **Base** | `free` | 1,000 | 30/min | 12 months | No | Evaluation / hobby projects |
+| **Core** | `starter` | 10,000 | 60/min | Full | Yes | Small apps, internal tools |
+| **Clinical** | `growth` | 150,000 | 200/min | Full | Yes | Patient-facing apps, clinical decision support |
+| **Intelligence** | `scale` | 1,000,000 | 600/min | Full | Yes | Analytics platforms, formulary tools |
+| **Market** | `enterprise` | Unlimited | Unlimited | Full | Yes | Market intelligence, pharma strategy |
 
 ---
 
@@ -53,7 +53,7 @@ Raw PBS passthrough data. Responses match the underlying PBS API structure with 
 
 ### Core — T1 (`starter`)
 
-Adds structured, joined sub-resources. Designed for apps that need clean, pre-joined data without building their own joins.
+Adds structured, joined sub-resources. Designed for apps that need clean, pre-joined data without building their own joins. Includes webhook support.
 
 **Adds over Base:**
 - `GET /v1/schedules/latest` — latest complete schedule with metadata
@@ -64,6 +64,7 @@ Adds structured, joined sub-resources. Designed for apps that need clean, pre-jo
 - `GET /v1/dispensing-rules/by-program/{program_code}` — rules scoped to a program
 - `GET /v1/organisations/search` — name/state search with item counts
 - `GET /v1/programs` — now includes embedded dispensing rules per program
+- `POST /v1/webhooks` / `GET /v1/webhooks` / `DELETE /v1/webhooks/{id}` — webhook management
 
 ---
 
@@ -83,7 +84,7 @@ Pre-joined clinical drug profiles. This tier is the primary target for clinical 
 - `GET /v1/drugs/{pbs_code}/amt` — AMT concept map grouped by concept type
 - `GET /v1/drugs/{pbs_code}/restrictions` — full restriction index for a drug
 
-> **Note on tier-aware enrichment:** `/items/{pbs_code}` and `/restrictions/{restriction_code}` serve different response shapes depending on tier. Base subscribers receive the raw record; T2+ receive an enriched `{"data": {...}, "meta": {...}}` envelope. The `meta.tier` field always indicates which version was served. See `pbs_joined_api_spec.md §2.6` for the design rationale.
+> **Note on tier-aware enrichment:** `/items/{pbs_code}` and `/restrictions/{restriction_code}` serve different response shapes depending on tier. Base subscribers receive the raw record; T2+ receive an enriched `{"data": {...}, "meta": {...}}` envelope. The `meta.tier` field always indicates which version was served.
 
 ---
 
@@ -98,7 +99,7 @@ Analytical and workflow endpoints. Designed for formulary management tools, disp
 - `GET /v1/drugs/{pbs_code}/full-profile` — single response with all T2 drug data combined
 - `GET /v1/drugs/{pbs_code}/restriction-full` — each restriction with its prescribing text components decomposed
 - `GET /v1/drugs/{pbs_code}/authority-workflow` — per-restriction authority checklists (streamlined, telephone, written, complex)
-- `GET /v1/drugs/{pbs_code}/substitution` — same-ingredient substitutes (brand substitution group IDs planned for a future schema version)
+- `GET /v1/drugs/{pbs_code}/substitution` — same-ingredient substitutes
 - `GET /v1/drugs/{pbs_code}/price-history` — price snapshots across up to 36 schedule months
 - `GET /v1/drugs/{pbs_code}/pricing-events` — discrete pricing events (additions, reductions, deletions)
 - `GET /v1/drugs/{pbs_code}/safety-net` — patient safety net position with estimated scripts-to-threshold
@@ -135,21 +136,21 @@ Analytical and workflow endpoints. Designed for formulary management tools, disp
 
 ### Market — T4 (`enterprise`)
 
-*Coming soon.* Aggregated market intelligence across the full PBS scope. Designed for pharmaceutical market research, competitive analysis, and pricing strategy teams.
+Aggregated market intelligence across the full PBS scope. Designed for pharmaceutical market research, competitive analysis, and pricing strategy teams.
 
-**Planned endpoints:**
-- `GET /v1/market/atc-summary` — aggregate statistics across an ATC class
-- `GET /v1/market/price-reduction-events` — all price events across schedules
-- `GET /v1/market/manufacturer-landscape` — competitive manufacturer analysis
-- `GET /v1/market/schedule-comparison` — aggregate diff between two schedule months
-- `GET /v1/market/formulary-landscape` — formulary classification across a drug scope
-- `GET /v1/market/biosimilar-landscape` — biosimilar vs originator analysis
-- `GET /v1/market/authority-landscape` — authority type distribution across a drug scope
-- `GET /v1/market/safety-net-burden` — safety net exposure across an ATC scope
-- `GET /v1/market/listings-pipeline` — supply-only to delisting forward pipeline
-- `GET /v1/market/price-pressure-index` — price pressure signals across F2 drugs
+**Adds over Intelligence:**
+- `GET /v1/market/atc-summary` — aggregate statistics (item counts, authority rates, pricing distribution, manufacturer count) across an ATC class and its recursive descendants
+- `GET /v1/market/price-reduction-events` — all price reduction events across a schedule range with ATC/organisation filters
+- `GET /v1/market/manufacturer-landscape` — competitive manufacturer analysis: portfolio size, formulary mix, pricing stats per sponsor
+- `GET /v1/market/schedule-comparison` — aggregate diff between two schedule months: additions, removals, price changes, copayment diff
+- `GET /v1/market/formulary-landscape` — formulary classification distribution (F1/F2/None) across a drug scope with pricing context
+- `GET /v1/market/biosimilar-landscape` — biosimilar vs originator analysis per ingredient: pricing delta, count comparison
+- `GET /v1/market/authority-landscape` — benefit type and authority method distribution across a drug scope
+- `GET /v1/market/safety-net-burden` — estimated scripts-to-safety-net threshold per item across an ATC scope
+- `GET /v1/market/listings-pipeline` — upcoming delistings and additions from summary of changes
+- `GET /v1/market/price-pressure-index` — composite price pressure signal for F2 drugs (brand premium prevalence, recent reductions, DPMQ ratio)
 
-Contact [hello@pbsdata.io](mailto:hello@pbsdata.io) for early access.
+Contact [hello@pbsdata.io](mailto:hello@pbsdata.io) for enterprise access.
 
 ---
 
@@ -161,9 +162,11 @@ All responses include rate limit headers:
 X-RateLimit-Limit: 10000
 X-RateLimit-Remaining: 9847
 X-RateLimit-Reset: 1748822400
+X-RateLimit-Burst-Limit: 60
+X-RateLimit-Burst-Remaining: 59
 ```
 
-Exceeding the per-minute burst limit returns `429 Too Many Requests`. Exceeding the monthly quota returns `429` with `code: MONTHLY_QUOTA_EXCEEDED`.
+Exceeding the per-minute burst limit returns `429 Too Many Requests` with `code: BURST_LIMIT_EXCEEDED` and a `Retry-After` header (seconds until the window resets). Exceeding the monthly quota returns `429` with `code: RATE_LIMIT_EXCEEDED`.
 
 ---
 
@@ -194,10 +197,10 @@ The `?schedule=YYYY-MM` parameter is available on most endpoints. How far back y
 
 | Tier | `history_months_limit` |
 |------|----------------------|
-| Base | 1 (current month only) |
-| Core | 3 |
-| Clinical | 12 |
-| Intelligence | Unlimited |
-| Market | Unlimited |
+| Base | 12 months |
+| Core | Full (unlimited) |
+| Clinical | Full (unlimited) |
+| Intelligence | Full (unlimited) |
+| Market | Full (unlimited) |
 
 Requests for schedules outside your history window return `403 HISTORY_LIMIT_EXCEEDED`.

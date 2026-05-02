@@ -2,17 +2,13 @@
 from fastapi import APIRouter, Depends, Response, HTTPException, Query
 from api.middleware.rate_limit import check_rate_limit
 from api.middleware.tier import is_tier_or_above, require_tier, tier_label
+from api.routers.shared import _rl
 from api.database import get_db
 from typing import Optional
 import datetime
 
 router = APIRouter(tags=["items"])
 
-
-def _rl(response: Response, d: dict):
-    response.headers["X-RateLimit-Limit"] = str(d.get("_rl_limit", 0))
-    response.headers["X-RateLimit-Remaining"] = str(d.get("_rl_remaining", 0))
-    response.headers["X-RateLimit-Reset"] = str(d.get("_rl_reset", 0))
 
 
 def check_history_limit(api_key_data: dict, schedule: Optional[str]):

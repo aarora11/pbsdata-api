@@ -9,7 +9,7 @@ from api.services.webhook_sender import VALID_EVENTS
 
 router = APIRouter(tags=["webhooks"])
 
-WEBHOOK_TIERS = {"growth", "enterprise"}
+WEBHOOK_TIERS = {"starter", "growth", "scale", "enterprise"}
 
 
 class WebhookCreate(BaseModel):
@@ -28,7 +28,7 @@ async def create_webhook(
     if api_key_data.get("tier") not in WEBHOOK_TIERS:
         raise HTTPException(
             status_code=403,
-            detail={"code": "TIER_REQUIRED", "message": "Webhooks require Growth or Enterprise tier."},
+            detail={"code": "TIER_REQUIRED", "message": "Webhooks require Core tier or above."},
         )
 
     # URL validation — must be HTTPS

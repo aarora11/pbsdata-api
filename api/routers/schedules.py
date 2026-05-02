@@ -2,15 +2,11 @@
 from fastapi import APIRouter, Depends, Response, HTTPException
 from api.middleware.rate_limit import check_rate_limit
 from api.middleware.tier import require_tier
+from api.routers.shared import _rl
 from api.database import get_db
 
 router = APIRouter(tags=["schedules"])
 
-
-def _rl(response: Response, d: dict):
-    response.headers["X-RateLimit-Limit"] = str(d.get("_rl_limit", 0))
-    response.headers["X-RateLimit-Remaining"] = str(d.get("_rl_remaining", 0))
-    response.headers["X-RateLimit-Reset"] = str(d.get("_rl_reset", 0))
 
 
 @router.get("/schedules")

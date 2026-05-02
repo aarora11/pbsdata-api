@@ -1,16 +1,12 @@
 """Drugs router — T2 Clinical + T3 Intelligence endpoints for GET /v1/drugs/..."""
 from fastapi import APIRouter, Depends, Response, HTTPException, Query
 from api.middleware.tier import require_tier, tier_label
+from api.routers.shared import _rl
 from api.database import get_db
 from typing import Optional
 
 router = APIRouter(tags=["drugs"])
 
-
-def _rl(response: Response, d: dict):
-    response.headers["X-RateLimit-Limit"] = str(d.get("_rl_limit", 0))
-    response.headers["X-RateLimit-Remaining"] = str(d.get("_rl_remaining", 0))
-    response.headers["X-RateLimit-Reset"] = str(d.get("_rl_reset", 0))
 
 
 async def _resolve_schedule(db, schedule: Optional[str]) -> tuple[str, str]:
@@ -133,6 +129,7 @@ async def get_drug(
     pbs_code: str,
     response: Response,
     schedule: Optional[str] = Query(None),
+    include_brands: bool = Query(False, description="Embed brand list inline (same data as /drugs/{pbs_code}/brands)"),
     api_key_data: dict = Depends(require_tier("growth")),
     db=Depends(get_db),
 ):
@@ -190,6 +187,37 @@ async def get_drug(
         "SELECT COUNT(DISTINCT li_item_id) FROM item_pricing WHERE pbs_code = $1 AND schedule_id = $2",
         pbs_code.upper(), schedule_id,
     ) or 1
+
+    brands_data = None
+    if include_brands:
+        pricing_rows = await db.fetch(
+            """
+            SELECT li_item_id,
+                   MAX(commonwealth_price)         AS commonwealth_price,
+                   MAX(max_general_patient_charge)  AS max_general_patient_charge,
+                   MAX(brand_premium)              AS brand_premium,
+                   MAX(fee_dispensing)             AS fee_dispensing
+            FROM item_pricing
+            WHERE pbs_code = $1 AND schedule_id = $2
+            GROUP BY li_item_id
+            ORDER BY li_item_id
+            """,
+            pbs_code.upper(), schedule_id,
+        )
+        brands_data = [
+            {
+                "li_item_id": r["li_item_id"],
+                "brand_name": item["brand_name"],
+                "formulary": item["formulary"],
+                "pricing": {
+                    "commonwealth_price": float(r["commonwealth_price"]) if r["commonwealth_price"] else None,
+                    "max_general_patient_charge": float(r["max_general_patient_charge"]) if r["max_general_patient_charge"] else None,
+                    "brand_premium": float(r["brand_premium"]) if r["brand_premium"] else None,
+                    "dispensing_fee": float(r["fee_dispensing"]) if r["fee_dispensing"] else None,
+                },
+            }
+            for r in pricing_rows
+        ] or [{"li_item_id": None, "brand_name": item["brand_name"], "formulary": item["formulary"], "pricing": None}]
 
     def _f(v):
         return float(v) if v is not None else None
@@ -249,6 +277,7 @@ async def get_drug(
                 "artg_id": item["artg_id"],
                 "caution": item["caution"],
             },
+            **({"brands": brands_data} if include_brands else {}),
         },
         "meta": _meta(api_key_data, schedule_month, [
             "/items", "/programs", "/organisations", "/atc-codes", "/prescribers",
@@ -843,7 +872,9 @@ async def get_drug_authority_workflow(
         """
         SELECT r.restriction_code, r.restriction_type, r.authority_required,
                r.authority_method, r.written_authority_required, r.complex_authority_required,
-               r.streamlined_code, r.treatment_phase, r.continuation_only, r.prescriber_type
+               r.streamlined_code, r.treatment_phase, r.continuation_only, r.prescriber_type,
+               r.indication, r.clinical_criteria, r.li_html_text, r.restriction_text,
+               r.treatment_of_code
         FROM restrictions r JOIN items i ON i.id = r.item_id
         WHERE i.pbs_code = $1 AND i.schedule_id = $2
         ORDER BY r.restriction_code
@@ -888,6 +919,7 @@ async def get_drug_authority_workflow(
             "restriction_code": r["restriction_code"],
             "restriction_type": r["restriction_type"],
             "treatment_phase": r["treatment_phase"],
+            "treatment_of_code": r["treatment_of_code"],
             "authority_required": r["authority_required"],
             "authority_method": r["authority_method"],
             "authority_method_label": method_labels.get(r["authority_method"], r["authority_method"]),
@@ -896,6 +928,10 @@ async def get_drug_authority_workflow(
             "complex_authority_required": r["complex_authority_required"],
             "continuation_only": r["continuation_only"],
             "prescriber_types_allowed": r["prescriber_type"],
+            "indication": r["indication"],
+            "clinical_criteria": r["clinical_criteria"],
+            "restriction_text": r["restriction_text"],
+            "full_text_html": r["li_html_text"],
             "checklist": checklist,
         })
 
@@ -1004,6 +1040,7 @@ async def get_drug_price_history(
     def _f(v):
         return float(v) if v is not None else None
 
+    # Rows are DESC (newest first); reverse for oldest-to-newest trend calc
     snapshots = [
         {
             "schedule_month": r["month"],
@@ -1016,10 +1053,30 @@ async def get_drug_price_history(
         for r in rows
     ]
 
+    # Compute government_price trend across the window
+    prices = [s["government_price"] for s in snapshots if s["government_price"] is not None]
+    if len(prices) >= 2:
+        newest, oldest = prices[0], prices[-1]
+        delta = round(newest - oldest, 4)
+        delta_pct = round((newest - oldest) / oldest * 100, 2) if oldest else None
+        direction = "up" if delta > 0 else ("down" if delta < 0 else "stable")
+        trend = {
+            "oldest_month": snapshots[-1]["schedule_month"],
+            "newest_month": snapshots[0]["schedule_month"],
+            "oldest_price": oldest,
+            "newest_price": newest,
+            "delta": delta,
+            "delta_pct": delta_pct,
+            "direction": direction,
+        }
+    else:
+        trend = None
+
     return {
         "data": {
             "pbs_code": pbs_code.upper(),
             "snapshot_count": len(snapshots),
+            "trend": trend,
             "history": snapshots,
         },
         "meta": {

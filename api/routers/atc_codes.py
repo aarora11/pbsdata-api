@@ -2,16 +2,12 @@
 from fastapi import APIRouter, Depends, Response, HTTPException, Query
 from api.middleware.rate_limit import check_rate_limit
 from api.middleware.tier import require_tier, tier_label
+from api.routers.shared import _rl
 from api.database import get_db
 from typing import Optional
 
 router = APIRouter(tags=["atc-codes"])
 
-
-def _rl(response: Response, d: dict):
-    response.headers["X-RateLimit-Limit"] = str(d.get("_rl_limit", 0))
-    response.headers["X-RateLimit-Remaining"] = str(d.get("_rl_remaining", 0))
-    response.headers["X-RateLimit-Reset"] = str(d.get("_rl_reset", 0))
 
 
 async def _resolve_schedule_id(db, schedule: Optional[str]) -> str:
