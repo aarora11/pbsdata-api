@@ -1,16 +1,13 @@
 """ATC codes router — GET /v1/atc-codes"""
 from fastapi import APIRouter, Depends, Response, HTTPException, Query
 from api.middleware.rate_limit import check_rate_limit
+from api.middleware.tier import require_tier, tier_label
+from api.routers.shared import _rl
 from api.database import get_db
 from typing import Optional
 
 router = APIRouter(tags=["atc-codes"])
 
-
-def _rl(response: Response, d: dict):
-    response.headers["X-RateLimit-Limit"] = str(d.get("_rl_limit", 0))
-    response.headers["X-RateLimit-Remaining"] = str(d.get("_rl_remaining", 0))
-    response.headers["X-RateLimit-Reset"] = str(d.get("_rl_reset", 0))
 
 
 async def _resolve_schedule_id(db, schedule: Optional[str]) -> str:
@@ -57,6 +54,225 @@ async def list_atc_codes(
         *params,
     )
     return {"data": [dict(r) for r in rows], "meta": {"total": len(rows)}}
+
+
+@router.get("/atc-codes/by-level/{level}")
+async def get_atc_codes_by_level(
+    level: int,
+    response: Response,
+    schedule: Optional[str] = Query(None),
+    api_key_data: dict = Depends(require_tier("starter")),
+    db=Depends(get_db),
+):
+    _rl(response, api_key_data)
+    if level < 1 or level > 5:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_LEVEL", "message": "ATC level must be between 1 and 5."})
+    schedule_id = await _resolve_schedule_id(db, schedule)
+    rows = await db.fetch(
+        "SELECT atc_code, atc_description, atc_level, atc_parent_code FROM atc_codes WHERE schedule_id = $1 AND atc_level = $2 ORDER BY atc_code",
+        schedule_id, level,
+    )
+    return {
+        "data": [dict(r) for r in rows],
+        "meta": {"total": len(rows), "level": level, "tier": tier_label(api_key_data)},
+    }
+
+
+@router.get("/atc-codes/{atc_code}/hierarchy")
+async def get_atc_hierarchy(
+    atc_code: str,
+    response: Response,
+    schedule: Optional[str] = Query(None),
+    api_key_data: dict = Depends(require_tier("starter")),
+    db=Depends(get_db),
+):
+    _rl(response, api_key_data)
+    schedule_id = await _resolve_schedule_id(db, schedule)
+
+    # Recursive CTE walks up the tree from the target node to the root.
+    ancestors = await db.fetch(
+        """
+        WITH RECURSIVE ancestor_chain AS (
+            SELECT atc_code, atc_description, atc_level, atc_parent_code
+            FROM atc_codes
+            WHERE atc_code = $1 AND schedule_id = $2
+            UNION ALL
+            SELECT p.atc_code, p.atc_description, p.atc_level, p.atc_parent_code
+            FROM atc_codes p
+            INNER JOIN ancestor_chain c ON p.atc_code = c.atc_parent_code
+            WHERE p.schedule_id = $2
+        )
+        SELECT * FROM ancestor_chain ORDER BY atc_level
+        """,
+        atc_code.upper(), schedule_id,
+    )
+    if not ancestors:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "ATC code not found."})
+
+    target = next((dict(r) for r in ancestors if r["atc_code"] == atc_code.upper()), None)
+    ancestor_list = [dict(r) for r in ancestors if r["atc_code"] != atc_code.upper()]
+    breadcrumb = " → ".join(r["atc_code"] for r in ancestors)
+
+    children = await db.fetch(
+        "SELECT atc_code, atc_description, atc_level FROM atc_codes WHERE atc_parent_code = $1 AND schedule_id = $2 ORDER BY atc_code",
+        atc_code.upper(), schedule_id,
+    )
+    children_list = [dict(r) for r in children]
+
+    return {
+        "data": {
+            **target,
+            "ancestors": ancestor_list,
+            "breadcrumb": breadcrumb,
+            "children": children_list,
+            "has_children": len(children_list) > 0,
+            "is_leaf": len(children_list) == 0,
+        },
+        "meta": {"tier": tier_label(api_key_data), "join_sources": ["/atc-codes"]},
+    }
+
+
+@router.get("/atc-codes/{atc_code}/children")
+async def get_atc_children(
+    atc_code: str,
+    response: Response,
+    schedule: Optional[str] = Query(None),
+    api_key_data: dict = Depends(require_tier("starter")),
+    db=Depends(get_db),
+):
+    _rl(response, api_key_data)
+    schedule_id = await _resolve_schedule_id(db, schedule)
+
+    parent = await db.fetchrow(
+        "SELECT atc_code, atc_description, atc_level FROM atc_codes WHERE atc_code = $1 AND schedule_id = $2",
+        atc_code.upper(), schedule_id,
+    )
+    if not parent:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "ATC code not found."})
+
+    children = await db.fetch(
+        "SELECT atc_code, atc_description, atc_level, atc_parent_code FROM atc_codes WHERE atc_parent_code = $1 AND schedule_id = $2 ORDER BY atc_code",
+        atc_code.upper(), schedule_id,
+    )
+    return {
+        "data": {
+            "parent": dict(parent),
+            "children": [dict(r) for r in children],
+            "child_count": len(children),
+        },
+        "meta": {"tier": tier_label(api_key_data)},
+    }
+
+
+@router.get("/atc-codes/{atc_code}/items")
+async def get_atc_code_items(
+    atc_code: str,
+    response: Response,
+    schedule: Optional[str] = Query(None),
+    include_descendants: bool = Query(False, description="Include all drugs in descendant ATC codes"),
+    benefit_type: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    api_key_data: dict = Depends(require_tier("scale")),
+    db=Depends(get_db),
+):
+    _rl(response, api_key_data)
+    schedule_id = await _resolve_schedule_id(db, schedule)
+
+    if not await db.fetchval(
+        "SELECT 1 FROM atc_codes WHERE atc_code = $1 AND schedule_id = $2", atc_code.upper(), schedule_id
+    ):
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "ATC code not found."})
+
+    if include_descendants:
+        # Recursive CTE to collect all descendant ATC codes, then join to items
+        atc_filter_sql = """
+            WITH RECURSIVE descendants AS (
+                SELECT atc_code FROM atc_codes WHERE atc_code = $1 AND schedule_id = $2
+                UNION ALL
+                SELECT c.atc_code FROM atc_codes c
+                JOIN descendants d ON c.atc_parent_code = d.atc_code WHERE c.schedule_id = $2
+            )
+            SELECT DISTINCT i.pbs_code, i.brand_name, i.form, i.strength, i.pack_size,
+                   i.benefit_type, i.formulary, i.program_code, i.general_charge,
+                   m.ingredient, m.atc_code AS medicine_atc_code,
+                   iar.atc_code AS matched_atc_code
+            FROM descendants d
+            JOIN item_atc_relationships iar ON iar.atc_code = d.atc_code AND iar.schedule_id = $2
+            JOIN items i ON i.pbs_code = iar.pbs_code AND i.schedule_id = $2
+            JOIN medicines m ON m.id = i.medicine_id
+        """
+        base_params: list = [atc_code.upper(), schedule_id]
+    else:
+        atc_filter_sql = """
+            SELECT i.pbs_code, i.brand_name, i.form, i.strength, i.pack_size,
+                   i.benefit_type, i.formulary, i.program_code, i.general_charge,
+                   m.ingredient, m.atc_code AS medicine_atc_code,
+                   iar.atc_code AS matched_atc_code
+            FROM item_atc_relationships iar
+            JOIN items i ON i.pbs_code = iar.pbs_code AND i.schedule_id = $2
+            JOIN medicines m ON m.id = i.medicine_id
+            WHERE iar.atc_code = $1 AND iar.schedule_id = $2
+        """
+        base_params = [atc_code.upper(), schedule_id]
+
+    conditions = []
+    extra_params: list = []
+    if benefit_type:
+        extra_params.append(benefit_type.upper())
+        conditions.append(f"benefit_type = ${len(base_params) + len(extra_params)}")
+
+    where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    offset = (page - 1) * limit
+    all_params = base_params + extra_params
+
+    count_sql = f"SELECT COUNT(*) FROM ({atc_filter_sql}) AS sub {where_clause}"
+    data_sql = (
+        f"SELECT * FROM ({atc_filter_sql}) AS sub {where_clause} "
+        f"ORDER BY ingredient, pbs_code "
+        f"LIMIT ${len(all_params) + 1} OFFSET ${len(all_params) + 2}"
+    )
+
+    total = await db.fetchval(count_sql, *all_params)
+    rows = await db.fetch(data_sql, *all_params, limit, offset)
+
+    def _f(v):
+        return float(v) if v is not None else None
+
+    benefit_labels = {"U": "Unrestricted", "R": "Restricted", "A": "Authority Required", "S": "Streamlined Authority"}
+    data = []
+    for r in rows:
+        bc = r["benefit_type"] or "U"
+        data.append({
+            "pbs_code": r["pbs_code"],
+            "ingredient": r["ingredient"],
+            "brand_name": r["brand_name"],
+            "form": r["form"],
+            "strength": r["strength"],
+            "pack_size": r["pack_size"],
+            "benefit_type_code": bc,
+            "benefit_type_label": benefit_labels.get(bc, bc),
+            "formulary": r["formulary"],
+            "program_code": r["program_code"],
+            "matched_atc_code": r["matched_atc_code"],
+            "general_charge": _f(r["general_charge"]),
+        })
+
+    return {
+        "data": {
+            "atc_code": atc_code.upper(),
+            "include_descendants": include_descendants,
+            "item_count": total or 0,
+            "items": data,
+        },
+        "meta": {
+            "total": total or 0,
+            "page": page,
+            "limit": limit,
+            "tier": tier_label(api_key_data),
+            "join_sources": ["/atc-codes", "/item-atc-relationships", "/items"],
+        },
+    }
 
 
 @router.get("/atc-codes/{atc_code}")

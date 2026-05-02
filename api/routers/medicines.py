@@ -9,11 +9,6 @@ import uuid
 router = APIRouter(tags=["medicines"])
 
 
-def _rl(response: Response, d: dict):
-    response.headers["X-RateLimit-Limit"] = str(d.get("_rl_limit", 0))
-    response.headers["X-RateLimit-Remaining"] = str(d.get("_rl_remaining", 0))
-    response.headers["X-RateLimit-Reset"] = str(d.get("_rl_reset", 0))
-
 
 @router.get("/medicines")
 async def list_medicines(

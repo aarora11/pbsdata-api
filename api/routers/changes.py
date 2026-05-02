@@ -6,11 +6,6 @@ from api.database import get_db
 router = APIRouter(tags=["changes"])
 
 
-def _rl(response: Response, d: dict):
-    response.headers["X-RateLimit-Limit"] = str(d.get("_rl_limit", 0))
-    response.headers["X-RateLimit-Remaining"] = str(d.get("_rl_remaining", 0))
-    response.headers["X-RateLimit-Reset"] = str(d.get("_rl_reset", 0))
-
 
 @router.get("/changes")
 async def list_changes(

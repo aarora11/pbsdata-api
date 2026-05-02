@@ -173,9 +173,11 @@ async def test_item_by_pbs_code(client_with_data, headers):
     r = await client_with_data.get("/v1/items/2622M", headers=headers)
     assert r.status_code == 200
     body = r.json()
-    assert body["pbs_code"] == "2622M"
-    assert "restrictions" in body
-    assert body["brand_premium_counts_to_safety_net"] is False
+    # Growth (T2) key returns enriched envelope — data fields are under "data"
+    data = body["data"]
+    assert data["pbs_code"] == "2622M"
+    assert "restrictions" in data
+    assert data["brand_premium_counts_to_safety_net"] is False
 
 
 @pytest.mark.asyncio

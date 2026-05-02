@@ -13,3 +13,6 @@ htmlcov/
 *.log
 node_modules/
 .next/
+PHASE3_HANDOFF.md
+OFFERING.md
+memory/

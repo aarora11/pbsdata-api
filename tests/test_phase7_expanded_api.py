@@ -280,9 +280,11 @@ async def test_item_detail_includes_artg_id(client_expanded, headers):
     r = await client_expanded.get("/v1/items/2622M", headers=headers)
     assert r.status_code == 200
     body = r.json()
-    assert "artg_id" in body
-    assert body["artg_id"] == "ARTG12345"
-    assert body["sponsor"] == "Merck Serono Pty Ltd"
+    # Growth (T2) key returns enriched envelope — data fields are under "data"
+    data = body["data"]
+    assert "artg_id" in data
+    assert data["artg_id"] == "ARTG12345"
+    assert data["sponsor"] == "Merck Serono Pty Ltd"
 
 
 @pytest.mark.asyncio

@@ -7,11 +7,11 @@ from api.middleware.auth import generate_api_key, require_api_key
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 TIER_LIMITS: dict[str, tuple[int, int]] = {
-    "free":       (500,        1),
-    "starter":    (10_000,     3),
-    "growth":     (100_000,    12),
-    "scale":      (500_000,    999),
-    "enterprise": (10_000_000, 999),
+    "free":       (1_000,        12),
+    "starter":    (10_000,       999),
+    "growth":     (150_000,      999),
+    "scale":      (1_000_000,    999),
+    "enterprise": (999_999_999,  999),
 }
 
 
