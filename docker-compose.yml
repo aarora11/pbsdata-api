@@ -49,6 +49,28 @@ services:
       timeout: 5s
       retries: 5
 
+  # Run tests: docker compose run --rm test
+  # Run specific file: docker compose run --rm test pytest tests/test_comprehensive.py -v
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: tester
+    image: pbsdata-api:test
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://pbsapi:pbsapi@postgres:5432/pbsapi
+      PYTHONPATH: /app
+    command: ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
+    volumes:
+      - ./tests:/app/tests
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    profiles:
+      - test
+
   # Run manually: docker compose run --rm ingest
   # With a specific month: docker compose run --rm ingest 2026-04
   ingest:

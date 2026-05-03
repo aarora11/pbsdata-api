@@ -305,7 +305,7 @@ async def market_manufacturer_landscape(
     sql = f"""
         SELECT
             ior.organisation_id,
-            o.organisation_name,
+            o.name,
             COUNT(DISTINCT ior.pbs_code)                                AS pbs_code_count,
             COUNT(DISTINCT ip.li_item_id)                               AS item_count,
             COUNT(*) FILTER (WHERE i.formulary = 'F1')                 AS f1_count,
@@ -320,7 +320,7 @@ async def market_manufacturer_landscape(
         LEFT JOIN item_pricing ip ON ip.pbs_code = i.pbs_code AND ip.schedule_id = $1
         LEFT JOIN organisations o ON o.organisation_id = ior.organisation_id AND o.schedule_id = $1
         WHERE {where}
-        GROUP BY ior.organisation_id, o.organisation_name
+        GROUP BY ior.organisation_id, o.name
         HAVING COUNT(DISTINCT ip.li_item_id) >= ${len(params) + 1}
         ORDER BY COUNT(DISTINCT ip.li_item_id) DESC
         LIMIT 200
@@ -332,7 +332,7 @@ async def market_manufacturer_landscape(
     for r in rows:
         data.append({
             "organisation_id": r["organisation_id"],
-            "organisation_name": r["organisation_name"],
+            "organisation_name": r["name"],
             "pbs_code_count": r["pbs_code_count"],
             "item_count": r["item_count"],
             "f1_count": r["f1_count"],
@@ -451,12 +451,12 @@ async def market_schedule_comparison(
 
     # Copayment diff
     base_cp = await db.fetchrow(
-        "SELECT general_patient_charge, concessional_patient_charge, safety_net_general, safety_net_concessional "
+        "SELECT general, concessional, safety_net_general, safety_net_concessional "
         "FROM copayments WHERE schedule_id = $1 LIMIT 1",
         base_id,
     )
     target_cp = await db.fetchrow(
-        "SELECT general_patient_charge, concessional_patient_charge, safety_net_general, safety_net_concessional "
+        "SELECT general, concessional, safety_net_general, safety_net_concessional "
         "FROM copayments WHERE schedule_id = $1 LIMIT 1",
         target_id,
     )
@@ -570,7 +570,7 @@ async def market_formulary_landscape(
 
     # Copayment context (general / concessional)
     copayment = await db.fetchrow(
-        "SELECT general_patient_charge, concessional_patient_charge FROM copayments WHERE schedule_id = $1 LIMIT 1",
+        "SELECT general, concessional FROM copayments WHERE schedule_id = $1 LIMIT 1",
         schedule_id,
     )
 
@@ -579,8 +579,8 @@ async def market_formulary_landscape(
             "distribution": data,
             "total_items": total_items,
             "copayment_context": {
-                "general_patient_charge": float(copayment["general_patient_charge"]) if copayment and copayment["general_patient_charge"] else None,
-                "concessional_patient_charge": float(copayment["concessional_patient_charge"]) if copayment and copayment["concessional_patient_charge"] else None,
+                "general": float(copayment["general"]) if copayment and copayment["general"] else None,
+                "concessional": float(copayment["concessional"]) if copayment and copayment["concessional"] else None,
             } if copayment else None,
         },
         "meta": _meta(api_key_data, schedule_month),
@@ -719,7 +719,7 @@ async def market_authority_landscape(
     auth_method_sql = f"""
         SELECT r.authority_method, COUNT(DISTINCT r.restriction_code) AS restriction_count
         FROM restrictions r
-        JOIN items i ON i.pbs_code = r.pbs_code AND i.schedule_id = r.schedule_id
+        JOIN items i ON i.id = r.item_id
         WHERE {where} AND r.authority_method IS NOT NULL
         GROUP BY r.authority_method ORDER BY restriction_count DESC
     """
@@ -784,7 +784,7 @@ async def market_safety_net_burden(
         return cached
 
     copayment = await db.fetchrow(
-        "SELECT general_patient_charge, concessional_patient_charge, "
+        "SELECT general, concessional, "
         "       safety_net_general, safety_net_concessional "
         "FROM copayments WHERE schedule_id = $1 LIMIT 1",
         schedule_id,
@@ -792,7 +792,7 @@ async def market_safety_net_burden(
     if not copayment:
         return {"data": None, "meta": _meta(api_key_data, schedule_month), "message": "No copayment data for this schedule."}
 
-    general_charge = float(copayment["general_patient_charge"]) if copayment["general_patient_charge"] else 0
+    general_charge = float(copayment["general"]) if copayment["general"] else 0
     safety_net_general = float(copayment["safety_net_general"]) if copayment["safety_net_general"] else 0
 
     atc_cond = ""
@@ -829,9 +829,9 @@ async def market_safety_net_burden(
     result = {
         "data": {
             "copayment_context": {
-                "general_patient_charge": general_charge,
+                "general": general_charge,
                 "safety_net_threshold_general": safety_net_general,
-                "concessional_patient_charge": float(copayment["concessional_patient_charge"]) if copayment["concessional_patient_charge"] else None,
+                "concessional": float(copayment["concessional"]) if copayment["concessional"] else None,
                 "safety_net_threshold_concessional": float(copayment["safety_net_concessional"]) if copayment["safety_net_concessional"] else None,
             },
             "scripts_to_safety_net": {
@@ -990,9 +990,10 @@ async def market_price_pressure_index(
         SELECT COUNT(DISTINCT pe.pbs_code) AS reduction_count
         FROM item_pricing_events pe
         JOIN schedules s ON s.id = pe.schedule_id
-        WHERE s.month >= (
-            SELECT month FROM schedules WHERE id = $1
-        )::date - INTERVAL '3 months'
+        WHERE s.month >= TO_CHAR(
+            TO_DATE((SELECT month FROM schedules WHERE id = $1) || '-01', 'YYYY-MM-DD') - INTERVAL '3 months',
+            'YYYY-MM'
+        )
           AND (pe.new_price < pe.previous_price OR pe.event_type ILIKE '%reduction%')
           AND pe.previous_price > 0
           {f"AND EXISTS (SELECT 1 FROM item_atc_relationships iar WHERE iar.pbs_code = pe.pbs_code AND iar.schedule_id = $1 AND iar.atc_code LIKE ${len(params)})" if atc_prefix else ""}

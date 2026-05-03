@@ -41,7 +41,7 @@ async def starter_key(db_pool):
 async def test_create_webhook_growth(app_client, growth_key):
     r = await app_client.post(
         "/v1/webhooks",
-        json={"url": "https://example.com/hook", "events": ["pbs.schedule.released"]},
+        json={"endpoint_url": "https://example.com/hook", "event_types": ["pbs.schedule.released"]},
         headers={"X-API-Key": growth_key},
     )
     assert r.status_code == 201
@@ -52,20 +52,30 @@ async def test_create_webhook_growth(app_client, growth_key):
 
 
 @pytest.mark.asyncio
-async def test_create_webhook_starter_rejected(app_client, starter_key):
-    r = await app_client.post(
-        "/v1/webhooks",
-        json={"url": "https://example.com/hook", "events": ["pbs.schedule.released"]},
-        headers={"X-API-Key": starter_key},
-    )
-    assert r.status_code == 403
+async def test_create_webhook_free_rejected(app_client, db_pool):
+    k, p, h = generate_api_key("free")
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO api_keys (key_prefix, key_hash, name, customer_email, tier, monthly_limit, history_months_limit) VALUES ($1,$2,'F','f@t.com','free',1000,12)",
+            p, h,
+        )
+    try:
+        r = await app_client.post(
+            "/v1/webhooks",
+            json={"endpoint_url": "https://example.com/hook", "event_types": ["pbs.schedule.released"]},
+            headers={"X-API-Key": k},
+        )
+        assert r.status_code == 403
+    finally:
+        async with db_pool.acquire() as conn:
+            await conn.execute("DELETE FROM api_keys WHERE key_hash = $1", h)
 
 
 @pytest.mark.asyncio
 async def test_http_url_rejected(app_client, growth_key):
     r = await app_client.post(
         "/v1/webhooks",
-        json={"url": "http://example.com/hook", "events": ["pbs.schedule.released"]},
+        json={"endpoint_url": "http://example.com/hook", "event_types": ["pbs.schedule.released"]},
         headers={"X-API-Key": growth_key},
     )
     assert r.status_code == 422
@@ -75,7 +85,7 @@ async def test_http_url_rejected(app_client, growth_key):
 async def test_invalid_event_rejected(app_client, growth_key):
     r = await app_client.post(
         "/v1/webhooks",
-        json={"url": "https://example.com/hook", "events": ["not.a.real.event"]},
+        json={"endpoint_url": "https://example.com/hook", "event_types": ["not.a.real.event"]},
         headers={"X-API-Key": growth_key},
     )
     assert r.status_code == 422
@@ -85,7 +95,7 @@ async def test_invalid_event_rejected(app_client, growth_key):
 async def test_list_webhooks(app_client, growth_key):
     await app_client.post(
         "/v1/webhooks",
-        json={"url": "https://example.com/hook", "events": ["pbs.schedule.released"]},
+        json={"endpoint_url": "https://example.com/hook", "event_types": ["pbs.schedule.released"]},
         headers={"X-API-Key": growth_key},
     )
     r = await app_client.get("/v1/webhooks", headers={"X-API-Key": growth_key})
@@ -97,7 +107,7 @@ async def test_list_webhooks(app_client, growth_key):
 async def test_delete_webhook(app_client, growth_key):
     create = await app_client.post(
         "/v1/webhooks",
-        json={"url": "https://example.com/del-me", "events": ["pbs.schedule.released"]},
+        json={"endpoint_url": "https://example.com/del-me", "event_types": ["pbs.schedule.released"]},
         headers={"X-API-Key": growth_key},
     )
     wid = create.json()["id"]

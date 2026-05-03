@@ -164,7 +164,7 @@ async def test_full_pipeline_loads_data(db):
     normalised = normalise_schedule("2026-04", items, restrictions)
 
     await db.execute(
-        "INSERT INTO schedules (month, released_at, ingest_status) VALUES ('2026-04', NOW(), 'running')"
+        "INSERT INTO schedules (month, released_at, ingest_status) VALUES ('2026-04', NOW(), 'running') ON CONFLICT (month) DO UPDATE SET ingest_status = 'running'"
     )
 
     class FakePool:
@@ -176,7 +176,9 @@ async def test_full_pipeline_loads_data(db):
 
     await load_to_database(FakePool(), "2026-04", normalised, [])
 
-    item_count = await db.fetchval("SELECT COUNT(*) FROM items")
+    item_count = await db.fetchval(
+        "SELECT COUNT(*) FROM items WHERE schedule_id = (SELECT id FROM schedules WHERE month = '2026-04')"
+    )
     medicine_count = await db.fetchval("SELECT COUNT(*) FROM medicines")
 
     assert item_count == len(items)
@@ -193,7 +195,7 @@ async def test_pipeline_idempotent(db):
     normalised = normalise_schedule("2026-04", items, restrictions)
 
     await db.execute(
-        "INSERT INTO schedules (month, released_at, ingest_status) VALUES ('2026-04', NOW(), 'running')"
+        "INSERT INTO schedules (month, released_at, ingest_status) VALUES ('2026-04', NOW(), 'running') ON CONFLICT (month) DO UPDATE SET ingest_status = 'running'"
     )
 
     class FakePool:

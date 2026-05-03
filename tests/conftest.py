@@ -1,19 +1,13 @@
 import pytest
 import asyncio
 import asyncpg
+import pytest_asyncio
 from pathlib import Path
 from httpx import AsyncClient, ASGITransport
 from api.config import get_settings
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session")
 async def db_pool():
     settings = get_settings()
     pool = await asyncpg.create_pool(settings.DATABASE_URL, min_size=2, max_size=5)
@@ -25,7 +19,7 @@ async def db_pool():
     await pool.close()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def db(db_pool):
     """Per-test DB connection with transaction rollback."""
     async with db_pool.acquire() as conn:
@@ -35,7 +29,7 @@ async def db(db_pool):
         await tr.rollback()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def app_client(db_pool):
     """Async HTTP test client. Uses committed transactions so app can see test data."""
     from api.main import app

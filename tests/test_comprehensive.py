@@ -2,6 +2,7 @@
 schedule-changes, market endpoints, extemporaneous, and webhooks."""
 import json
 import pytest
+import pytest_asyncio
 import asyncpg
 from pathlib import Path
 from api.middleware.auth import generate_api_key, hash_api_key
@@ -96,7 +97,7 @@ async def seed_schedule(db, month: str = "2026-04"):
 
 TEST_MONTH = "2099-01"
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def seeded(db_pool):
     """Seed fixture data with auto-committed transactions so app_client can see it."""
     async with db_pool.acquire() as conn:
@@ -129,42 +130,42 @@ async def seeded(db_pool):
         await conn.execute("DELETE FROM schedules WHERE id=$1", sid)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def free_key(db_pool):
     k, h = await _insert_key(db_pool, "free", monthly_limit=1000)
     yield k
     await _delete_key(db_pool, h)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def starter_key(db_pool):
     k, h = await _insert_key(db_pool, "starter")
     yield k
     await _delete_key(db_pool, h)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def growth_key(db_pool):
     k, h = await _insert_key(db_pool, "growth")
     yield k
     await _delete_key(db_pool, h)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def scale_key(db_pool):
     k, h = await _insert_key(db_pool, "scale")
     yield k
     await _delete_key(db_pool, h)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def enterprise_key(db_pool):
     k, h = await _insert_key(db_pool, "enterprise", monthly_limit=999_999_999)
     yield k
     await _delete_key(db_pool, h)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def exhausted_key(db_pool):
     k, h = await _insert_key(db_pool, "starter", monthly_limit=10, requests_this_month=10)
     yield k
@@ -601,31 +602,31 @@ async def test_schedule_changes_summary_structure(app_client, seeded, scale_key)
 
 @pytest.mark.asyncio
 async def test_schedule_changes_classifier_new_listing(app_client, seeded, scale_key):
-    r = await app_client.get("/v1/schedule-changes/2026-04", headers=h(scale_key))
+    r = await app_client.get(f"/v1/schedule-changes/{TEST_MONTH}", headers=h(scale_key))
     by_type = r.json()["data"]["summary_by_type"]
     assert by_type.get("NEW_LISTING", 0) > 0
 
 @pytest.mark.asyncio
 async def test_schedule_changes_classifier_price_change(app_client, seeded, scale_key):
-    r = await app_client.get("/v1/schedule-changes/2026-04", headers=h(scale_key))
+    r = await app_client.get(f"/v1/schedule-changes/{TEST_MONTH}", headers=h(scale_key))
     by_type = r.json()["data"]["summary_by_type"]
     assert by_type.get("PRICE_CHANGE", 0) > 0
 
 @pytest.mark.asyncio
 async def test_schedule_changes_classifier_delisting(app_client, seeded, scale_key):
-    r = await app_client.get("/v1/schedule-changes/2026-04", headers=h(scale_key))
+    r = await app_client.get(f"/v1/schedule-changes/{TEST_MONTH}", headers=h(scale_key))
     by_type = r.json()["data"]["summary_by_type"]
     assert by_type.get("DELISTING", 0) > 0
 
 @pytest.mark.asyncio
 async def test_schedule_changes_classifier_restriction(app_client, seeded, scale_key):
-    r = await app_client.get("/v1/schedule-changes/2026-04", headers=h(scale_key))
+    r = await app_client.get(f"/v1/schedule-changes/{TEST_MONTH}", headers=h(scale_key))
     by_type = r.json()["data"]["summary_by_type"]
     assert by_type.get("RESTRICTION_CHANGE", 0) > 0
 
 @pytest.mark.asyncio
 async def test_schedule_changes_no_other_dominance(app_client, seeded, scale_key):
-    r = await app_client.get("/v1/schedule-changes/2026-04", headers=h(scale_key))
+    r = await app_client.get(f"/v1/schedule-changes/{TEST_MONTH}", headers=h(scale_key))
     data = r.json()["data"]
     other = data["summary_by_type"].get("OTHER_MODIFICATION", 0)
     total = data["total_changes"]
@@ -633,7 +634,7 @@ async def test_schedule_changes_no_other_dominance(app_client, seeded, scale_key
 
 @pytest.mark.asyncio
 async def test_schedule_changes_new_listings_enrichment(app_client, seeded, scale_key):
-    r = await app_client.get("/v1/schedule-changes/2026-04/new-listings", headers=h(scale_key))
+    r = await app_client.get(f"/v1/schedule-changes/{TEST_MONTH}/new-listings", headers=h(scale_key))
     assert r.status_code == 200
     data = r.json()
     assert data["meta"]["total"] > 0
@@ -644,7 +645,7 @@ async def test_schedule_changes_new_listings_enrichment(app_client, seeded, scal
 
 @pytest.mark.asyncio
 async def test_schedule_changes_delistings_enrichment(app_client, seeded, scale_key):
-    r = await app_client.get("/v1/schedule-changes/2026-04/delistings", headers=h(scale_key))
+    r = await app_client.get(f"/v1/schedule-changes/{TEST_MONTH}/delistings", headers=h(scale_key))
     assert r.status_code == 200
     data = r.json()
     assert data["meta"]["total"] > 0
@@ -654,7 +655,7 @@ async def test_schedule_changes_delistings_enrichment(app_client, seeded, scale_
 
 @pytest.mark.asyncio
 async def test_schedule_changes_price_changes_enrichment(app_client, seeded, scale_key):
-    r = await app_client.get("/v1/schedule-changes/2026-04/price-changes", headers=h(scale_key))
+    r = await app_client.get(f"/v1/schedule-changes/{TEST_MONTH}/price-changes", headers=h(scale_key))
     assert r.status_code == 200
     data = r.json()
     assert data["meta"]["total"] > 0
@@ -665,7 +666,7 @@ async def test_schedule_changes_price_changes_enrichment(app_client, seeded, sca
 
 @pytest.mark.asyncio
 async def test_schedule_changes_restriction_enrichment(app_client, seeded, scale_key):
-    r = await app_client.get("/v1/schedule-changes/2026-04/restriction-changes", headers=h(scale_key))
+    r = await app_client.get(f"/v1/schedule-changes/{TEST_MONTH}/restriction-changes", headers=h(scale_key))
     assert r.status_code == 200
     data = r.json()
     assert data["meta"]["total"] > 0
@@ -699,7 +700,7 @@ async def test_market_atc_summary_structure(app_client, seeded, enterprise_key):
     assert r.status_code in (200, 404)
     if r.status_code == 200:
         data = r.json()["data"]
-        for field in ("atc_code", "item_count", "brand_count"):
+        for field in ("atc_code", "unique_prescribing_rules", "unique_brands"):
             assert field in data
 
 @pytest.mark.asyncio
@@ -708,14 +709,14 @@ async def test_market_formulary_landscape_structure(app_client, seeded, enterpri
     assert r.status_code == 200
     data = r.json()["data"]
     assert "total_items" in data
-    assert "by_formulary" in data
+    assert "distribution" in data
 
 @pytest.mark.asyncio
 async def test_market_authority_landscape_structure(app_client, seeded, enterprise_key):
     r = await app_client.get("/v1/market/authority-landscape", headers=h(enterprise_key))
     assert r.status_code == 200
     data = r.json()["data"]
-    assert "total_items" in data
+    assert "benefit_type_distribution" in data
 
 @pytest.mark.asyncio
 async def test_market_biosimilar_landscape_structure(app_client, seeded, enterprise_key):
@@ -751,7 +752,7 @@ async def test_market_schedule_comparison_requires_two_params(app_client, seeded
 @pytest.mark.asyncio
 async def test_market_price_reduction_events_structure(app_client, seeded, enterprise_key):
     r = await app_client.get(
-        "/v1/market/price-reduction-events?start_schedule=2026-01&end_schedule=2026-05",
+        "/v1/market/price-reduction-events?from_schedule=2026-01&to_schedule=2026-05",
         headers=h(enterprise_key),
     )
     assert r.status_code in (200, 404)

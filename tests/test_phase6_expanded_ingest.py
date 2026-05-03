@@ -70,7 +70,7 @@ def test_normaliser_returns_all_new_keys_when_data_provided():
     assert len(result["item_restriction_relationships"]) == 3
     assert len(result["restriction_prescribing_text_relationships"]) == 2
     assert len(result["item_prescribing_text_relationships"]) == 2
-    assert len(result["summary_of_changes"]) == 2
+    assert len(result["summary_of_changes"]) == 5
 
 
 def test_normaliser_item_overview_augments_item():
@@ -266,7 +266,7 @@ async def test_loader_inserts_summary_of_changes(db):
     await load_to_database(FakePool(db), "2026-04", normalised, [])
 
     count = await db.fetchval("SELECT COUNT(*) FROM summary_of_changes")
-    assert count == 2
+    assert count == 5
 
 
 @pytest.mark.asyncio

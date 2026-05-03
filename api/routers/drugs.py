@@ -24,7 +24,7 @@ async def _resolve_schedule(db, schedule: Optional[str]) -> tuple[str, str]:
 
 def _meta(key_data: dict, schedule_month: str, join_sources: list[str]) -> dict:
     return {
-        "schedule_code": schedule_month,
+        "schedule_month": schedule_month,
         "tier": tier_label(key_data),
         "join_sources": join_sources,
     }
@@ -116,7 +116,7 @@ async def search_drugs(
             "total": total or 0,
             "page": page,
             "limit": limit,
-            "schedule_code": schedule_month,
+            "schedule_month": schedule_month,
             "tier": tier_label(api_key_data),
         },
     }

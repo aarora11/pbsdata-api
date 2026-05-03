@@ -16,10 +16,10 @@ def load(filename: str):
 async def seed_expanded(db):
     """Seed all expanded PBS data for integration tests."""
     await db.execute(
-        "INSERT INTO schedules (month, released_at, ingest_status) VALUES ('2026-04', NOW(), 'complete') ON CONFLICT (month) DO NOTHING"
+        "INSERT INTO schedules (month, released_at, ingest_status) VALUES ('2099-02', NOW(), 'complete') ON CONFLICT (month) DO UPDATE SET ingest_status = 'complete'"
     )
     normalised = normalise_schedule(
-        "2026-04",
+        "2099-02",
         load("pbs_sample_items.json"),
         load("pbs_sample_restrictions.json"),
         raw_fees=load("pbs_sample_fees.json"),
@@ -43,7 +43,7 @@ async def seed_expanded(db):
         async def __aenter__(self): return self._c
         async def __aexit__(self, *a): pass
 
-    await load_to_database(P(), "2026-04", normalised, [])
+    await load_to_database(P(), "2099-02", normalised, [])
 
 
 @pytest.fixture
@@ -65,21 +65,20 @@ async def client_expanded(app_client, db_pool):
         await seed_expanded(conn)
     yield app_client
     async with db_pool.acquire() as conn:
-        await conn.execute("DELETE FROM summary_of_changes")
-        await conn.execute("DELETE FROM item_prescribing_text_relationships")
-        await conn.execute("DELETE FROM restriction_prescribing_text_relationships")
-        await conn.execute("DELETE FROM item_restriction_relationships")
-        await conn.execute("DELETE FROM item_dispensing_rules")
-        await conn.execute("DELETE FROM program_dispensing_rules")
-        await conn.execute("DELETE FROM item_amt_relationships")
-        await conn.execute("DELETE FROM amt_items")
-        await conn.execute("DELETE FROM indications")
-        await conn.execute("DELETE FROM prescribing_texts")
-        await conn.execute("DELETE FROM fees")
-        await conn.execute("DELETE FROM restrictions WHERE item_id IN (SELECT id FROM items WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04'))")
-        await conn.execute("DELETE FROM items WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04')")
-        await conn.execute("DELETE FROM medicines")
-        await conn.execute("DELETE FROM schedules WHERE month = '2026-04'")
+        await conn.execute("DELETE FROM summary_of_changes WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-02')")
+        await conn.execute("DELETE FROM item_prescribing_text_relationships WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-02')")
+        await conn.execute("DELETE FROM restriction_prescribing_text_relationships WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-02')")
+        await conn.execute("DELETE FROM item_restriction_relationships WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-02')")
+        await conn.execute("DELETE FROM item_dispensing_rules WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-02')")
+        await conn.execute("DELETE FROM program_dispensing_rules WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-02')")
+        await conn.execute("DELETE FROM item_amt_relationships WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-02')")
+        await conn.execute("DELETE FROM amt_items WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-02')")
+        await conn.execute("DELETE FROM indications WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-02')")
+        await conn.execute("DELETE FROM prescribing_texts WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-02')")
+        await conn.execute("DELETE FROM fees WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-02')")
+        await conn.execute("DELETE FROM restrictions WHERE item_id IN (SELECT id FROM items WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-02'))")
+        await conn.execute("DELETE FROM items WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-02')")
+        await conn.execute("DELETE FROM schedules WHERE month = '2099-02'")
 
 
 # ── Fees ──────────────────────────────────────────────────────────────────────
@@ -253,7 +252,7 @@ async def test_summary_of_changes_200(client_expanded, headers):
     assert r.status_code == 200
     body = r.json()
     assert "data" in body
-    assert body["meta"]["total"] == 2
+    assert body["meta"]["total"] == 5
 
 
 @pytest.mark.asyncio
@@ -261,16 +260,16 @@ async def test_summary_of_changes_filter_by_pbs_code(client_expanded, headers):
     r = await client_expanded.get("/v1/summary-of-changes?pbs_code=2622M", headers=headers)
     assert r.status_code == 200
     data = r.json()["data"]
-    assert len(data) == 1
-    assert data[0]["pbs_code"] == "2622M"
-    assert data[0]["change_type"] == "price_reduction"
+    assert len(data) == 2
+    assert all(d["pbs_code"] == "2622M" for d in data)
+    assert all(d["change_type"] == "DELETE" for d in data)
 
 
 @pytest.mark.asyncio
 async def test_summary_of_changes_filter_by_schedule(client_expanded, headers):
-    r = await client_expanded.get("/v1/summary-of-changes?schedule=2026-04", headers=headers)
+    r = await client_expanded.get("/v1/summary-of-changes?schedule=2099-02", headers=headers)
     assert r.status_code == 200
-    assert r.json()["meta"]["total"] == 2
+    assert r.json()["meta"]["total"] == 5
 
 
 # ── Extended item detail ──────────────────────────────────────────────────────

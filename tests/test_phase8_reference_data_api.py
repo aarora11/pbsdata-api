@@ -16,10 +16,10 @@ def load(filename: str):
 async def seed_reference(db):
     """Seed all reference data for integration tests."""
     await db.execute(
-        "INSERT INTO schedules (month, released_at, ingest_status) VALUES ('2026-04', NOW(), 'complete') ON CONFLICT (month) DO NOTHING"
+        "INSERT INTO schedules (month, released_at, ingest_status) VALUES ('2099-03', NOW(), 'complete') ON CONFLICT (month) DO UPDATE SET ingest_status = 'complete'"
     )
     normalised = normalise_schedule(
-        "2026-04",
+        "2099-03",
         load("pbs_sample_items.json"),
         load("pbs_sample_restrictions.json"),
         raw_organisations=load("pbs_sample_organisations.json"),
@@ -37,7 +37,7 @@ async def seed_reference(db):
         async def __aenter__(self): return self._c
         async def __aexit__(self, *a): pass
 
-    await load_to_database(P(), "2026-04", normalised, [])
+    await load_to_database(P(), "2099-03", normalised, [])
 
 
 @pytest.fixture
@@ -59,24 +59,23 @@ async def client_ref(app_client, db_pool):
         await seed_reference(conn)
     yield app_client
     async with db_pool.acquire() as conn:
-        await conn.execute("DELETE FROM item_organisation_relationships WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04')")
-        await conn.execute("DELETE FROM item_atc_relationships WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04')")
-        await conn.execute("DELETE FROM copayments WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04')")
-        await conn.execute("DELETE FROM atc_codes WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04')")
-        await conn.execute("DELETE FROM programs WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04')")
-        await conn.execute("DELETE FROM organisations WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04')")
-        await conn.execute("DELETE FROM item_restriction_relationships WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04')")
-        await conn.execute("DELETE FROM restrictions WHERE item_id IN (SELECT id FROM items WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04'))")
-        await conn.execute("DELETE FROM items WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04')")
-        await conn.execute("DELETE FROM medicines")
-        await conn.execute("DELETE FROM schedules WHERE month = '2026-04'")
+        await conn.execute("DELETE FROM item_organisation_relationships WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-03')")
+        await conn.execute("DELETE FROM item_atc_relationships WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-03')")
+        await conn.execute("DELETE FROM copayments WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-03')")
+        await conn.execute("DELETE FROM atc_codes WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-03')")
+        await conn.execute("DELETE FROM programs WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-03')")
+        await conn.execute("DELETE FROM organisations WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-03')")
+        await conn.execute("DELETE FROM item_restriction_relationships WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-03')")
+        await conn.execute("DELETE FROM restrictions WHERE item_id IN (SELECT id FROM items WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-03'))")
+        await conn.execute("DELETE FROM items WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-03')")
+        await conn.execute("DELETE FROM schedules WHERE month = '2099-03'")
 
 
 # ── Normaliser: reference data output ─────────────────────────────────────────
 
 def test_normaliser_produces_organisations():
     result = normalise_schedule(
-        "2026-04",
+        "2099-03",
         load("pbs_sample_items.json"),
         load("pbs_sample_restrictions.json"),
         raw_organisations=load("pbs_sample_organisations.json"),
@@ -89,7 +88,7 @@ def test_normaliser_produces_organisations():
 
 def test_normaliser_produces_programs():
     result = normalise_schedule(
-        "2026-04",
+        "2099-03",
         load("pbs_sample_items.json"),
         load("pbs_sample_restrictions.json"),
         raw_programs=load("pbs_sample_programs.json"),
@@ -101,7 +100,7 @@ def test_normaliser_produces_programs():
 
 def test_normaliser_produces_atc_codes():
     result = normalise_schedule(
-        "2026-04",
+        "2099-03",
         load("pbs_sample_items.json"),
         load("pbs_sample_restrictions.json"),
         raw_atc_codes=load("pbs_sample_atc_codes.json"),
@@ -115,7 +114,7 @@ def test_normaliser_produces_atc_codes():
 
 def test_normaliser_produces_copayments():
     result = normalise_schedule(
-        "2026-04",
+        "2099-03",
         load("pbs_sample_items.json"),
         load("pbs_sample_restrictions.json"),
         raw_copayments=load("pbs_sample_copayments.json"),
@@ -129,7 +128,7 @@ def test_normaliser_produces_copayments():
 
 def test_normaliser_produces_item_atc_relationships():
     result = normalise_schedule(
-        "2026-04",
+        "2099-03",
         load("pbs_sample_items.json"),
         load("pbs_sample_restrictions.json"),
         raw_item_atc_relationships=load("pbs_sample_item_atc_relationships.json"),
@@ -285,7 +284,7 @@ async def test_copayments_200(client_ref, headers):
     assert "concessional" in body
     assert "safety_net_general" in body
     assert "safety_net_concessional" in body
-    assert body["month"] == "2026-04"
+    assert body["month"] == "2099-03"
 
 
 @pytest.mark.asyncio
@@ -298,6 +297,6 @@ async def test_copayments_values(client_ref, headers):
 
 @pytest.mark.asyncio
 async def test_copayments_filter_by_schedule(client_ref, headers):
-    r = await client_ref.get("/v1/copayments?schedule=2026-04", headers=headers)
+    r = await client_ref.get("/v1/copayments?schedule=2099-03", headers=headers)
     assert r.status_code == 200
-    assert r.json()["month"] == "2026-04"
+    assert r.json()["month"] == "2099-03"

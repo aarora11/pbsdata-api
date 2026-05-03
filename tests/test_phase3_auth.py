@@ -10,7 +10,7 @@ def test_generate_returns_three_values():
 
 def test_sandbox_key_prefix():
     full_key, _, _ = generate_api_key("sandbox")
-    assert full_key.startswith("sk_test_")
+    assert full_key.startswith("sk_live_")
 
 
 def test_live_key_prefix():

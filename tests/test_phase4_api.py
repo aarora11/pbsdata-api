@@ -12,9 +12,9 @@ FIXTURES = Path(__file__).parent / "fixtures"
 async def seed(db):
     items = json.loads((FIXTURES / "pbs_sample_items.json").read_text())
     restrictions = json.loads((FIXTURES / "pbs_sample_restrictions.json").read_text())
-    normalised = normalise_schedule("2026-04", items, restrictions)
+    normalised = normalise_schedule("2099-04", items, restrictions)
     await db.execute(
-        "INSERT INTO schedules (month, released_at, ingest_status) VALUES ('2026-04', NOW(), 'complete')"
+        "INSERT INTO schedules (month, released_at, ingest_status) VALUES ('2099-04', NOW(), 'complete') ON CONFLICT (month) DO UPDATE SET ingest_status = 'complete'"
     )
     class P:
         def acquire(self): return A(db)
@@ -22,7 +22,7 @@ async def seed(db):
         def __init__(self, c): self._c = c
         async def __aenter__(self): return self._c
         async def __aexit__(self, *a): pass
-    await load_to_database(P(), "2026-04", normalised, [])
+    await load_to_database(P(), "2099-04", normalised, [])
 
 
 @pytest.fixture
@@ -45,9 +45,9 @@ async def client_with_data(app_client, db_pool):
     async with db_pool.acquire() as conn:
         items = json.loads((FIXTURES / "pbs_sample_items.json").read_text())
         restrictions = json.loads((FIXTURES / "pbs_sample_restrictions.json").read_text())
-        normalised = normalise_schedule("2026-04", items, restrictions)
+        normalised = normalise_schedule("2099-04", items, restrictions)
         await conn.execute(
-            "INSERT INTO schedules (month, released_at, ingest_status) VALUES ('2026-04', NOW(), 'complete') ON CONFLICT (month) DO NOTHING"
+            "INSERT INTO schedules (month, released_at, ingest_status) VALUES ('2099-04', NOW(), 'complete') ON CONFLICT (month) DO UPDATE SET ingest_status = 'complete'"
         )
         class P:
             def acquire(self): return A(conn)
@@ -55,15 +55,14 @@ async def client_with_data(app_client, db_pool):
             def __init__(self, c): self._c = c
             async def __aenter__(self): return self._c
             async def __aexit__(self, *a): pass
-        await load_to_database(P(), "2026-04", normalised, [])
+        await load_to_database(P(), "2099-04", normalised, [])
     yield app_client
     # Cleanup
     async with db_pool.acquire() as conn:
-        await conn.execute("DELETE FROM item_restriction_relationships WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04')")
-        await conn.execute("DELETE FROM restrictions WHERE item_id IN (SELECT id FROM items WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04'))")
-        await conn.execute("DELETE FROM items WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2026-04')")
-        await conn.execute("DELETE FROM medicines")
-        await conn.execute("DELETE FROM schedules WHERE month = '2026-04'")
+        await conn.execute("DELETE FROM item_restriction_relationships WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-04')")
+        await conn.execute("DELETE FROM restrictions WHERE item_id IN (SELECT id FROM items WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-04'))")
+        await conn.execute("DELETE FROM items WHERE schedule_id IN (SELECT id FROM schedules WHERE month = '2099-04')")
+        await conn.execute("DELETE FROM schedules WHERE month = '2099-04'")
 
 
 # Schedules
