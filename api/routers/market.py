@@ -94,7 +94,7 @@ async def market_atc_summary(
 
     # Per-child breakdown (direct children of target ATC)
     children = await db.fetch(
-        "SELECT atc_code, atc_name FROM atc_codes WHERE atc_parent_code = $1 AND schedule_id = $2",
+        "SELECT atc_code, atc_description AS atc_name FROM atc_codes WHERE atc_parent_code = $1 AND schedule_id = $2",
         atc_upper, schedule_id,
     )
     breakdown = []

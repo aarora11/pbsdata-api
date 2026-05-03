@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, Response, HTTPException, Query
 from api.middleware.rate_limit import check_rate_limit
 from api.database import get_db
 from api.services.search import search_medicines
+from api.routers.shared import _rl
 from typing import Optional
 import uuid
 

@@ -13,8 +13,8 @@ WEBHOOK_TIERS = {"starter", "growth", "scale", "enterprise"}
 
 
 class WebhookCreate(BaseModel):
-    url: str
-    events: list[str]
+    endpoint_url: str
+    event_types: list[str]
 
 
 @router.post("/webhooks", status_code=201)
@@ -32,21 +32,21 @@ async def create_webhook(
         )
 
     # URL validation — must be HTTPS
-    if not body.url.startswith("https://"):
+    if not body.endpoint_url.startswith("https://"):
         raise HTTPException(
             status_code=422,
             detail={"code": "INVALID_URL", "message": "Webhook URL must use HTTPS."},
         )
 
     # Validate event names
-    invalid_events = [e for e in body.events if e not in VALID_EVENTS]
+    invalid_events = [e for e in body.event_types if e not in VALID_EVENTS]
     if invalid_events:
         raise HTTPException(
             status_code=422,
             detail={"code": "INVALID_EVENT", "message": f"Unknown event types: {invalid_events}"},
         )
 
-    if not body.events:
+    if not body.event_types:
         raise HTTPException(
             status_code=422,
             detail={"code": "INVALID_EVENT", "message": "At least one event type is required."},
@@ -64,16 +64,16 @@ async def create_webhook(
         RETURNING id
         """,
         api_key_id,
-        body.url,
-        body.events,
+        body.endpoint_url,
+        body.event_types,
         signing_secret,
         secret_hash,
     )
 
     return {
         "id": str(webhook_id),
-        "endpoint_url": body.url,
-        "event_types": body.events,
+        "endpoint_url": body.endpoint_url,
+        "event_types": body.event_types,
         "signing_secret": signing_secret,  # shown once
         "is_active": True,
         "failure_count": 0,

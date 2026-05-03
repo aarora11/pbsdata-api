@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, Response, HTTPException, Query
 from api.middleware.rate_limit import check_rate_limit
 from api.database import get_db
 from typing import Optional
+from api.routers.shared import _rl
 
 router = APIRouter(tags=["indications"])
 
