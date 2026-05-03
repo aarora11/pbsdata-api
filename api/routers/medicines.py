@@ -11,12 +11,21 @@ router = APIRouter(tags=["medicines"])
 
 
 
-@router.get("/medicines")
+@router.get(
+    "/medicines",
+    summary="List and Search Medicines",
+    description=(
+        "Returns a paginated list of medicines (active ingredients) with their ATC codes and therapeutic groups. "
+        "Use `q` to fuzzy-search by ingredient or brand name. "
+        "Use `sixty_day=true` to filter to medicines eligible for 60-day dispensing.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def list_medicines(
     response: Response,
-    q: Optional[str] = Query(None, description="Fuzzy search on ingredient or brand name"),
-    sixty_day: Optional[bool] = Query(None),
-    schedule: Optional[str] = Query(None),
+    q: Optional[str] = Query(None, description="Fuzzy search on ingredient name or brand name (partial match)"),
+    sixty_day: Optional[bool] = Query(None, description="Filter to medicines with at least one 60-day dispensing eligible PBS item"),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     api_key_data: dict = Depends(check_rate_limit),
@@ -34,11 +43,20 @@ async def list_medicines(
     }
 
 
-@router.get("/medicines/{medicine_id}")
+@router.get(
+    "/medicines/{medicine_id}",
+    summary="Get Medicine Detail",
+    description=(
+        "Returns a medicine record by UUID, including its ingredient name, ATC code, therapeutic group, "
+        "and all linked active PBS items for the requested schedule. "
+        "Use the medicines list endpoint to find the UUID for a given ingredient.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def get_medicine(
     medicine_id: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):

@@ -32,14 +32,23 @@ def _meta(key_data: dict, schedule_month: str, join_sources: list[str]) -> dict:
 
 # ── 3.1  Drug search (MUST be first to avoid {pbs_code} capturing "search") ───
 
-@router.get("/drugs/search")
+@router.get(
+    "/drugs/search",
+    summary="Search PBS Drugs",
+    description=(
+        "Full-text search across PBS items by ingredient name, brand name, or PBS code. "
+        "Returns paginated results with benefit type, formulary status, and primary ATC code. "
+        "Supports optional filters for program, benefit type, and ATC prefix.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def search_drugs(
     response: Response,
-    q: str = Query(..., min_length=2, description="Search by ingredient, brand name, or PBS code"),
-    schedule: Optional[str] = Query(None),
-    program_code: Optional[str] = Query(None),
-    benefit_type: Optional[str] = Query(None),
-    atc_code: Optional[str] = Query(None, description="Filter by ATC code prefix"),
+    q: str = Query(..., min_length=2, description="Search term — matches ingredient name, brand name, or PBS code (e.g. 'metformin', 'Glucophage', '2622M')"),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format (e.g. '2026-05'); defaults to the latest complete schedule"),
+    program_code: Optional[str] = Query(None, description="Filter by PBS program code (e.g. 'GE' for General Schedule)"),
+    benefit_type: Optional[str] = Query(None, description="Filter by benefit type: U=Unrestricted, R=Restricted, A=Authority Required, S=Streamlined Authority"),
+    atc_code: Optional[str] = Query(None, description="Filter by ATC code prefix (e.g. 'A10' returns all diabetes drugs)"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     api_key_data: dict = Depends(require_tier("scale")),
@@ -124,11 +133,22 @@ async def search_drugs(
 
 # ── 2.1  Drug identity ─────────────────────────────────────────────────────────
 
-@router.get("/drugs/{pbs_code}")
+@router.get(
+    "/drugs/{pbs_code}",
+    summary="Get Drug Detail",
+    description=(
+        "Returns the full clinical profile for a single PBS item identified by its PBS code. "
+        "Includes drug identity (ingredient, form, strength, pack), dispensing rules, restriction/benefit type, "
+        "prescriber authorisations, primary ATC classification, manufacturer, and pricing summary.\n\n"
+        "Set `include_brands=true` to embed the full brand and pricing list inline (equivalent to calling "
+        "`/drugs/{pbs_code}/brands` separately).\n\n"
+        "Requires **Growth (T2)** tier."
+    ),
+)
 async def get_drug(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     include_brands: bool = Query(False, description="Embed brand list inline (same data as /drugs/{pbs_code}/brands)"),
     api_key_data: dict = Depends(require_tier("growth")),
     db=Depends(get_db),
@@ -287,11 +307,20 @@ async def get_drug(
 
 # ── 2.2  Brands ────────────────────────────────────────────────────────────────
 
-@router.get("/drugs/{pbs_code}/brands")
+@router.get(
+    "/drugs/{pbs_code}/brands",
+    summary="List Drug Brands and Pricing",
+    description=(
+        "Returns all listed brands (li_item_id) for a PBS item along with per-brand pricing: "
+        "commonwealth price (DPMQ), maximum general patient charge, brand premium, and dispensing fee. "
+        "F1 items are brand-substitutable; F2 items are not.\n\n"
+        "Requires **Growth (T2)** tier."
+    ),
+)
 async def get_drug_brands(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("growth")),
     db=Depends(get_db),
 ):
@@ -359,11 +388,21 @@ async def get_drug_brands(
 
 # ── 2.3  Prescribers ───────────────────────────────────────────────────────────
 
-@router.get("/drugs/{pbs_code}/prescribers")
+@router.get(
+    "/drugs/{pbs_code}/prescribers",
+    summary="Get Drug Prescriber Rules",
+    description=(
+        "Returns the list of prescriber types authorised to prescribe this PBS item, together with "
+        "the benefit type and authority requirements. "
+        "Includes whether written or telephone authority is required, and the authority method code "
+        "(S=Streamlined, T=Telephone, W=Written, O=Online).\n\n"
+        "Requires **Growth (T2)** tier."
+    ),
+)
 async def get_drug_prescribers(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("growth")),
     db=Depends(get_db),
 ):
@@ -414,11 +453,20 @@ async def get_drug_prescribers(
 
 # ── 2.4  ATC classifications ───────────────────────────────────────────────────
 
-@router.get("/drugs/{pbs_code}/atc")
+@router.get(
+    "/drugs/{pbs_code}/atc",
+    summary="Get Drug ATC Classifications",
+    description=(
+        "Returns all WHO ATC (Anatomical Therapeutic Chemical) classifications for a PBS item, "
+        "including the full ancestor hierarchy from Level 1 (anatomical group) to Level 5 (chemical substance). "
+        "Items with split ATC assignment (multiple classifications) will return all of them ranked by priority percentage.\n\n"
+        "Requires **Growth (T2)** tier."
+    ),
+)
 async def get_drug_atc(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("growth")),
     db=Depends(get_db),
 ):
@@ -476,11 +524,20 @@ async def get_drug_atc(
 
 # ── 2.5  AMT concepts ─────────────────────────────────────────────────────────
 
-@router.get("/drugs/{pbs_code}/amt")
+@router.get(
+    "/drugs/{pbs_code}/amt",
+    summary="Get Drug AMT Concepts",
+    description=(
+        "Returns Australian Medicines Terminology (AMT) concepts linked to this PBS item, "
+        "grouped by concept type (e.g. CTPP, TPP, TP, MPP, MP). "
+        "AMT provides a standardised clinical vocabulary for medicines used in Australian health systems.\n\n"
+        "Requires **Growth (T2)** tier."
+    ),
+)
 async def get_drug_amt(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("growth")),
     db=Depends(get_db),
 ):
@@ -525,11 +582,21 @@ async def get_drug_amt(
 
 # ── 2.9  Restrictions index ────────────────────────────────────────────────────
 
-@router.get("/drugs/{pbs_code}/restrictions")
+@router.get(
+    "/drugs/{pbs_code}/restrictions",
+    summary="List Drug Restrictions",
+    description=(
+        "Returns all PBS restrictions attached to an item, including restriction code, type, "
+        "treatment phase, continuation rules, and authority method. "
+        "Restricted (R) and Authority Required (A/S) items require the prescriber to satisfy "
+        "specific clinical criteria before dispensing.\n\n"
+        "Requires **Growth (T2)** tier."
+    ),
+)
 async def get_drug_restrictions(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("growth")),
     db=Depends(get_db),
 ):
@@ -595,11 +662,20 @@ async def get_drug_restrictions(
 
 # ── T3  Intelligence endpoints (scale tier) ────────────────────────────────────
 
-@router.get("/drugs/{pbs_code}/full-profile")
+@router.get(
+    "/drugs/{pbs_code}/full-profile",
+    summary="Get Complete Drug Profile",
+    description=(
+        "Returns a single comprehensive response combining all drug sub-resources: identity, dispensing rules, "
+        "program, manufacturer, ATC classifications, restrictions (with full text), prescribers, brands, "
+        "pricing, and AMT concepts. Eliminates the need for multiple API calls when you need everything.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_drug_full_profile(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("scale")),
     db=Depends(get_db),
 ):
@@ -778,12 +854,21 @@ async def _gather_drug_data(db, pbs_code: str, schedule_id: str):
     return program, org, prescribers, restrictions, atc_rels, pricing_rows, amt_rows
 
 
-@router.get("/drugs/{pbs_code}/restriction-full")
+@router.get(
+    "/drugs/{pbs_code}/restriction-full",
+    summary="Get Full Restriction Texts",
+    description=(
+        "Returns complete restriction records for a PBS item including full clinical criteria text, "
+        "indication, restriction HTML (li_html_text), and all linked prescribing text components. "
+        "Use `restriction_code` to retrieve a single restriction record in detail.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_drug_restriction_full(
     pbs_code: str,
     response: Response,
-    restriction_code: Optional[str] = Query(None, description="Filter to a single restriction"),
-    schedule: Optional[str] = Query(None),
+    restriction_code: Optional[str] = Query(None, description="Filter to a single restriction code (e.g. 'ASTHM01')"),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("scale")),
     db=Depends(get_db),
 ):
@@ -850,11 +935,21 @@ async def get_drug_restriction_full(
     }
 
 
-@router.get("/drugs/{pbs_code}/authority-workflow")
+@router.get(
+    "/drugs/{pbs_code}/authority-workflow",
+    summary="Get Authority Prescribing Workflow",
+    description=(
+        "Returns a structured prescribing workflow for authority items, including step-by-step checklists "
+        "for each restriction. Shows authority method (streamlined self-assess, telephone, written, online), "
+        "continuation requirements, and clinical criteria. "
+        "Useful for building prescribing decision-support tools.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_drug_authority_workflow(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("scale")),
     db=Depends(get_db),
 ):
@@ -949,11 +1044,21 @@ async def get_drug_authority_workflow(
     }
 
 
-@router.get("/drugs/{pbs_code}/substitution")
+@router.get(
+    "/drugs/{pbs_code}/substitution",
+    summary="Get Drug Substitution Options",
+    description=(
+        "Returns PBS items that share the same active ingredient, which can be used as potential "
+        "substitution candidates. Results include form, strength, pack size, formulary status, and patient charge. "
+        "Note: formal brand-substitution groups (F1 substitution) are not yet available in this schema version; "
+        "results are same-ingredient matches only.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_drug_substitution(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("scale")),
     db=Depends(get_db),
 ):
@@ -1011,11 +1116,20 @@ async def get_drug_substitution(
     }
 
 
-@router.get("/drugs/{pbs_code}/price-history")
+@router.get(
+    "/drugs/{pbs_code}/price-history",
+    summary="Get Drug Price History",
+    description=(
+        "Returns a time-series of government price (DPMQ), general and concessional patient charges, "
+        "and brand premium across up to 36 monthly schedule snapshots. "
+        "Includes a trend summary showing total price delta and direction (up/down/stable) over the window.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_drug_price_history(
     pbs_code: str,
     response: Response,
-    months: int = Query(12, ge=1, le=36, description="Number of schedule months to look back"),
+    months: int = Query(12, ge=1, le=36, description="Number of schedule months to look back (1–36); default is 12"),
     api_key_data: dict = Depends(require_tier("scale")),
     db=Depends(get_db),
 ):
@@ -1087,11 +1201,20 @@ async def get_drug_price_history(
     }
 
 
-@router.get("/drugs/{pbs_code}/pricing-events")
+@router.get(
+    "/drugs/{pbs_code}/pricing-events",
+    summary="Get Drug Pricing Events",
+    description=(
+        "Returns discrete pricing change events for a PBS item within a given schedule, "
+        "including event type, effective date, previous price, new price, and calculated price change. "
+        "Events represent price reductions, increases, and special pricing adjustments recorded by the PBS.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_drug_pricing_events(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("scale")),
     db=Depends(get_db),
 ):
@@ -1135,11 +1258,21 @@ async def get_drug_pricing_events(
     }
 
 
-@router.get("/drugs/{pbs_code}/safety-net")
+@router.get(
+    "/drugs/{pbs_code}/safety-net",
+    summary="Get Drug Safety Net Calculation",
+    description=(
+        "Calculates the out-of-pocket costs and safety net contribution for a PBS item. "
+        "Returns patient copayment amounts (general and concessional), brand premium costs, "
+        "and an estimate of how many scripts are required to reach the PBS safety net threshold. "
+        "The safety net threshold is the point at which further copayments are waived or reduced.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_drug_safety_net(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("scale")),
     db=Depends(get_db),
 ):
@@ -1206,11 +1339,20 @@ async def get_drug_safety_net(
     }
 
 
-@router.get("/drugs/{pbs_code}/60-day-pair")
+@router.get(
+    "/drugs/{pbs_code}/60-day-pair",
+    summary="Get 60-Day Dispensing Eligibility",
+    description=(
+        "Returns whether a PBS item is eligible for 60-day dispensing (double the standard quantity per script) "
+        "and lists other PBS items with the same active ingredient that are also 60-day eligible. "
+        "60-day dispensing was introduced to reduce dispensing frequency for stable, chronic conditions.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_drug_60_day_pair(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("scale")),
     db=Depends(get_db),
 ):
@@ -1267,11 +1409,21 @@ async def get_drug_60_day_pair(
     }
 
 
-@router.get("/drugs/{pbs_code}/formulary-status")
+@router.get(
+    "/drugs/{pbs_code}/formulary-status",
+    summary="Get Drug Formulary Status",
+    description=(
+        "Returns the formulary classification (F1, F2, or F3) for a PBS item with explanatory labels, "
+        "along with biosimilar flag, benefit type, and full pricing details. "
+        "Also includes up to 5 most recent pricing events for context on recent price changes. "
+        "F1 = brand-substitutable; F2 = not substitutable; F3 = price-disclosure items.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_drug_formulary_status(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("scale")),
     db=Depends(get_db),
 ):

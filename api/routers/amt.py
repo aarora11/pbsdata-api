@@ -21,12 +21,23 @@ async def _resolve_schedule_id(db, schedule: Optional[str]) -> str:
     return str(row["id"])
 
 
-@router.get("/amt")
+@router.get(
+    "/amt",
+    summary="List AMT Concepts",
+    description=(
+        "Returns Australian Medicines Terminology (AMT) concept records. "
+        "AMT provides standardised clinical vocabulary with concept types such as: "
+        "CTPP (Containered Trade Product Pack), TPP (Trade Product Pack), TP (Trade Product), "
+        "MPP (Medicinal Product Pack), MP (Medicinal Product). "
+        "Filter by `atc_code` or `concept_type` to narrow results.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def list_amt_items(
     response: Response,
-    schedule: Optional[str] = Query(None),
-    atc_code: Optional[str] = Query(None),
-    concept_type: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    atc_code: Optional[str] = Query(None, description="Filter by ATC code (exact match)"),
+    concept_type: Optional[str] = Query(None, description="Filter by AMT concept type (e.g. 'CTPP', 'TPP', 'MP')"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     api_key_data: dict = Depends(check_rate_limit),
@@ -61,11 +72,19 @@ async def list_amt_items(
     }
 
 
-@router.get("/amt/{amt_id}")
+@router.get(
+    "/amt/{amt_id}",
+    summary="Get AMT Concept Detail",
+    description=(
+        "Returns a single AMT concept by its AMT ID, including concept type, preferred term, "
+        "ATC code, parent concept, and all PBS items linked to this concept.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def get_amt_item(
     amt_id: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):

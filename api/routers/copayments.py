@@ -22,7 +22,16 @@ async def _resolve_schedule_id(db, schedule: Optional[str]) -> str:
     return str(row["id"])
 
 
-@router.get("/copayments/current")
+@router.get(
+    "/copayments/current",
+    summary="Get Current Copayment Thresholds",
+    description=(
+        "Returns the current PBS patient copayment amounts and safety net thresholds from the latest "
+        "complete schedule. Includes general copayment, concessional copayment, safety net threshold "
+        "for each category, safety net card issue fee, and CTG (Closing the Gap) contribution.\n\n"
+        "Requires **Starter (T1)** tier."
+    ),
+)
 async def get_current_copayments(
     response: Response,
     api_key_data: dict = Depends(require_tier("starter")),
@@ -76,10 +85,19 @@ async def get_current_copayments(
     }
 
 
-@router.get("/copayments")
+@router.get(
+    "/copayments",
+    summary="Get Schedule Copayment Data",
+    description=(
+        "Returns PBS copayment thresholds for a specific schedule month, or the latest schedule by default. "
+        "Includes general and concessional patient charges, safety net thresholds, "
+        "and the increased discount limit.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def get_copayments(
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):

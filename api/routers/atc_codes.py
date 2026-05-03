@@ -22,12 +22,22 @@ async def _resolve_schedule_id(db, schedule: Optional[str]) -> str:
     return str(row["id"])
 
 
-@router.get("/atc-codes")
+@router.get(
+    "/atc-codes",
+    summary="List ATC Codes",
+    description=(
+        "Returns all WHO ATC (Anatomical Therapeutic Chemical) classification codes for a given schedule. "
+        "Filter by `level` (1–5) to retrieve a specific tier of the hierarchy, or by `parent_code` "
+        "to get direct children of a node. Level 1 = anatomical group (e.g. 'A' Alimentary), "
+        "Level 5 = chemical substance (e.g. 'A10BA02' Metformin).\n\n"
+        "Available on all tiers."
+    ),
+)
 async def list_atc_codes(
     response: Response,
-    schedule: Optional[str] = Query(None),
-    level: Optional[int] = Query(None),
-    parent_code: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    level: Optional[int] = Query(None, description="ATC hierarchy level to filter by (1=anatomical group, 2=therapeutic group, 3=pharmacological, 4=chemical group, 5=chemical substance)"),
+    parent_code: Optional[str] = Query(None, description="Return only direct children of this ATC code (e.g. 'A10' returns A10BA, A10BB, etc.)"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):
@@ -56,11 +66,20 @@ async def list_atc_codes(
     return {"data": [dict(r) for r in rows], "meta": {"total": len(rows)}}
 
 
-@router.get("/atc-codes/by-level/{level}")
+@router.get(
+    "/atc-codes/by-level/{level}",
+    summary="List ATC Codes by Level",
+    description=(
+        "Returns all ATC codes at a specific hierarchy level (1–5). "
+        "Level 1 has ~14 anatomical groups; Level 5 has thousands of individual chemical substances. "
+        "Useful for building ATC-based navigation trees or therapeutic area dropdowns.\n\n"
+        "Requires **Starter (T1)** tier."
+    ),
+)
 async def get_atc_codes_by_level(
     level: int,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("starter")),
     db=Depends(get_db),
 ):
@@ -78,11 +97,21 @@ async def get_atc_codes_by_level(
     }
 
 
-@router.get("/atc-codes/{atc_code}/hierarchy")
+@router.get(
+    "/atc-codes/{atc_code}/hierarchy",
+    summary="Get ATC Code Hierarchy",
+    description=(
+        "Returns the full ancestor chain (from root to the target code) and immediate children "
+        "for any ATC code. The `breadcrumb` field provides a human-readable path like "
+        "'A → A10 → A10B → A10BA → A10BA02'. "
+        "Use `is_leaf` to determine whether the code is a Level-5 substance node.\n\n"
+        "Requires **Starter (T1)** tier."
+    ),
+)
 async def get_atc_hierarchy(
     atc_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("starter")),
     db=Depends(get_db),
 ):
@@ -132,11 +161,20 @@ async def get_atc_hierarchy(
     }
 
 
-@router.get("/atc-codes/{atc_code}/children")
+@router.get(
+    "/atc-codes/{atc_code}/children",
+    summary="List ATC Code Children",
+    description=(
+        "Returns the immediate child nodes of an ATC code in the classification tree. "
+        "For example, the children of 'A10' (Blood glucose lowering drugs) are A10A, A10B, A10X, etc. "
+        "Useful for building drill-down navigation in therapeutic area selectors.\n\n"
+        "Requires **Starter (T1)** tier."
+    ),
+)
 async def get_atc_children(
     atc_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("starter")),
     db=Depends(get_db),
 ):
@@ -164,13 +202,24 @@ async def get_atc_children(
     }
 
 
-@router.get("/atc-codes/{atc_code}/items")
+@router.get(
+    "/atc-codes/{atc_code}/items",
+    summary="List PBS Items by ATC Code",
+    description=(
+        "Returns all PBS items classified under a given ATC code. "
+        "Set `include_descendants=true` to include all items in the full subtree beneath the code "
+        "(e.g. 'A10' returns all diabetes drugs). "
+        "Filter by `benefit_type` to narrow to Unrestricted (U), Restricted (R), "
+        "Authority Required (A), or Streamlined Authority (S) items.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_atc_code_items(
     atc_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
-    include_descendants: bool = Query(False, description="Include all drugs in descendant ATC codes"),
-    benefit_type: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    include_descendants: bool = Query(False, description="Include all PBS items in the full ATC subtree beneath this code (recursive)"),
+    benefit_type: Optional[str] = Query(None, description="Filter by benefit type: U=Unrestricted, R=Restricted, A=Authority Required, S=Streamlined Authority"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     api_key_data: dict = Depends(require_tier("scale")),
@@ -275,11 +324,20 @@ async def get_atc_code_items(
     }
 
 
-@router.get("/atc-codes/{atc_code}")
+@router.get(
+    "/atc-codes/{atc_code}",
+    summary="Get ATC Code Detail",
+    description=(
+        "Returns the ATC code record including description, level, parent code, "
+        "directly linked PBS items (via item_atc_relationships), and immediate child codes. "
+        "For a full ancestor hierarchy use the `/atc-codes/{atc_code}/hierarchy` endpoint.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def get_atc_code(
     atc_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):

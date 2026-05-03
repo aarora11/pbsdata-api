@@ -10,13 +10,23 @@ router = APIRouter(tags=["summary-of-changes"])
 
 
 
-@router.get("/summary-of-changes")
+@router.get(
+    "/summary-of-changes",
+    summary="List Official PBS Summary of Changes",
+    description=(
+        "Returns the official PBS summary_of_changes records — the government-published changelog "
+        "for each schedule month. Each record describes what changed for a PBS item (pbs_code), "
+        "the change type (INSERT/UPDATE/DELETE), effective date, and source section. "
+        "Filter by `schedule` for a single month, or use `since` for all changes from a date onwards.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def list_summary_of_changes(
     response: Response,
-    schedule: Optional[str] = Query(None, description="Filter to a specific schedule month (YYYY-MM)"),
-    since: Optional[str] = Query(None, description="Return changes from schedules on or after this month (YYYY-MM)"),
-    pbs_code: Optional[str] = Query(None),
-    change_type: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Filter to a specific schedule month in YYYY-MM format"),
+    since: Optional[str] = Query(None, description="Return changes from schedules on or after this month (YYYY-MM); ignored if `schedule` is provided"),
+    pbs_code: Optional[str] = Query(None, description="Filter to changes for a specific PBS item code"),
+    change_type: Optional[str] = Query(None, description="Filter by raw PBS change type: INSERT, UPDATE, or DELETE"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     api_key_data: dict = Depends(check_rate_limit),

@@ -17,7 +17,17 @@ class WebhookCreate(BaseModel):
     event_types: list[str]
 
 
-@router.post("/webhooks", status_code=201)
+@router.post(
+    "/webhooks",
+    status_code=201,
+    summary="Create Webhook",
+    description=(
+        "Registers a new webhook endpoint to receive real-time notifications when PBS schedule events occur. "
+        "The URL must use HTTPS. On creation, a one-time `signing_secret` is returned — store it securely "
+        "to verify incoming webhook payloads. Supported event types are defined in the webhook sender service.\n\n"
+        "Requires **Starter (T1)** tier or above."
+    ),
+)
 async def create_webhook(
     body: WebhookCreate,
     response: Response,
@@ -80,7 +90,15 @@ async def create_webhook(
     }
 
 
-@router.get("/webhooks")
+@router.get(
+    "/webhooks",
+    summary="List Active Webhooks",
+    description=(
+        "Returns all active webhooks registered for the authenticated API key, "
+        "including endpoint URL, subscribed event types, failure count, and last triggered timestamp.\n\n"
+        "Requires **Starter (T1)** tier or above."
+    ),
+)
 async def list_webhooks(
     response: Response,
     api_key_data: dict = Depends(check_rate_limit),
@@ -104,7 +122,17 @@ async def list_webhooks(
     return {"data": data}
 
 
-@router.delete("/webhooks/{webhook_id}", status_code=204)
+@router.delete(
+    "/webhooks/{webhook_id}",
+    status_code=204,
+    summary="Delete Webhook",
+    description=(
+        "Deactivates and removes a registered webhook by its UUID. "
+        "Returns 204 No Content on success. Returns 404 if the webhook does not exist "
+        "or does not belong to the authenticated API key.\n\n"
+        "Requires **Starter (T1)** tier or above."
+    ),
+)
 async def delete_webhook(
     webhook_id: str,
     api_key_data: dict = Depends(check_rate_limit),

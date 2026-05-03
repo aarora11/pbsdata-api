@@ -21,12 +21,22 @@ async def _resolve_schedule_id(db, schedule: Optional[str]) -> str:
     return str(row["id"])
 
 
-@router.get("/prescribing-texts")
+@router.get(
+    "/prescribing-texts",
+    summary="List Prescribing Texts",
+    description=(
+        "Returns prescribing text components which form the human-readable prescribing instructions "
+        "for PBS restrictions. Filter by `pbs_code` to get all texts for an item, or by "
+        "`restriction_code` to get texts for a specific restriction. "
+        "Without filters, returns all texts for the schedule paginated.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def list_prescribing_texts(
     response: Response,
-    schedule: Optional[str] = Query(None),
-    pbs_code: Optional[str] = Query(None),
-    restriction_code: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    pbs_code: Optional[str] = Query(None, description="Filter to prescribing texts linked to a specific PBS item code"),
+    restriction_code: Optional[str] = Query(None, description="Filter to prescribing texts linked to a specific restriction code"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     api_key_data: dict = Depends(check_rate_limit),
@@ -101,11 +111,20 @@ async def list_prescribing_texts(
     }
 
 
-@router.get("/prescribing-texts/{prescribing_text_id}")
+@router.get(
+    "/prescribing-texts/{prescribing_text_id}",
+    summary="Get Prescribing Text by ID",
+    description=(
+        "Returns a single prescribing text record by its ID. "
+        "The `text_type` field indicates the component role (indication, criteria, continuation, etc.) "
+        "and `complex_authority_required` flags texts that require complex authority documentation.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def get_prescribing_text(
     prescribing_text_id: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):

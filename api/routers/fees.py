@@ -21,11 +21,20 @@ async def _resolve_schedule_id(db, schedule: Optional[str]) -> str:
     return str(row["id"])
 
 
-@router.get("/fees")
+@router.get(
+    "/fees",
+    summary="List PBS Dispensing Fees",
+    description=(
+        "Returns all PBS dispensing fee records for a given schedule, including dispensing fees, "
+        "dangerous drug fees, container fees, and patient contribution amounts. "
+        "Filter by `fee_type` to retrieve a specific category of fees.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def list_fees(
     response: Response,
-    schedule: Optional[str] = Query(None),
-    fee_type: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    fee_type: Optional[str] = Query(None, description="Filter by fee type code (e.g. dispensing, container, dangerous drug)"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):
@@ -51,11 +60,19 @@ async def list_fees(
     return {"data": data, "meta": {"total": len(data)}}
 
 
-@router.get("/fees/{fee_code}")
+@router.get(
+    "/fees/{fee_code}",
+    summary="Get Fee by Code",
+    description=(
+        "Returns a single PBS fee record by its fee code, including the description, amount, "
+        "and patient contribution component for the given schedule.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def get_fee(
     fee_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):

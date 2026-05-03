@@ -34,11 +34,20 @@ def check_history_limit(api_key_data: dict, schedule: Optional[str]):
         )
 
 
-@router.get("/items/{pbs_code}")
+@router.get(
+    "/items/{pbs_code}",
+    summary="Get PBS Item",
+    description=(
+        "Returns the raw PBS item record for a given PBS code, including drug details, dispensing rules, "
+        "benefit type, pricing fields, and restrictions. "
+        "T2+ (Growth) subscribers additionally receive manufacturer, program title, primary ATC, and prescriber data joined in.\n\n"
+        "Available on all tiers (raw) with enrichment from **Growth (T2)** tier."
+    ),
+)
 async def get_item(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):
@@ -156,11 +165,21 @@ async def get_item(
     }
 
 
-@router.get("/items/{pbs_code}/price")
+@router.get(
+    "/items/{pbs_code}/price",
+    summary="Get Item Pricing Detail",
+    description=(
+        "Returns full pricing breakdown for a PBS item including commonwealth price (DPMQ), "
+        "dispensing fee, container fees, dangerous drug surcharge, brand premium, and calculated "
+        "patient outcomes (general and concessional out-of-pocket cost, government subsidy). "
+        "One context row is returned per dispensing rule (li_item_id + rule combination).\n\n"
+        "Requires **Growth (T2)** tier."
+    ),
+)
 async def get_item_price(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):
@@ -264,11 +283,21 @@ async def get_item_price(
     }
 
 
-@router.get("/items/{pbs_code}/patient-cost")
+@router.get(
+    "/items/{pbs_code}/patient-cost",
+    summary="Get Item Patient Cost Breakdown",
+    description=(
+        "Returns a patient-facing cost breakdown for a PBS item: what a general patient pays, "
+        "what a concessional patient pays, the government subsidy, brand premium if applicable, "
+        "safety net thresholds, and estimated number of scripts to reach the safety net. "
+        "Useful for patient-facing apps and cost transparency tools.\n\n"
+        "Requires **Growth (T2)** tier."
+    ),
+)
 async def get_item_patient_cost(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):
@@ -355,11 +384,20 @@ async def get_item_patient_cost(
     }
 
 
-@router.get("/items/{pbs_code}/prescribing-texts")
+@router.get(
+    "/items/{pbs_code}/prescribing-texts",
+    summary="Get Item Prescribing Texts",
+    description=(
+        "Returns all prescribing text components linked to a PBS item via the "
+        "item_prescribing_text_relationships table. Each text component has a type "
+        "(e.g. indication, restriction, criteria) and indicates whether complex authority is required.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def get_item_prescribing_texts(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):
@@ -391,11 +429,20 @@ async def get_item_prescribing_texts(
     return {"data": [dict(r) for r in rows], "meta": {"total": len(rows)}}
 
 
-@router.get("/items/{li_item_id}/dispensing-context")
+@router.get(
+    "/items/{li_item_id}/dispensing-context",
+    summary="Get Item Dispensing Context",
+    description=(
+        "Returns complete dispensing context for a brand-specific item (li_item_id), including "
+        "pricing per dispensing rule, all applicable fees, and the markup band schedule used to "
+        "calculate pharmacy mark-up. One context per dispensing rule mnemonic is returned.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_item_dispensing_context(
     li_item_id: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("scale")),
     db=Depends(get_db),
 ):
@@ -490,11 +537,20 @@ async def get_item_dispensing_context(
     }
 
 
-@router.get("/items/{pbs_code}/dispensing-rules")
+@router.get(
+    "/items/{pbs_code}/dispensing-rules",
+    summary="Get Item Dispensing Rules",
+    description=(
+        "Returns all dispensing rules applicable to a PBS item (linked via item_dispensing_rules). "
+        "Each rule specifies dispensing quantity, unit, and repeats allowed. "
+        "This is the programmatic equivalent of the PBS Schedule dispensing rules section.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def get_item_dispensing_rules(
     pbs_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):

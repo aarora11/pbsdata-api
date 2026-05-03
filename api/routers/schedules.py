@@ -9,7 +9,16 @@ router = APIRouter(tags=["schedules"])
 
 
 
-@router.get("/schedules")
+@router.get(
+    "/schedules",
+    summary="List Available Schedules",
+    description=(
+        "Returns all completed PBS schedule months available in the system, ordered newest first. "
+        "Each record includes the schedule month (YYYY-MM), release date, item count, change count, "
+        "and ingest status. Use the `month` field as the `schedule` parameter in other endpoints.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def list_schedules(
     response: Response,
     api_key_data: dict = Depends(check_rate_limit),
@@ -32,7 +41,16 @@ async def list_schedules(
     return {"data": data, "meta": {"total": len(data)}}
 
 
-@router.get("/schedules/latest")
+@router.get(
+    "/schedules/latest",
+    summary="Get Latest Schedule",
+    description=(
+        "Returns the most recently published and fully ingested PBS schedule. "
+        "The `month` field (YYYY-MM format) can be used as the `schedule` parameter in all other endpoints. "
+        "Includes item count and change count for the schedule.\n\n"
+        "Requires **Starter (T1)** tier."
+    ),
+)
 async def get_latest_schedule(
     response: Response,
     api_key_data: dict = Depends(require_tier("starter")),

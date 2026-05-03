@@ -21,10 +21,19 @@ async def _resolve_schedule(db, schedule: Optional[str]) -> tuple[str, str]:
     return str(row["id"]), row["month"]
 
 
-@router.get("/extemporaneous/ingredients")
+@router.get(
+    "/extemporaneous/ingredients",
+    summary="List Extemporaneous Ingredients",
+    description=(
+        "Returns price data for extemporaneous compounding ingredients listed on the PBS. "
+        "Each record provides the agreed purchasing unit and per-concentration prices "
+        "(rounded and exact) at 0.1g/mL, 1g/mL, 10g/mL, and 100g/mL strengths.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def list_extemporaneous_ingredients(
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     api_key_data: dict = Depends(require_tier("scale")),
@@ -86,10 +95,19 @@ async def list_extemporaneous_ingredients(
     }
 
 
-@router.get("/extemporaneous/tariffs")
+@router.get(
+    "/extemporaneous/tariffs",
+    summary="List Extemporaneous Tariffs",
+    description=(
+        "Returns the extemporaneous compounding tariff schedule, including drug name, "
+        "agreed purchasing unit, pharmacy markup, and recommended dispensing prices "
+        "at each concentration tier (0.1g, 1g, 10g, 100g).\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def list_extemporaneous_tariffs(
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     api_key_data: dict = Depends(require_tier("scale")),

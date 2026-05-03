@@ -28,13 +28,23 @@ def _meta(key_data: dict, schedule_month: str) -> dict:
 
 # ── 4.1  ATC Summary ───────────────────────────────────────────────────────────
 
-@router.get("/market/atc-summary")
+@router.get(
+    "/market/atc-summary",
+    summary="ATC Class Market Summary",
+    description=(
+        "Aggregates all PBS items beneath an ATC code (at any level) for a given schedule. "
+        "Returns counts of items, brands, authority vs unrestricted, F1 vs F2 formulary split, "
+        "biosimilar count, 60-day eligible items, and DPMQ price statistics (min/max/mean/median). "
+        "Also returns a per-child-code breakdown for the immediate children of the target ATC node.\n\n"
+        "Requires **Enterprise (T4)** tier."
+    ),
+)
 async def market_atc_summary(
     response: Response,
-    atc_code: str = Query(..., description="ATC code to summarise (any level)"),
-    schedule: Optional[str] = Query(None),
-    include_inactive: bool = Query(False),
-    primary_atc_only: bool = Query(False, description="Only count items where this is their primary ATC code"),
+    atc_code: str = Query(..., description="WHO ATC code at any level (e.g. 'A10' for diabetes drugs, 'A10BA02' for metformin)"),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    include_inactive: bool = Query(False, description="Include items with no benefit type assigned (typically delisted items)"),
+    primary_atc_only: bool = Query(False, description="Only count items where this is their primary ATC code (excludes split-ATC secondary assignments)"),
     api_key_data: dict = Depends(require_tier("enterprise")),
     db=Depends(get_db),
     _concurrency=Depends(analytics_concurrency_check),
@@ -144,15 +154,25 @@ async def market_atc_summary(
 
 # ── 4.2  Price Reduction Events ────────────────────────────────────────────────
 
-@router.get("/market/price-reduction-events")
+@router.get(
+    "/market/price-reduction-events",
+    summary="List Market Price Reduction Events",
+    description=(
+        "Returns all PBS price reduction events across a schedule date range, with calculated percentage changes. "
+        "Useful for tracking mandatory price disclosure reductions, government-mandated cuts, and F2 brand premium changes. "
+        "Filter by ATC prefix or manufacturer to focus on a therapeutic class or specific company's portfolio. "
+        "Results are capped at 500 items.\n\n"
+        "Requires **Enterprise (T4)** tier."
+    ),
+)
 async def market_price_reduction_events(
     response: Response,
-    from_schedule: str = Query(..., description="Start schedule month YYYY-MM"),
-    to_schedule: Optional[str] = Query(None, description="End schedule month YYYY-MM (inclusive, defaults to latest)"),
-    atc_prefix: Optional[str] = Query(None),
-    organisation_id: Optional[str] = Query(None),
-    min_pct_change: Optional[float] = Query(None, description="Minimum absolute % price reduction to include"),
-    sort: str = Query("pct_change_asc", description="Sort order: pct_change_asc or pct_change_desc"),
+    from_schedule: str = Query(..., description="Start schedule month in YYYY-MM format (inclusive)"),
+    to_schedule: Optional[str] = Query(None, description="End schedule month in YYYY-MM format (inclusive); defaults to the latest complete schedule"),
+    atc_prefix: Optional[str] = Query(None, description="Filter by ATC code prefix (e.g. 'C09' for ACE inhibitors/ARBs)"),
+    organisation_id: Optional[str] = Query(None, description="Filter by manufacturer/sponsor organisation ID"),
+    min_pct_change: Optional[float] = Query(None, description="Only include events with absolute percentage change at least this value (e.g. 5.0 for ≥5% reductions)"),
+    sort: str = Query("pct_change_asc", description="Sort order: 'pct_change_asc' (largest reductions first) or 'pct_change_desc' (smallest reductions first)"),
     api_key_data: dict = Depends(require_tier("enterprise")),
     db=Depends(get_db),
     _concurrency=Depends(analytics_concurrency_check),
@@ -256,14 +276,24 @@ async def market_price_reduction_events(
 
 # ── 4.3  Manufacturer Landscape ────────────────────────────────────────────────
 
-@router.get("/market/manufacturer-landscape")
+@router.get(
+    "/market/manufacturer-landscape",
+    summary="Manufacturer PBS Portfolio Landscape",
+    description=(
+        "Returns an aggregated view of all PBS manufacturers/sponsors with their portfolio statistics: "
+        "total PBS codes, unique brands (li_item_ids), F1/F2 formulary split, biosimilar count, "
+        "authority item count, and DPMQ price range. Results are sorted by item count descending. "
+        "Use `atc_prefix` or `program_code` to scope the analysis to a therapeutic area.\n\n"
+        "Requires **Enterprise (T4)** tier."
+    ),
+)
 async def market_manufacturer_landscape(
     response: Response,
-    schedule: Optional[str] = Query(None),
-    atc_prefix: Optional[str] = Query(None),
-    program_code: Optional[str] = Query(None),
-    formulary: Optional[str] = Query(None, description="F1, F2, or R (restricted)"),
-    min_item_count: int = Query(1, ge=1),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    atc_prefix: Optional[str] = Query(None, description="Filter by ATC code prefix to scope to a therapeutic class (e.g. 'L01' for antineoplastics)"),
+    program_code: Optional[str] = Query(None, description="Filter by PBS program code (e.g. 'GE' for General Schedule)"),
+    formulary: Optional[str] = Query(None, description="Filter by formulary: F1 (brand-substitutable), F2 (not substitutable)"),
+    min_item_count: int = Query(1, ge=1, description="Minimum number of items a manufacturer must have to appear in results"),
     api_key_data: dict = Depends(require_tier("enterprise")),
     db=Depends(get_db),
     _concurrency=Depends(analytics_concurrency_check),
@@ -354,12 +384,23 @@ async def market_manufacturer_landscape(
 
 # ── 4.4  Schedule Comparison ───────────────────────────────────────────────────
 
-@router.get("/market/schedule-comparison")
+@router.get(
+    "/market/schedule-comparison",
+    summary="Compare Two PBS Schedules",
+    description=(
+        "Compares two PBS schedule months and returns: new listings (items in target but not base), "
+        "removed listings (items in base but not target), price changes (items with government price changes), "
+        "and copayment threshold differences. "
+        "Use `atc_prefix` to limit comparison to a specific therapeutic class. "
+        "Results are capped at 500 items per category.\n\n"
+        "Requires **Enterprise (T4)** tier."
+    ),
+)
 async def market_schedule_comparison(
     response: Response,
-    base_schedule: str = Query(..., description="Base schedule month YYYY-MM"),
-    target_schedule: Optional[str] = Query(None, description="Target schedule month (defaults to latest)"),
-    atc_prefix: Optional[str] = Query(None),
+    base_schedule: str = Query(..., description="Base (earlier) schedule month in YYYY-MM format"),
+    target_schedule: Optional[str] = Query(None, description="Target (later) schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    atc_prefix: Optional[str] = Query(None, description="Filter comparison to a specific ATC prefix (e.g. 'J01' for antibacterials)"),
     api_key_data: dict = Depends(require_tier("enterprise")),
     db=Depends(get_db),
     _concurrency=Depends(analytics_concurrency_check),
@@ -506,12 +547,22 @@ async def market_schedule_comparison(
 
 # ── 4.5  Formulary Landscape ───────────────────────────────────────────────────
 
-@router.get("/market/formulary-landscape")
+@router.get(
+    "/market/formulary-landscape",
+    summary="PBS Formulary Distribution Landscape",
+    description=(
+        "Breaks down PBS items by formulary category (F1, F2, F3, None) with item counts, "
+        "percentage shares, and DPMQ price statistics for each formulary tier. "
+        "Also includes the current general and concessional copayment amounts for context. "
+        "Filter by ATC prefix or program to scope the analysis.\n\n"
+        "Requires **Enterprise (T4)** tier."
+    ),
+)
 async def market_formulary_landscape(
     response: Response,
-    schedule: Optional[str] = Query(None),
-    atc_prefix: Optional[str] = Query(None),
-    program_code: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    atc_prefix: Optional[str] = Query(None, description="Filter by ATC code prefix to scope to a therapeutic class"),
+    program_code: Optional[str] = Query(None, description="Filter by PBS program code"),
     api_key_data: dict = Depends(require_tier("enterprise")),
     db=Depends(get_db),
     _concurrency=Depends(analytics_concurrency_check),
@@ -591,11 +642,21 @@ async def market_formulary_landscape(
 
 # ── 4.6  Biosimilar Landscape ──────────────────────────────────────────────────
 
-@router.get("/market/biosimilar-landscape")
+@router.get(
+    "/market/biosimilar-landscape",
+    summary="Biosimilar vs Originator Landscape",
+    description=(
+        "For each ingredient with at least one biosimilar on the PBS, returns a side-by-side comparison "
+        "of biosimilar vs originator pricing and item counts. "
+        "Includes price delta percentage (biosimilar minimum vs originator minimum DPMQ). "
+        "Biological medicines are grouped by ingredient; results are sorted by biosimilar count descending.\n\n"
+        "Requires **Enterprise (T4)** tier."
+    ),
+)
 async def market_biosimilar_landscape(
     response: Response,
-    schedule: Optional[str] = Query(None),
-    atc_prefix: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    atc_prefix: Optional[str] = Query(None, description="Filter by ATC code prefix (e.g. 'L04' for immunosuppressants where many biosimilars exist)"),
     api_key_data: dict = Depends(require_tier("enterprise")),
     db=Depends(get_db),
     _concurrency=Depends(analytics_concurrency_check),
@@ -673,12 +734,22 @@ async def market_biosimilar_landscape(
 
 # ── 4.7  Authority Landscape ───────────────────────────────────────────────────
 
-@router.get("/market/authority-landscape")
+@router.get(
+    "/market/authority-landscape",
+    summary="PBS Authority Prescribing Landscape",
+    description=(
+        "Returns aggregate distributions for prescribing complexity across the PBS: "
+        "benefit type breakdown (U/R/A/S), authority method breakdown (streamlined/telephone/written/online), "
+        "and prescriber type distribution. "
+        "Use to understand what proportion of PBS items require authority and how prescribers are authorised.\n\n"
+        "Requires **Enterprise (T4)** tier."
+    ),
+)
 async def market_authority_landscape(
     response: Response,
-    schedule: Optional[str] = Query(None),
-    atc_prefix: Optional[str] = Query(None),
-    program_code: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    atc_prefix: Optional[str] = Query(None, description="Filter by ATC code prefix to scope to a therapeutic class"),
+    program_code: Optional[str] = Query(None, description="Filter by PBS program code"),
     api_key_data: dict = Depends(require_tier("enterprise")),
     db=Depends(get_db),
     _concurrency=Depends(analytics_concurrency_check),
@@ -767,11 +838,21 @@ async def market_authority_landscape(
 
 # ── 4.8  Safety Net Burden ─────────────────────────────────────────────────────
 
-@router.get("/market/safety-net-burden")
+@router.get(
+    "/market/safety-net-burden",
+    summary="PBS Safety Net Burden Analysis",
+    description=(
+        "Calculates how many prescriptions each PBS item requires before a patient reaches the safety net threshold. "
+        "Returns min/max/mean scripts-to-safety-net across all items, plus per-item data sorted by fewest scripts first. "
+        "Higher-cost items reach the safety net threshold faster (fewer scripts needed). "
+        "Results are capped at 500 items.\n\n"
+        "Requires **Enterprise (T4)** tier."
+    ),
+)
 async def market_safety_net_burden(
     response: Response,
-    schedule: Optional[str] = Query(None),
-    atc_prefix: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    atc_prefix: Optional[str] = Query(None, description="Filter by ATC code prefix to scope to a therapeutic class"),
     api_key_data: dict = Depends(require_tier("enterprise")),
     db=Depends(get_db),
     _concurrency=Depends(analytics_concurrency_check),
@@ -857,11 +938,21 @@ async def market_safety_net_burden(
 
 # ── 4.9  Listings Pipeline ─────────────────────────────────────────────────────
 
-@router.get("/market/listings-pipeline")
+@router.get(
+    "/market/listings-pipeline",
+    summary="PBS Listings Pipeline",
+    description=(
+        "Returns upcoming PBS delistings and new additions sourced from the summary_of_changes table "
+        "for a given schedule. Useful for tracking market-entry signals and at-risk items. "
+        "Note: data quality depends on PBS change descriptions; results may be sparse for schedules "
+        "with limited change record population.\n\n"
+        "Requires **Enterprise (T4)** tier."
+    ),
+)
 async def market_listings_pipeline(
     response: Response,
-    schedule: Optional[str] = Query(None),
-    atc_prefix: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    atc_prefix: Optional[str] = Query(None, description="Filter by ATC code prefix to scope to a therapeutic class"),
     api_key_data: dict = Depends(require_tier("enterprise")),
     db=Depends(get_db),
     _concurrency=Depends(analytics_concurrency_check),
@@ -945,11 +1036,21 @@ async def market_listings_pipeline(
 
 # ── 4.10  Price Pressure Index ─────────────────────────────────────────────────
 
-@router.get("/market/price-pressure-index")
+@router.get(
+    "/market/price-pressure-index",
+    summary="PBS Price Pressure Index",
+    description=(
+        "Returns a composite price pressure index (0–100 scale) for the PBS or a therapeutic class. "
+        "The index is derived from three signals: F2 brand premium prevalence (50% weight), "
+        "recent price reductions in the last 3 schedules (30% weight), and DPMQ-to-government-price ratio (20% weight). "
+        "Interpretation: ≥60 = High, 30–59 = Moderate, <30 = Low pressure.\n\n"
+        "Requires **Enterprise (T4)** tier."
+    ),
+)
 async def market_price_pressure_index(
     response: Response,
-    schedule: Optional[str] = Query(None),
-    atc_prefix: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    atc_prefix: Optional[str] = Query(None, description="Filter by ATC code prefix to scope to a therapeutic class"),
     api_key_data: dict = Depends(require_tier("enterprise")),
     db=Depends(get_db),
     _concurrency=Depends(analytics_concurrency_check),

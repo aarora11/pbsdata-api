@@ -8,12 +8,22 @@ router = APIRouter(tags=["changes"])
 
 
 
-@router.get("/changes")
+@router.get(
+    "/changes",
+    summary="List Field-Level Changes",
+    description=(
+        "Returns field-level change records across PBS schedules — showing old and new values "
+        "for individual fields that changed between schedule ingests. "
+        "Use `since` to start from a schedule month and optionally `until` to bound the range. "
+        "Filter by `change_type` (INSERT/UPDATE/DELETE) to narrow results.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def list_changes(
     response: Response,
-    since: str = Query(..., description="Start month YYYY-MM (required)"),
-    until: str = Query(None),
-    change_type: str = Query(None),
+    since: str = Query(..., description="Start schedule month in YYYY-MM format (required); returns changes from this month onwards"),
+    until: str = Query(None, description="End schedule month in YYYY-MM format (inclusive); defaults to all available months"),
+    change_type: str = Query(None, description="Filter by change type: INSERT, UPDATE, or DELETE"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     api_key_data: dict = Depends(check_rate_limit),

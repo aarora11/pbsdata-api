@@ -22,10 +22,19 @@ async def _resolve_schedule_id(db, schedule: Optional[str]) -> str:
     return str(row["id"])
 
 
-@router.get("/programs")
+@router.get(
+    "/programs",
+    summary="List PBS Programs",
+    description=(
+        "Returns all PBS programs (e.g. General Schedule 'GE', Palliative Care 'PL') for a schedule. "
+        "Starter (T1) subscribers additionally receive dispensing rules embedded per program. "
+        "Programs determine which dispensing rules and fees apply to items.\n\n"
+        "Available on all tiers (dispensing rules from Starter T1+)."
+    ),
+)
 async def list_programs(
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):
@@ -70,11 +79,21 @@ async def list_programs(
     }
 
 
-@router.get("/programs/{program_code}/fee-structure")
+@router.get(
+    "/programs/{program_code}/fee-structure",
+    summary="Get Program Fee Structure",
+    description=(
+        "Returns the complete fee structure for a PBS program: all dispensing rules, "
+        "markup band schedules (used to calculate pharmacy mark-up by price tier), "
+        "and applicable fees. The markup bands define the variable rate and fixed amounts "
+        "applied at different DPMQ price ranges.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_program_fee_structure(
     program_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("scale")),
     db=Depends(get_db),
 ):
@@ -148,11 +167,19 @@ async def get_program_fee_structure(
     }
 
 
-@router.get("/programs/{program_code}")
+@router.get(
+    "/programs/{program_code}",
+    summary="Get Program Detail",
+    description=(
+        "Returns a single PBS program record including title and all associated dispensing rules "
+        "(quantity, unit, repeats allowed). Use the program code from any item's `program_code` field.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def get_program(
     program_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):

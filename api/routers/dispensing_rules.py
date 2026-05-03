@@ -22,11 +22,20 @@ async def _resolve_schedule_id(db, schedule: Optional[str]) -> str:
     return str(row["id"])
 
 
-@router.get("/dispensing-rules")
+@router.get(
+    "/dispensing-rules",
+    summary="List Dispensing Rules",
+    description=(
+        "Returns all PBS dispensing rules (program_dispensing_rules) specifying dispensing quantity, "
+        "unit of measure, and number of repeats allowed for each program/rule combination. "
+        "Filter by `program_code` to retrieve rules for a specific PBS program.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def list_dispensing_rules(
     response: Response,
-    schedule: Optional[str] = Query(None),
-    program_code: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    program_code: Optional[str] = Query(None, description="Filter by PBS program code (e.g. 'GE' for General Schedule)"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):
@@ -55,11 +64,20 @@ async def list_dispensing_rules(
     return {"data": [dict(r) for r in rows], "meta": {"total": len(rows)}}
 
 
-@router.get("/dispensing-rules/by-program/{program_code}")
+@router.get(
+    "/dispensing-rules/by-program/{program_code}",
+    summary="Get Dispensing Rules by Program",
+    description=(
+        "Returns all dispensing rules for a specific PBS program, including program title, "
+        "rule codes, dispensing quantities, units, and repeats allowed. "
+        "Useful for understanding supply quantities within a program context.\n\n"
+        "Requires **Starter (T1)** tier."
+    ),
+)
 async def get_dispensing_rules_by_program(
     program_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(require_tier("starter")),
     db=Depends(get_db),
 ):
@@ -96,11 +114,19 @@ async def get_dispensing_rules_by_program(
     }
 
 
-@router.get("/dispensing-rules/{rule_code}")
+@router.get(
+    "/dispensing-rules/{rule_code}",
+    summary="Get Dispensing Rule Detail",
+    description=(
+        "Returns a single dispensing rule by rule code, including quantity, unit, repeats, description, "
+        "and a list of PBS item codes linked to this rule.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def get_dispensing_rule(
     rule_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):

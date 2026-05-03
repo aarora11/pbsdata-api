@@ -22,13 +22,23 @@ async def _resolve_schedule_id(db, schedule: Optional[str]) -> str:
     return str(row["id"])
 
 
-@router.get("/restrictions")
+@router.get(
+    "/restrictions",
+    summary="List PBS Restrictions",
+    description=(
+        "Returns paginated PBS restriction records with clinical criteria, indication, restriction text, "
+        "prescriber type, authority requirements, and treatment phase. "
+        "Filter by `pbs_code`, `restriction_type`, `authority_required`, or `streamlined_code`.\n\n"
+        "T2+ (Growth) subscribers also receive the linked prescribing text chain when retrieving a single restriction.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def list_restrictions(
     response: Response,
-    schedule: Optional[str] = Query(None, description="Schedule month YYYY-MM, defaults to latest"),
-    pbs_code: Optional[str] = Query(None, description="Filter by PBS item code"),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    pbs_code: Optional[str] = Query(None, description="Filter by PBS item code (e.g. '2622M')"),
     restriction_type: Optional[str] = Query(None, description="Filter by restriction type"),
-    authority_required: Optional[bool] = Query(None, description="Filter by authority required"),
+    authority_required: Optional[bool] = Query(None, description="Filter to only items requiring authority (true) or not requiring authority (false)"),
     streamlined_code: Optional[str] = Query(None, description="Filter by streamlined authority code"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
@@ -97,11 +107,20 @@ async def list_restrictions(
     return {"data": data, "meta": {"total": total or 0, "page": page, "limit": limit}}
 
 
-@router.get("/restrictions/{restriction_code}")
+@router.get(
+    "/restrictions/{restriction_code}",
+    summary="Get Restriction Detail",
+    description=(
+        "Returns a single restriction record by restriction code. "
+        "Base tier returns the raw restriction fields; Growth (T2) tier additionally returns "
+        "the full linked prescribing text components (indication, criteria, continuation clauses).\n\n"
+        "Available on all tiers (enriched for Growth T2+)."
+    ),
+)
 async def get_restriction(
     restriction_code: str,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):

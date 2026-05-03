@@ -22,11 +22,20 @@ async def _resolve_schedule_id(db, schedule: Optional[str]) -> str:
     return str(row["id"])
 
 
-@router.get("/organisations")
+@router.get(
+    "/organisations",
+    summary="List PBS Organisations",
+    description=(
+        "Returns all sponsor/manufacturer organisations registered on the PBS for a given schedule. "
+        "Each organisation record includes name, ABN, address, and state. "
+        "Filter by `state` to narrow to organisations in a specific Australian state or territory.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def list_organisations(
     response: Response,
-    schedule: Optional[str] = Query(None),
-    state: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    state: Optional[str] = Query(None, description="Filter by Australian state/territory code (e.g. 'VIC', 'NSW', 'QLD')"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):
@@ -55,12 +64,20 @@ async def list_organisations(
     return {"data": [dict(r) for r in rows], "meta": {"total": len(rows)}}
 
 
-@router.get("/organisations/search")
+@router.get(
+    "/organisations/search",
+    summary="Search PBS Organisations",
+    description=(
+        "Searches PBS sponsor/manufacturer organisations by name. Results include a count of PBS items "
+        "linked to each organisation. Use `state` to filter by Australian state.\n\n"
+        "Requires **Starter (T1)** tier."
+    ),
+)
 async def search_organisations(
     response: Response,
-    q: Optional[str] = Query(None, description="Name search (case-insensitive, partial match)"),
-    state: Optional[str] = Query(None),
-    schedule: Optional[str] = Query(None),
+    q: Optional[str] = Query(None, description="Organisation name search (case-insensitive partial match)"),
+    state: Optional[str] = Query(None, description="Filter by Australian state/territory code (e.g. 'VIC', 'NSW')"),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     api_key_data: dict = Depends(require_tier("starter")),
@@ -112,12 +129,21 @@ async def search_organisations(
     }
 
 
-@router.get("/organisations/{organisation_id}/portfolio")
+@router.get(
+    "/organisations/{organisation_id}/portfolio",
+    summary="Get Organisation PBS Portfolio",
+    description=(
+        "Returns all PBS items listed by a given manufacturer/sponsor organisation, with ingredient, "
+        "brand name, form, benefit type, formulary, ATC code, and pricing. "
+        "Filter by `benefit_type` to view only unrestricted, restricted, or authority items.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_organisation_portfolio(
     organisation_id: int,
     response: Response,
-    schedule: Optional[str] = Query(None),
-    benefit_type: Optional[str] = Query(None, description="Filter by benefit type: U, R, A, S"),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    benefit_type: Optional[str] = Query(None, description="Filter by benefit type: U=Unrestricted, R=Restricted, A=Authority Required, S=Streamlined Authority"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     api_key_data: dict = Depends(require_tier("scale")),
@@ -204,11 +230,19 @@ async def get_organisation_portfolio(
     }
 
 
-@router.get("/organisations/{organisation_id}")
+@router.get(
+    "/organisations/{organisation_id}",
+    summary="Get Organisation Detail",
+    description=(
+        "Returns a single PBS organisation record by numeric organisation ID, including address, ABN, "
+        "and a list of PBS codes for items linked to this organisation in the given schedule.\n\n"
+        "Available on all tiers."
+    ),
+)
 async def get_organisation(
     organisation_id: int,
     response: Response,
-    schedule: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     api_key_data: dict = Depends(check_rate_limit),
     db=Depends(get_db),
 ):

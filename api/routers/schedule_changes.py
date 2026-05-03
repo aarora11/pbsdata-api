@@ -94,13 +94,23 @@ def _enrich_row(r, drug_names: dict, extra: dict | None = None) -> dict:
 
 # ── 3.15  Full schedule change list (schedule as query param, defaults to latest) ─
 
-@router.get("/schedule-changes")
+@router.get(
+    "/schedule-changes",
+    summary="List Schedule Changes",
+    description=(
+        "Returns paginated change records from the PBS summary_of_changes table for a given schedule, "
+        "enriched with classified change types (NEW_LISTING, DELISTING, PRICE_CHANGE, RESTRICTION_CHANGE, etc.) "
+        "and severity levels (HIGH/MEDIUM/LOW). Drug ingredient names are resolved and included. "
+        "Use `section` to filter by source table (e.g. 'items', 'pricing-event', 'restriction').\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def list_schedule_changes(
     response: Response,
-    schedule: Optional[str] = Query(None, description="Schedule month YYYY-MM, defaults to latest"),
-    change_type: Optional[str] = Query(None, description="Filter by change type"),
-    pbs_code: Optional[str] = Query(None, description="Filter by PBS code"),
-    section: Optional[str] = Query(None, description="Filter by section/endpoint source"),
+    schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
+    change_type: Optional[str] = Query(None, description="Filter by raw PBS change type: INSERT, UPDATE, or DELETE"),
+    pbs_code: Optional[str] = Query(None, description="Filter to changes for a specific PBS item code (e.g. '2622M')"),
+    section: Optional[str] = Query(None, description="Filter by source section/table (partial match, e.g. 'items', 'restriction', 'pricing-event')"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=500),
     api_key_data: dict = Depends(require_tier("scale")),
@@ -154,11 +164,20 @@ async def list_schedule_changes(
 
 # ── 3.15  Full summary for a specific schedule (schedule in path) ───────────────
 
-@router.get("/schedule-changes/{schedule_code}")
+@router.get(
+    "/schedule-changes/{schedule_code}",
+    summary="Get Schedule Change Summary",
+    description=(
+        "Returns a full enriched change summary for a specific schedule month, including all individual "
+        "change records with classified types and severity, plus aggregated counts by change_type_code "
+        "and severity level. Useful as an overview before drilling into sub-routes for specific change categories.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_schedule_change_summary(
     schedule_code: str,
     response: Response,
-    change_type: Optional[str] = Query(None),
+    change_type: Optional[str] = Query(None, description="Filter by raw PBS change type: INSERT, UPDATE, or DELETE"),
     api_key_data: dict = Depends(require_tier("scale")),
     db=Depends(get_db),
 ):
@@ -214,7 +233,17 @@ async def get_schedule_change_summary(
 
 # ── 3.16  New listings for a specific schedule ──────────────────────────────────
 
-@router.get("/schedule-changes/{schedule_code}/new-listings")
+@router.get(
+    "/schedule-changes/{schedule_code}/new-listings",
+    summary="Get Schedule New Listings",
+    description=(
+        "Returns all newly listed PBS items for a given schedule month (INSERT records on the items table). "
+        "Each result includes the enriched change record plus a `is_first_in_atc_class` flag "
+        "indicating whether this is the first PBS-listed item in its ATC Level-5 class — "
+        "a market-entry signal for novel therapies.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_schedule_new_listings(
     schedule_code: str,
     response: Response,
@@ -286,7 +315,16 @@ async def get_schedule_new_listings(
 
 # ── 3.17  Delistings for a specific schedule ────────────────────────────────────
 
-@router.get("/schedule-changes/{schedule_code}/delistings")
+@router.get(
+    "/schedule-changes/{schedule_code}/delistings",
+    summary="Get Schedule Delistings",
+    description=(
+        "Returns PBS items removed from the schedule in a given month (DELETE records on the items table). "
+        "Each delisted item includes up to 5 therapeutic alternatives — other active PBS items sharing "
+        "the same ATC Level-4 code — to support substitution planning for pharmacists and prescribers.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_schedule_delistings(
     schedule_code: str,
     response: Response,
@@ -360,7 +398,17 @@ async def get_schedule_delistings(
 
 # ── 3.18  Price changes for a specific schedule ─────────────────────────────────
 
-@router.get("/schedule-changes/{schedule_code}/price-changes")
+@router.get(
+    "/schedule-changes/{schedule_code}/price-changes",
+    summary="Get Schedule Price Changes",
+    description=(
+        "Returns PBS items with pricing changes in a given schedule month "
+        "(changes to pricing-event or dispensing-rule sections). "
+        "Computes price delta (absolute and percentage) by comparing current government price "
+        "against the previous schedule. Results are ordered by effective date descending.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_schedule_price_changes(
     schedule_code: str,
     response: Response,
@@ -444,7 +492,17 @@ async def get_schedule_price_changes(
 
 # ── 3.19  Restriction changes for a specific schedule ───────────────────────────
 
-@router.get("/schedule-changes/{schedule_code}/restriction-changes")
+@router.get(
+    "/schedule-changes/{schedule_code}/restriction-changes",
+    summary="Get Schedule Restriction Changes",
+    description=(
+        "Returns PBS items with restriction, prescribing text, criteria, or indication changes "
+        "for a given schedule month. Each record includes the current active restriction codes "
+        "so you can cross-reference with `/restrictions` for the full updated text. "
+        "Changes to authority requirements, clinical criteria, or continuation rules appear here.\n\n"
+        "Requires **Scale (T3)** tier."
+    ),
+)
 async def get_schedule_restriction_changes(
     schedule_code: str,
     response: Response,
