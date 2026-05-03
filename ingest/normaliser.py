@@ -195,26 +195,32 @@ def normalise_schedule(
         raw_benefit = raw.get("benefit_type_code") or raw.get("benefit_type", "U")
         benefit_type = BENEFIT_TYPE_MAP.get(raw_benefit, raw_benefit)
 
-        # Pricing: from item-dispensing-rule-relationships or legacy fields on item
+        # Pricing: real PBS API stores prices directly on items as claimed_price /
+        # determined_price. dispensing-rule-relationships has no price fields.
         li_item_id = raw.get("li_item_id", "")
         pricing = pricing_map.get(li_item_id, {})
 
-        general_charge = (
-            parse_decimal(pricing.get("max_general_patient_charge"))
-            or parse_decimal(raw.get("general_patient_charge"))  # legacy fixture field
-        )
+        # government_price = DPMQ equivalent (what government pays the pharmacist)
+        # determined_price is post-disclosure; claimed_price is pre-disclosure.
+        # Use determined_price first; fall back to claimed_price, then legacy fields.
         government_price = (
-            parse_decimal(pricing.get("cmnwlth_price_to_pharmacist"))
-            or parse_decimal(raw.get("commonwealth_price"))  # legacy fixture field
+            parse_decimal(raw.get("determined_price"))
+            or parse_decimal(raw.get("claimed_price"))
+            or parse_decimal(pricing.get("cmnwlth_price_to_pharmacist"))
+            or parse_decimal(raw.get("commonwealth_price"))
         )
+
+        # general_charge (patient copayment) is schedule-level, not per-item.
+        # It comes from the copayments table. Legacy fixture field kept for tests.
+        general_charge = parse_decimal(raw.get("general_patient_charge"))
+
         brand_premium = (
             parse_decimal(pricing.get("brand_premium"))
             or parse_decimal(raw.get("brand_premium"))
             or Decimal("0.00")
         )
         # concessional_charge: schedule-level, not per-item in real API
-        # Kept for backward compat, populated from copayments if available
-        concessional_charge = parse_decimal(raw.get("concession_charge"))  # legacy only
+        concessional_charge = parse_decimal(raw.get("concession_charge"))
 
         # Sixty day: real field is continued_dispensing_flag (Y/N)
         sixty_day = (
