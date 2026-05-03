@@ -1,16 +1,37 @@
 [
   {
     "pbs_code": "2622M",
-    "change_type": "price_reduction",
+    "change_type": "DELETE",
     "effective_date": "2026-04-01",
-    "description": "General patient charge reduced from $21.90 to $21.43",
-    "section": "S85"
+    "description": "Item removed from schedule",
+    "section": "item-pricing-events"
   },
   {
     "pbs_code": "9999X",
-    "change_type": "new_listing",
+    "change_type": "INSERT",
     "effective_date": "2026-04-01",
-    "description": "New item listed on PBS Schedule",
-    "section": "S85"
+    "description": "New item listed",
+    "section": "items"
+  },
+  {
+    "pbs_code": "2622M",
+    "change_type": "DELETE",
+    "effective_date": "2026-04-01",
+    "description": "Item delisted",
+    "section": "items"
+  },
+  {
+    "pbs_code": "5678A",
+    "change_type": "INSERT",
+    "effective_date": "2026-04-01",
+    "description": "Restriction added",
+    "section": "item-restriction-relationships"
+  },
+  {
+    "pbs_code": "5678A",
+    "change_type": "DELETE",
+    "effective_date": "2026-04-01",
+    "description": "Prescribing text removed",
+    "section": "restriction-prescribing-text-relationships"
   }
 ]
