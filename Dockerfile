@@ -34,10 +34,10 @@ FROM python:3.12-slim
 WORKDIR /app
 
 COPY --from=builder /app/.venv /app/.venv
-COPY --from=builder /app/api ./api
-COPY --from=builder /app/ingest ./ingest
-COPY --from=builder /app/migrations ./migrations
-COPY --from=builder /app/scripts ./scripts
+COPY api/ ./api/
+COPY ingest/ ./ingest/
+COPY migrations/ ./migrations/
+COPY scripts/ ./scripts/
 
 RUN chmod +x scripts/start.sh
 
