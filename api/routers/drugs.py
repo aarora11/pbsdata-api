@@ -188,17 +188,17 @@ async def get_drug(
         """,
         pbs_code.upper(), schedule_id,
     )
-    atc = await db.fetchrow(
+    atc_rows = await db.fetch(
         """
         SELECT iar.atc_code, iar.atc_priority_pct, a.atc_description, a.atc_level
         FROM item_atc_relationships iar
         JOIN atc_codes a ON a.atc_code = iar.atc_code AND a.schedule_id = iar.schedule_id
         WHERE iar.pbs_code = $1 AND iar.schedule_id = $2
         ORDER BY iar.atc_priority_pct DESC NULLS LAST
-        LIMIT 1
         """,
         pbs_code.upper(), schedule_id,
     )
+    atc = atc_rows[0] if atc_rows else None
     prescribers = await db.fetch(
         "SELECT prescriber_code, prescriber_type FROM item_prescribers WHERE pbs_code = $1 AND schedule_id = $2",
         pbs_code.upper(), schedule_id,
@@ -266,12 +266,13 @@ async def get_drug(
                 "program_code": item["program_code"],
                 "program_title": program["program_title"] if program else None,
             },
-            "manufacturer": dict(org) if org else None,
+            "primary_manufacturer": dict(org) if org else None,
+            "primary_manufacturer_note": "Primary sponsor only. Multiple organisations may be listed; use /organisations for full coverage.",
             "classification": {
                 "primary_atc_code": atc["atc_code"] if atc else item["medicine_atc_code"],
                 "primary_atc_description": atc["atc_description"] if atc else None,
                 "primary_atc_priority_pct": _f(atc["atc_priority_pct"]) if atc else None,
-                "has_split_atc": False,
+                "has_split_atc": len(atc_rows) > 1,
             },
             "restriction": {
                 "benefit_type_code": benefit_code,
@@ -380,6 +381,7 @@ async def get_drug_brands(
         "data": {
             "pbs_code": item["pbs_code"],
             "brand_count": len(brands),
+            "brand_name_note": "Per-brand names are not yet available; brand_name reflects the item-level name for all li_item_ids.",
             "brands": brands,
         },
         "meta": _meta(api_key_data, schedule_month, ["/items", "/item-dispensing-rule-relationships"]),
@@ -426,6 +428,7 @@ async def get_drug_prescribers(
         FROM restrictions r
         JOIN items i ON i.id = r.item_id
         WHERE i.pbs_code = $1 AND i.schedule_id = $2
+        ORDER BY r.authority_required DESC NULLS LAST, r.written_authority_required DESC NULLS LAST
         LIMIT 1
         """,
         pbs_code.upper(), schedule_id,
@@ -445,6 +448,7 @@ async def get_drug_prescribers(
             "requires_authority": restriction["authority_required"] if restriction else False,
             "written_authority_required": restriction["written_authority_required"] if restriction else False,
             "authority_method": restriction["authority_method"] if restriction else None,
+            "authority_note": "Authority fields reflect the most restrictive restriction. Use /drugs/{pbs_code}/restrictions for the full restriction list.",
             "authorised_prescribers": [dict(p) for p in prescribers],
         },
         "meta": _meta(api_key_data, schedule_month, ["/prescribers", "/restrictions"]),
@@ -757,7 +761,8 @@ async def get_drug_full_profile(
                 "section": item["section"],
             },
             "program": dict(program) if program else None,
-            "manufacturer": dict(org) if org else None,
+            "primary_manufacturer": dict(org) if org else None,
+            "primary_manufacturer_note": "Primary sponsor only. Multiple organisations may be listed; use /organisations for full coverage.",
             "classification": {
                 "primary_atc_code": atc_rels[0]["atc_code"] if atc_rels else item["medicine_atc_code"],
                 "primary_atc_description": atc_rels[0]["atc_description"] if atc_rels else None,

@@ -104,7 +104,7 @@ async def get_item(
     # program and prescriber joins resolved. Base subscribers get the raw
     # passthrough above. See pbs_joined_api_spec.md §2.6 for the design decision.
     if not is_tier_or_above(api_key_data, "growth"):
-        return result
+        return {"data": result, "meta": {"schedule_code": schedule_month, "tier": tier_label(api_key_data)}}
 
     # ── T2+ enrichment ────────────────────────────────────────────────────────
 
@@ -149,7 +149,8 @@ async def get_item(
     return {
         "data": {
             **result,
-            "manufacturer": dict(org_row) if org_row else None,
+            "primary_manufacturer": dict(org_row) if org_row else None,
+            "primary_manufacturer_note": "Primary sponsor only. Multiple organisations may be listed; use /organisations for full coverage.",
             "program_title": program_row["program_title"] if program_row else None,
             "primary_atc": dict(atc_row) if atc_row else None,
             "prescribers": [dict(p) for p in prescriber_rows],
@@ -240,7 +241,7 @@ async def get_item_price(
         gen_cp = _f(copayment["general"]) if copayment else None
         con_cp = _f(copayment["concessional"]) if copayment else None
         max_charge = _f(r["max_general_patient_charge"])
-        gen_patient = min(dpmq, max_charge or dpmq) if dpmq is not None else None
+        gen_patient = round(min(dpmq, max_charge or dpmq), 2) if dpmq is not None else None
         gov_pays = round(dpmq - gen_patient, 2) if (dpmq is not None and gen_patient is not None) else None
 
         contexts.append({
@@ -319,7 +320,7 @@ async def get_item_patient_cost(
     schedule_id = sched_row["id"]
 
     item = await db.fetchrow(
-        "SELECT i.pbs_code, i.brand_name, i.brand_premium, m.ingredient FROM items i JOIN medicines m ON m.id = i.medicine_id WHERE i.pbs_code = $1 AND i.schedule_id = $2",
+        "SELECT i.pbs_code, i.brand_name, i.brand_premium, i.government_price, m.ingredient FROM items i JOIN medicines m ON m.id = i.medicine_id WHERE i.pbs_code = $1 AND i.schedule_id = $2",
         pbs_code.upper(), schedule_id,
     )
     if not item:
