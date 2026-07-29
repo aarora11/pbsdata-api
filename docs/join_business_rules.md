@@ -1,5 +1,20 @@
 # PBSdata.io — Join Business Rules Reference
 
+> ## ⚠️ SUPERSEDED — do not rely on this document
+>
+> Written before the 2026-07 data & join audit. It documents several joins as
+> working that did not, including an `is_primary` filter on a column that had never
+> been created, and it repeats the inverted F1/F2 substitutability claim.
+>
+> **Authoritative replacements:**
+> * `JOIN_CATALOGUE_TECHNICAL.md` — every join, keys, and Tier A/B/C classification
+> * `JOIN_CATALOGUE_PLAIN_ENGLISH.md` — the same content for a non-technical reviewer
+> * `AUDIT_FINDINGS.md` — what was wrong and what was fixed
+>
+> Retained only as a record of what was believed true before the audit.
+
+
+
 This document describes every cross-table join implemented in the API, the business rule each join represents, and the tier that gates it. Use it to validate joins against the PBS data dictionary and to drive test-case design.
 
 All joins are schedule-scoped: every cross-table relationship is constrained to the same `schedule_id`, ensuring data consistency within a monthly PBS snapshot.

@@ -4,8 +4,18 @@ from api.middleware.tier import require_tier, tier_label
 from api.routers.shared import _rl
 from api.database import get_db
 from typing import Optional
+from ingest.reference import benefit_type_label, formulary_label, authority_method_label, FORMULARY_NOTE
 
 router = APIRouter(tags=["drugs"])
+
+# item_pricing carries no per-brand name, so every li_item_id under a PBS code is
+# returned with the item-level brand_name. /drugs/{code}/brands disclosed this;
+# /drugs/{code}?include_brands=true and /full-profile returned the same repeated
+# structure with no note. See docs/AUDIT_FINDINGS.md [F8].
+BRAND_NAME_NOTE = (
+    "Per-brand names are not available in this schema version; brand_name reflects "
+    "the item-level name for every li_item_id."
+)
 
 
 
@@ -82,12 +92,12 @@ async def search_drugs(
         )
 
     where = " AND ".join(conditions)
-    count_sql = f"SELECT COUNT(*) FROM items i JOIN medicines m ON m.id = i.medicine_id WHERE {where}"
+    count_sql = f"SELECT COUNT(*) FROM items_listing i JOIN medicines m ON m.id = i.medicine_id WHERE {where}"
     data_sql = f"""
         SELECT i.pbs_code, i.brand_name, i.form, i.strength, i.pack_size, i.pack_unit,
                i.benefit_type, i.program_code, i.formulary,
                m.ingredient, m.atc_code AS medicine_atc_code
-        FROM items i
+        FROM items_listing i
         JOIN medicines m ON m.id = i.medicine_id
         WHERE {where}
         ORDER BY m.ingredient, i.pbs_code
@@ -97,10 +107,6 @@ async def search_drugs(
     total = await db.fetchval(count_sql, *params)
     rows = await db.fetch(data_sql, *params, limit, offset)
 
-    benefit_labels = {
-        "U": "Unrestricted", "R": "Restricted",
-        "A": "Authority Required", "S": "Streamlined Authority",
-    }
     data = []
     for r in rows:
         bc = r["benefit_type"] or "U"
@@ -113,7 +119,7 @@ async def search_drugs(
             "pack_size": r["pack_size"],
             "pack_unit": r["pack_unit"],
             "benefit_type_code": bc,
-            "benefit_type_label": benefit_labels.get(bc, bc),
+            "benefit_type_label": benefit_type_label(bc),
             "program_code": r["program_code"],
             "formulary": r["formulary"],
             "atc_code": r["medicine_atc_code"],
@@ -165,7 +171,7 @@ async def get_drug(
                i.sixty_day_eligible, i.max_quantity, i.max_repeats,
                i.dangerous_drug, i.artg_id, i.sponsor, i.caution, i.biosimilar,
                m.ingredient, m.atc_code AS medicine_atc_code
-        FROM items i
+        FROM items_listing i
         JOIN medicines m ON m.id = i.medicine_id
         WHERE i.pbs_code = $1 AND i.schedule_id = $2
         """,
@@ -203,10 +209,13 @@ async def get_drug(
         "SELECT prescriber_code, prescriber_type FROM item_prescribers WHERE pbs_code = $1 AND schedule_id = $2",
         pbs_code.upper(), schedule_id,
     )
+    # Reports the true number of listed brands. Previously coerced to 1 with `or 1`,
+    # asserting a brand exists for items with no pricing rows at all.
+    # See docs/AUDIT_FINDINGS.md [F8].
     brand_count = await db.fetchval(
         "SELECT COUNT(DISTINCT li_item_id) FROM item_pricing WHERE pbs_code = $1 AND schedule_id = $2",
         pbs_code.upper(), schedule_id,
-    ) or 1
+    ) or 0
 
     brands_data = None
     if include_brands:
@@ -242,10 +251,6 @@ async def get_drug(
     def _f(v):
         return float(v) if v is not None else None
 
-    benefit_labels = {
-        "U": "Unrestricted", "R": "Restricted",
-        "A": "Authority Required", "S": "Streamlined Authority",
-    }
     benefit_code = item["benefit_type"] or "U"
 
     return {
@@ -276,7 +281,7 @@ async def get_drug(
             },
             "restriction": {
                 "benefit_type_code": benefit_code,
-                "benefit_type_label": benefit_labels.get(benefit_code, benefit_code),
+                "benefit_type_label": benefit_type_label(benefit_code),
             },
             "prescribers": {
                 "count": len(prescribers),
@@ -298,7 +303,8 @@ async def get_drug(
                 "artg_id": item["artg_id"],
                 "caution": item["caution"],
             },
-            **({"brands": brands_data} if include_brands else {}),
+            **({"brands": brands_data, "brand_name_note": BRAND_NAME_NOTE}
+               if include_brands else {}),
         },
         "meta": _meta(api_key_data, schedule_month, [
             "/items", "/programs", "/organisations", "/atc-codes", "/prescribers",
@@ -314,7 +320,7 @@ async def get_drug(
     description=(
         "Returns all listed brands (li_item_id) for a PBS item along with per-brand pricing: "
         "commonwealth price (DPMQ), maximum general patient charge, brand premium, and dispensing fee. "
-        "F1 items are brand-substitutable; F2 items are not.\n\n"
+        "Formulary reflects brand-count status (F1 single-brand, F2 multiple-brand subject to price disclosure), not cost-effectiveness. Substitutability direction is pending PBS domain confirmation and is not asserted here.\n\n"
         "Requires **Growth (T2)** tier."
     ),
 )
@@ -329,7 +335,7 @@ async def get_drug_brands(
     schedule_id, schedule_month = await _resolve_schedule(db, schedule)
 
     item = await db.fetchrow(
-        "SELECT pbs_code, brand_name, formulary FROM items WHERE pbs_code = $1 AND schedule_id = $2",
+        "SELECT pbs_code, brand_name, formulary FROM items_listing WHERE pbs_code = $1 AND schedule_id = $2",
         pbs_code.upper(), schedule_id,
     )
     if not item:
@@ -381,7 +387,7 @@ async def get_drug_brands(
         "data": {
             "pbs_code": item["pbs_code"],
             "brand_count": len(brands),
-            "brand_name_note": "Per-brand names are not yet available; brand_name reflects the item-level name for all li_item_ids.",
+            "brand_name_note": BRAND_NAME_NOTE,
             "brands": brands,
         },
         "meta": _meta(api_key_data, schedule_month, ["/items", "/item-dispensing-rule-relationships"]),
@@ -412,7 +418,7 @@ async def get_drug_prescribers(
     schedule_id, schedule_month = await _resolve_schedule(db, schedule)
 
     item = await db.fetchrow(
-        "SELECT pbs_code, benefit_type FROM items i JOIN medicines m ON m.id = i.medicine_id WHERE i.pbs_code = $1 AND i.schedule_id = $2",
+        "SELECT pbs_code, benefit_type FROM items_listing i JOIN medicines m ON m.id = i.medicine_id WHERE i.pbs_code = $1 AND i.schedule_id = $2",
         pbs_code.upper(), schedule_id,
     )
     if not item:
@@ -434,17 +440,13 @@ async def get_drug_prescribers(
         pbs_code.upper(), schedule_id,
     )
 
-    benefit_labels = {
-        "U": "Unrestricted", "R": "Restricted",
-        "A": "Authority Required", "S": "Streamlined Authority",
-    }
     benefit_code = item["benefit_type"] or "U"
 
     return {
         "data": {
             "pbs_code": item["pbs_code"],
             "benefit_type_code": benefit_code,
-            "benefit_type_label": benefit_labels.get(benefit_code, benefit_code),
+            "benefit_type_label": benefit_type_label(benefit_code),
             "requires_authority": restriction["authority_required"] if restriction else False,
             "written_authority_required": restriction["written_authority_required"] if restriction else False,
             "authority_method": restriction["authority_method"] if restriction else None,
@@ -477,7 +479,7 @@ async def get_drug_atc(
     _rl(response, api_key_data)
     schedule_id, schedule_month = await _resolve_schedule(db, schedule)
 
-    if not await db.fetchval("SELECT 1 FROM items WHERE pbs_code = $1 AND schedule_id = $2", pbs_code.upper(), schedule_id):
+    if not await db.fetchval("SELECT 1 FROM items_listing WHERE pbs_code = $1 AND schedule_id = $2", pbs_code.upper(), schedule_id):
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Drug not found."})
 
     atc_rels = await db.fetch(
@@ -548,7 +550,7 @@ async def get_drug_amt(
     _rl(response, api_key_data)
     schedule_id, schedule_month = await _resolve_schedule(db, schedule)
 
-    if not await db.fetchval("SELECT 1 FROM items WHERE pbs_code = $1 AND schedule_id = $2", pbs_code.upper(), schedule_id):
+    if not await db.fetchval("SELECT 1 FROM items_listing WHERE pbs_code = $1 AND schedule_id = $2", pbs_code.upper(), schedule_id):
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Drug not found."})
 
     amt_rows = await db.fetch(
@@ -610,7 +612,7 @@ async def get_drug_restrictions(
     item = await db.fetchrow(
         """
         SELECT i.pbs_code, i.benefit_type, m.ingredient
-        FROM items i JOIN medicines m ON m.id = i.medicine_id
+        FROM items_listing i JOIN medicines m ON m.id = i.medicine_id
         WHERE i.pbs_code = $1 AND i.schedule_id = $2
         """,
         pbs_code.upper(), schedule_id,
@@ -631,10 +633,6 @@ async def get_drug_restrictions(
         pbs_code.upper(), schedule_id,
     )
 
-    benefit_labels = {
-        "U": "Unrestricted", "R": "Restricted",
-        "A": "Authority Required", "S": "Streamlined Authority",
-    }
     benefit_code = item["benefit_type"] or "U"
 
     restriction_list = []
@@ -656,7 +654,7 @@ async def get_drug_restrictions(
             "pbs_code": item["pbs_code"],
             "drug_name": item["ingredient"],
             "benefit_type_code": benefit_code,
-            "benefit_type_label": benefit_labels.get(benefit_code, benefit_code),
+            "benefit_type_label": benefit_type_label(benefit_code),
             "restriction_count": len(restriction_list),
             "restrictions": restriction_list,
         },
@@ -695,7 +693,7 @@ async def get_drug_full_profile(
                i.sixty_day_eligible, i.max_quantity, i.max_repeats,
                i.dangerous_drug, i.artg_id, i.sponsor, i.caution, i.biosimilar,
                m.ingredient, m.atc_code AS medicine_atc_code
-        FROM items i JOIN medicines m ON m.id = i.medicine_id
+        FROM items_listing i JOIN medicines m ON m.id = i.medicine_id
         WHERE i.pbs_code = $1 AND i.schedule_id = $2
         """,
         pbs_code.upper(), schedule_id,
@@ -710,7 +708,6 @@ async def get_drug_full_profile(
     def _f(v):
         return float(v) if v is not None else None
 
-    benefit_labels = {"U": "Unrestricted", "R": "Restricted", "A": "Authority Required", "S": "Streamlined Authority"}
     benefit_code = item["benefit_type"] or "U"
 
     brands = []
@@ -770,12 +767,16 @@ async def get_drug_full_profile(
             },
             "restriction": {
                 "benefit_type_code": benefit_code,
-                "benefit_type_label": benefit_labels.get(benefit_code, benefit_code),
+                "benefit_type_label": benefit_type_label(benefit_code),
                 "restriction_count": len(restriction_list),
                 "restrictions": restriction_list,
             },
             "prescribers": [dict(p) for p in prescribers],
-            "brands": {"brand_count": len(brands) or 1, "items": brands},
+            "brands": {
+                "brand_count": len(brands),
+                "brand_name_note": BRAND_NAME_NOTE,
+                "items": brands,
+            },
             "pricing": {
                 "general_charge": _f(item["general_charge"]),
                 "concessional_charge": _f(item["concessional_charge"]),
@@ -799,7 +800,7 @@ async def _gather_drug_data(db, pbs_code: str, schedule_id: str):
     """Fetch all supporting data for a drug in parallel-friendly sequential calls."""
     program = await db.fetchrow(
         "SELECT program_code, program_title FROM programs WHERE program_code = ("
-        "SELECT program_code FROM items WHERE pbs_code = $1 AND schedule_id = $2) AND schedule_id = $2",
+        "SELECT program_code FROM items_listing WHERE pbs_code = $1 AND schedule_id = $2) AND schedule_id = $2",
         pbs_code, schedule_id,
     )
     org = await db.fetchrow(
@@ -880,7 +881,7 @@ async def get_drug_restriction_full(
     _rl(response, api_key_data)
     schedule_id, schedule_month = await _resolve_schedule(db, schedule)
 
-    if not await db.fetchval("SELECT 1 FROM items WHERE pbs_code = $1 AND schedule_id = $2", pbs_code.upper(), schedule_id):
+    if not await db.fetchval("SELECT 1 FROM items_listing WHERE pbs_code = $1 AND schedule_id = $2", pbs_code.upper(), schedule_id):
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Drug not found."})
 
     restriction_filter = ""
@@ -962,7 +963,7 @@ async def get_drug_authority_workflow(
     schedule_id, schedule_month = await _resolve_schedule(db, schedule)
 
     item = await db.fetchrow(
-        "SELECT pbs_code, benefit_type FROM items WHERE pbs_code = $1 AND schedule_id = $2",
+        "SELECT pbs_code, benefit_type FROM items_listing WHERE pbs_code = $1 AND schedule_id = $2",
         pbs_code.upper(), schedule_id,
     )
     if not item:
@@ -992,11 +993,6 @@ async def get_drug_authority_workflow(
     written_required = any(r["written_authority_required"] for r in restrictions)
     complex_required = any(r["complex_authority_required"] for r in restrictions)
 
-    method_labels = {
-        "S": "Streamlined (self-assess)", "T": "Telephone approval",
-        "W": "Written application", "O": "Online application",
-    }
-
     workflows = []
     for r in restrictions:
         checklist = []
@@ -1022,7 +1018,7 @@ async def get_drug_authority_workflow(
             "treatment_of_code": r["treatment_of_code"],
             "authority_required": r["authority_required"],
             "authority_method": r["authority_method"],
-            "authority_method_label": method_labels.get(r["authority_method"], r["authority_method"]),
+            "authority_method_label": authority_method_label(r["authority_method"]),
             "streamlined_code": r["streamlined_code"],
             "written_authority_required": r["written_authority_required"],
             "complex_authority_required": r["complex_authority_required"],
@@ -1044,8 +1040,16 @@ async def get_drug_authority_workflow(
             "complex_required_for_any": complex_required,
             "authorised_prescribers": [dict(p) for p in prescribers],
             "workflows": workflows,
+            "workflow_note": (
+                "Checklist steps are PBSdata.io's interpretation of the PBS restriction "
+                "flags, not a PBS-issued procedure. Verify against the PBS Schedule and "
+                "Services Australia authority requirements before clinical use."
+            ),
         },
-        "meta": _meta(api_key_data, schedule_month, ["/restrictions", "/item-prescribers"]),
+        "meta": {
+            **_meta(api_key_data, schedule_month, ["/restrictions", "/item-prescribers"]),
+            "derivation": "checklist=heuristic",
+        },
     }
 
 
@@ -1074,7 +1078,7 @@ async def get_drug_substitution(
         """
         SELECT i.pbs_code, i.brand_name, i.formulary, i.program_code,
                m.ingredient, m.atc_code
-        FROM items i JOIN medicines m ON m.id = i.medicine_id
+        FROM items_listing i JOIN medicines m ON m.id = i.medicine_id
         WHERE i.pbs_code = $1 AND i.schedule_id = $2
         """,
         pbs_code.upper(), schedule_id,
@@ -1087,7 +1091,7 @@ async def get_drug_substitution(
         """
         SELECT i.pbs_code, i.brand_name, i.form, i.strength, i.pack_size, i.formulary,
                i.general_charge, i.government_price
-        FROM items i JOIN medicines m ON m.id = i.medicine_id
+        FROM items_listing i JOIN medicines m ON m.id = i.medicine_id
         WHERE m.ingredient = $1 AND i.schedule_id = $2 AND i.pbs_code != $3
         ORDER BY i.pbs_code
         """,
@@ -1102,7 +1106,13 @@ async def get_drug_substitution(
             "pbs_code": pbs_code.upper(),
             "ingredient": item["ingredient"],
             "brand_name": item["brand_name"],
-            "note": "Brand substitution group IDs are not yet available in this schema version. Substitutes shown are same-ingredient matches only.",
+            "note": (
+                "Same-ingredient matches only. Brand substitution group IDs are not "
+                "available in this schema version. STRENGTH, FORM AND PACK SIZE ARE NOT "
+                "MATCHED — results may include different strengths and modified-release "
+                "presentations that are not clinically interchangeable. Not a PBS-endorsed "
+                "substitution list; verify before clinical use."
+            ),
             "same_ingredient_items": [
                 {
                     "pbs_code": r["pbs_code"],
@@ -1145,7 +1155,7 @@ async def get_drug_price_history(
         """
         SELECT s.month, i.general_charge, i.concessional_charge, i.government_price,
                i.brand_premium, i.formulary
-        FROM items i
+        FROM items_listing i
         JOIN schedules s ON s.id = i.schedule_id
         WHERE i.pbs_code = $1 AND s.ingest_status = 'complete'
         ORDER BY s.month DESC
@@ -1226,7 +1236,7 @@ async def get_drug_pricing_events(
     _rl(response, api_key_data)
     schedule_id, schedule_month = await _resolve_schedule(db, schedule)
 
-    if not await db.fetchval("SELECT 1 FROM items WHERE pbs_code = $1 AND schedule_id = $2", pbs_code.upper(), schedule_id):
+    if not await db.fetchval("SELECT 1 FROM items_listing WHERE pbs_code = $1 AND schedule_id = $2", pbs_code.upper(), schedule_id):
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Drug not found."})
 
     rows = await db.fetch(
@@ -1288,7 +1298,7 @@ async def get_drug_safety_net(
         """
         SELECT i.pbs_code, i.general_charge, i.concessional_charge, i.government_price,
                i.brand_premium, i.brand_premium_counts_to_safety_net
-        FROM items i
+        FROM items_listing i
         WHERE i.pbs_code = $1 AND i.schedule_id = $2
         """,
         pbs_code.upper(), schedule_id,
@@ -1312,9 +1322,23 @@ async def get_drug_safety_net(
     sn_general = _f(copayments["safety_net_general"]) if copayments else None
     sn_conc = _f(copayments["safety_net_concessional"]) if copayments else None
 
-    # Patient cost = standard copayment (or lower if government price is lower), plus any brand premium
-    actual_general = min(general_charge, copay_general) if general_charge is not None and copay_general is not None else general_charge
-    actual_conc = min(concessional_charge, copay_conc) if concessional_charge is not None and copay_conc is not None else concessional_charge
+    # Patient cost = standard copayment (or lower if the item's own charge is
+    # lower), plus any brand premium.
+    #
+    # items.general_charge / concessional_charge are per-item overrides that PBS
+    # does not publish on /items — they are null for every row. Falling back to
+    # `general_charge` when it is None made this endpoint return null for every
+    # headline figure; the schedule-level copayment is the correct default, and
+    # is what /items/{code}/patient-cost already uses.
+    def _lower_of(item_charge, copayment):
+        if item_charge is None:
+            return copayment
+        if copayment is None:
+            return item_charge
+        return min(item_charge, copayment)
+
+    actual_general = _lower_of(general_charge, copay_general)
+    actual_conc = _lower_of(concessional_charge, copay_conc)
 
     # Prescriptions needed to reach safety net (approximate)
     scripts_general = round(sn_general / actual_general) if sn_general and actual_general else None
@@ -1368,7 +1392,7 @@ async def get_drug_60_day_pair(
         """
         SELECT i.pbs_code, i.brand_name, i.sixty_day_eligible, i.max_quantity, i.pack_size,
                m.ingredient
-        FROM items i JOIN medicines m ON m.id = i.medicine_id
+        FROM items_listing i JOIN medicines m ON m.id = i.medicine_id
         WHERE i.pbs_code = $1 AND i.schedule_id = $2
         """,
         pbs_code.upper(), schedule_id,
@@ -1381,7 +1405,7 @@ async def get_drug_60_day_pair(
         """
         SELECT i.pbs_code, i.brand_name, i.form, i.strength, i.pack_size, i.max_quantity,
                i.general_charge
-        FROM items i JOIN medicines m ON m.id = i.medicine_id
+        FROM items_listing i JOIN medicines m ON m.id = i.medicine_id
         WHERE m.ingredient = $1 AND i.schedule_id = $2 AND i.sixty_day_eligible = TRUE AND i.pbs_code != $3
         ORDER BY i.pbs_code
         """,
@@ -1396,7 +1420,11 @@ async def get_drug_60_day_pair(
             "pbs_code": pbs_code.upper(),
             "ingredient": item["ingredient"],
             "sixty_day_eligible": item["sixty_day_eligible"],
-            "note": "60-day dispensing allows dispensing of 2 months supply in one prescription where eligible.",
+            "note": (
+                "60-day dispensing allows 2 months supply on one prescription where "
+                "eligible. Paired items are same-ingredient matches that also carry the "
+                "PBS 60-day flag; STRENGTH, FORM AND PACK SIZE ARE NOT MATCHED."
+            ),
             "same_ingredient_60_day_eligible": [
                 {
                     "pbs_code": r["pbs_code"],
@@ -1421,7 +1449,7 @@ async def get_drug_60_day_pair(
         "Returns the formulary classification (F1, F2, or F3) for a PBS item with explanatory labels, "
         "along with biosimilar flag, benefit type, and full pricing details. "
         "Also includes up to 5 most recent pricing events for context on recent price changes. "
-        "F1 = brand-substitutable; F2 = not substitutable; F3 = price-disclosure items.\n\n"
+        "Formulary reflects brand-count status (F1 single-brand, F2 multiple-brand subject to price disclosure), not cost-effectiveness. Substitutability direction is pending PBS domain confirmation and is not asserted here.\n\n"
         "Requires **Scale (T3)** tier."
     ),
 )
@@ -1441,7 +1469,7 @@ async def get_drug_formulary_status(
                i.general_charge, i.concessional_charge, i.government_price,
                i.brand_premium, i.biosimilar, i.benefit_type,
                m.ingredient
-        FROM items i JOIN medicines m ON m.id = i.medicine_id
+        FROM items_listing i JOIN medicines m ON m.id = i.medicine_id
         WHERE i.pbs_code = $1 AND i.schedule_id = $2
         """,
         pbs_code.upper(), schedule_id,
@@ -1463,13 +1491,6 @@ async def get_drug_formulary_status(
     def _f(v):
         return float(v) if v is not None else None
 
-    formulary_labels = {
-        "F1": "Formulary 1 — highest cost-effectiveness",
-        "F2": "Formulary 2 — medium cost-effectiveness",
-        "F3": "Formulary 3 — lowest cost-effectiveness / price disclosure items",
-    }
-
-    benefit_labels = {"U": "Unrestricted", "R": "Restricted", "A": "Authority Required", "S": "Streamlined Authority"}
     bc = item["benefit_type"] or "U"
 
     return {
@@ -1478,11 +1499,12 @@ async def get_drug_formulary_status(
             "ingredient": item["ingredient"],
             "brand_name": item["brand_name"],
             "formulary": item["formulary"],
-            "formulary_label": formulary_labels.get(item["formulary"] or "", "Unknown formulary"),
+            "formulary_label": formulary_label(item["formulary"]),
+            "formulary_note": FORMULARY_NOTE,
             "section": item["section"],
             "program_code": item["program_code"],
             "benefit_type_code": bc,
-            "benefit_type_label": benefit_labels.get(bc, bc),
+            "benefit_type_label": benefit_type_label(bc),
             "biosimilar": item["biosimilar"],
             "pricing": {
                 "general_charge": _f(item["general_charge"]),

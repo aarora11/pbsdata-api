@@ -5,6 +5,7 @@ from pathlib import Path
 from decimal import Decimal
 
 from ingest.normaliser import normalise_schedule, normalise_ingredient_name, BENEFIT_TYPE_MAP
+from ingest.reference import benefit_type_label, canonical_benefit_type
 from ingest.differ import compute_changes, price_changed
 
 
@@ -39,38 +40,75 @@ def test_normaliser_deduplicates_medicines():
         f"Expected 1 metformin medicine, got {len(metformin_medicines)}"
 
 
-def test_normaliser_maps_all_benefit_types():
-    """All benefit type codes are mapped to their string equivalents."""
+def test_normaliser_stores_pbs_benefit_type_codes():
+    """Benefit type is stored as the PBS letter code, which is what the API matches on.
+
+    The ingest previously expanded these to "authority_required" while every API
+    query compared against 'A'. See docs/AUDIT_FINDINGS.md [B3].
+    """
     items = load_fixture("pbs_sample_items.json")
     restrictions = load_fixture("pbs_sample_restrictions.json")
     result = normalise_schedule("2026-04", items, restrictions)
     for item in result["items"]:
-        assert item["benefit_type"] in BENEFIT_TYPE_MAP.values(), \
+        assert item["benefit_type"] in BENEFIT_TYPE_MAP, \
             f"Unexpected benefit type '{item['benefit_type']}' on {item['pbs_code']}"
+        assert len(item["benefit_type"]) == 1, \
+            f"Benefit type must be a single PBS letter, got '{item['benefit_type']}'"
 
 
-def test_normaliser_U_maps_to_unrestricted():
+def test_normaliser_U_stays_U():
     items = load_fixture("pbs_sample_items.json")
     restrictions = load_fixture("pbs_sample_restrictions.json")
     result = normalise_schedule("2026-04", items, restrictions)
     lipitor = next(i for i in result["items"] if i["pbs_code"] == "8591B")
-    assert lipitor["benefit_type"] == "unrestricted"
+    assert lipitor["benefit_type"] == "U"
+    assert benefit_type_label(lipitor["benefit_type"]) == "Unrestricted"
 
 
-def test_normaliser_S_maps_to_authority_streamlined():
+def test_normaliser_S_stays_S():
     items = load_fixture("pbs_sample_items.json")
     restrictions = load_fixture("pbs_sample_restrictions.json")
     result = normalise_schedule("2026-04", items, restrictions)
     humira = next(i for i in result["items"] if i["pbs_code"] == "1234A")
-    assert humira["benefit_type"] == "authority_streamlined"
+    assert humira["benefit_type"] == "S"
+    assert benefit_type_label(humira["benefit_type"]) == "Streamlined Authority"
 
 
-def test_normaliser_A_maps_to_authority_required():
+def test_normaliser_A_stays_A():
     items = load_fixture("pbs_sample_items.json")
     restrictions = load_fixture("pbs_sample_restrictions.json")
     result = normalise_schedule("2026-04", items, restrictions)
     clozaril = next(i for i in result["items"] if i["pbs_code"] == "5678B")
-    assert clozaril["benefit_type"] == "authority_required"
+    assert clozaril["benefit_type"] == "A"
+    assert benefit_type_label(clozaril["benefit_type"]) == "Authority Required"
+
+
+def test_normaliser_accepts_legacy_long_form_benefit_type():
+    """Long-form values written by older ingest runs normalise back to PBS codes."""
+    assert canonical_benefit_type("authority_required") == "A"
+    assert canonical_benefit_type("authority_streamlined") == "S"
+    assert canonical_benefit_type("unrestricted") == "U"
+    assert canonical_benefit_type("restricted") == "R"
+
+
+def test_normaliser_strips_leading_slash_from_section():
+    """PBS supplies changed_endpoint as '/items'; stored without the slash.
+
+    Equality against 'items' previously never matched, so new listings and
+    delistings were never classified. See docs/AUDIT_FINDINGS.md [B4].
+    """
+    result = normalise_schedule(
+        "2026-04", [], [],
+        raw_summary_of_changes=[
+            {"table_keys": {"pbs_code": "1234A"}, "change_type": "INSERT",
+             "changed_endpoint": "/items", "change_detail": "New listing"},
+            {"table_keys": {"pbs_code": "5678B"}, "change_type": "UPDATE",
+             "changed_endpoint": "/item-restriction-relationships", "change_detail": "x"},
+        ],
+    )
+    sections = [c["section"] for c in result["summary_of_changes"]]
+    assert sections == ["items", "item-restriction-relationships"]
+    assert not any(s.startswith("/") for s in sections)
 
 
 def test_brand_premium_never_counts_to_safety_net():
@@ -214,3 +252,108 @@ async def test_pipeline_idempotent(db):
 
     assert count_after_first == count_after_second, \
         "Idempotency violated: duplicate medicines created on second run"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_idempotent_for_changes(db):
+    """
+    Re-running an ingest must not append a second set of change rows.
+
+    test_pipeline_idempotent above passes an empty changes list, so it never
+    exercised insert_changes — which was the one loader with no delete-first,
+    and duplicated its rows on every re-run.
+    """
+    from ingest.loader import load_to_database
+
+    items = load_fixture("pbs_sample_items.json")
+    restrictions = load_fixture("pbs_sample_restrictions.json")
+    normalised = normalise_schedule("2026-04", items, restrictions)
+
+    changes = [
+        {"pbs_code": "10001J", "change_type": "price_change",
+         "field_name": "government_price", "old_value": "1.00", "new_value": "2.00"},
+        {"pbs_code": "10003L", "change_type": "new_listing",
+         "field_name": None, "old_value": None, "new_value": None},
+    ]
+
+    await db.execute(
+        "INSERT INTO schedules (month, released_at, ingest_status) VALUES ('2026-04', NOW(), 'running') ON CONFLICT (month) DO UPDATE SET ingest_status = 'running'"
+    )
+
+    class FakePool:
+        def acquire(self): return FakeAcquire(db)
+    class FakeAcquire:
+        def __init__(self, c): self._c = c
+        async def __aenter__(self): return self._c
+        async def __aexit__(self, *a): pass
+
+    pool = FakePool()
+    count_sql = (
+        "SELECT COUNT(*) FROM changes c JOIN schedules s ON s.id = c.schedule_id "
+        "WHERE s.month = '2026-04'"
+    )
+
+    await load_to_database(pool, "2026-04", normalised, changes)
+    after_first = await db.fetchval(count_sql)
+
+    await load_to_database(pool, "2026-04", normalised, changes)
+    after_second = await db.fetchval(count_sql)
+
+    assert after_first == len(changes)
+    assert after_first == after_second, \
+        f"Idempotency violated: changes grew {after_first} -> {after_second} on re-run"
+
+
+@pytest.mark.asyncio
+async def test_differ_compares_brands_not_collapsed_codes(db):
+    """
+    Price changes are compared brand-to-brand on li_item_id.
+
+    `items` is keyed on (li_item_id, schedule_id) to match PBS's ITEM_T, so a
+    PBS code appears once per brand. The differ previously keyed the previous
+    schedule by pbs_code, keeping one arbitrary brand and comparing every
+    current brand against it — which reported a price change whenever the
+    winning brand differed between months, though nothing had moved. Measured
+    on 2026-06: 246 of 295 government_price changes were that artifact.
+    """
+    from ingest.differ import compute_changes
+
+    class FakePool:
+        def acquire(self): return FakeAcquire(db)
+    class FakeAcquire:
+        def __init__(self, c): self._c = c
+        async def __aenter__(self): return self._c
+        async def __aexit__(self, *a): pass
+
+    await db.execute(
+        "INSERT INTO schedules (month, released_at, ingest_status) "
+        "VALUES ('1998-01', NOW(), 'complete') ON CONFLICT (month) DO UPDATE SET ingest_status='complete'"
+    )
+    sched = await db.fetchval("SELECT id FROM schedules WHERE month='1998-01'")
+    med = await db.fetchval(
+        "INSERT INTO medicines (ingredient, ingredient_lower) VALUES ('Testium','testium') "
+        "ON CONFLICT (ingredient_lower) DO UPDATE SET ingredient=EXCLUDED.ingredient RETURNING id"
+    )
+    await db.execute("DELETE FROM items WHERE schedule_id = $1", sched)
+    # Two brands of one PBS code, different prices, neither of which changes.
+    for li, price in (("5000A_1_1_1_1", 10), ("5000A_2_2_2_2", 90)):
+        await db.execute(
+            "INSERT INTO items (pbs_code, li_item_id, schedule_id, medicine_id, brand_name, "
+            "brand_name_lower, benefit_type, government_price) "
+            "VALUES ('5000A',$1,$2,$3,'B','b','U',$4)", li, sched, med, price,
+        )
+
+    normalised = {"items": [
+        {"pbs_code": "5000A", "li_item_id": "5000A_1_1_1_1",
+         "government_price": 10, "brand_premium": 0},
+        {"pbs_code": "5000A", "li_item_id": "5000A_2_2_2_2",
+         "government_price": 90, "brand_premium": 0},
+    ]}
+
+    changes = await compute_changes(FakePool(), normalised, "1998-02")
+    price_changes = [c for c in changes if c["change_type"] == "price_changed"]
+
+    assert price_changes == [], \
+        f"reported price movement where each brand held its price: {price_changes}"
+
+    await db.execute("DELETE FROM items WHERE schedule_id = $1", sched)

@@ -10,6 +10,27 @@ import datetime
 router = APIRouter(tags=["items"])
 
 
+def patient_charge(dpmq: Optional[float], cap: Optional[float]) -> Optional[float]:
+    """Patient out-of-pocket for one script: the lower of dispensed price and cap.
+
+    `cap` of 0.00 is a real PBS value (fully subsidised / CTG items) and must be
+    honoured. The previous `cap or dpmq` idiom treated it as absent and charged the
+    patient the full dispensed price. See docs/AUDIT_FINDINGS.md [C5].
+    """
+    if dpmq is None:
+        return None
+    if cap is None:
+        return round(dpmq, 2)
+    return round(min(dpmq, cap), 2)
+
+
+def government_contribution(dpmq: Optional[float], patient: Optional[float]) -> Optional[float]:
+    """Subsidy for one script. Always recomposes: patient + government == dpmq."""
+    if dpmq is None or patient is None:
+        return None
+    return round(dpmq - patient, 2)
+
+
 
 def check_history_limit(api_key_data: dict, schedule: Optional[str]):
     if schedule is None:
@@ -75,7 +96,7 @@ async def get_item(
                i.max_quantity, i.max_repeats, i.dangerous_drug, i.formulary, i.section, i.program_code,
                i.artg_id, i.sponsor, i.caution, i.biosimilar,
                m.ingredient, m.ingredient_lower, m.atc_code
-        FROM items i
+        FROM items_listing i
         JOIN medicines m ON m.id = i.medicine_id
         WHERE i.pbs_code = $1 AND i.schedule_id = $2
         """,
@@ -206,7 +227,7 @@ async def get_item_price(
         SELECT i.pbs_code, i.brand_name, i.government_price, i.general_charge,
                i.concessional_charge, i.brand_premium, i.formulary, i.program_code,
                m.ingredient
-        FROM items i JOIN medicines m ON m.id = i.medicine_id
+        FROM items_listing i JOIN medicines m ON m.id = i.medicine_id
         WHERE i.pbs_code = $1 AND i.schedule_id = $2
         """,
         pbs_code.upper(), schedule_id,
@@ -238,11 +259,16 @@ async def get_item_price(
     contexts = []
     for r in pricing_rows:
         dpmq = _f(r["commonwealth_price"])
-        gen_cp = _f(copayment["general"]) if copayment else None
         con_cp = _f(copayment["concessional"]) if copayment else None
         max_charge = _f(r["max_general_patient_charge"])
-        gen_patient = round(min(dpmq, max_charge or dpmq), 2) if dpmq is not None else None
-        gov_pays = round(dpmq - gen_patient, 2) if (dpmq is not None and gen_patient is not None) else None
+        gen_patient = patient_charge(dpmq, max_charge)
+        gov_pays = government_contribution(dpmq, gen_patient)
+        # Concessional charge is capped by the dispensed price in exactly the same way
+        # as the general charge. This endpoint previously returned the raw copayment,
+        # overstating the cost of any drug cheaper than the copayment and disagreeing
+        # with /patient-cost for the same item. See docs/AUDIT_FINDINGS.md [C6].
+        con_patient = patient_charge(dpmq, con_cp)
+        con_gov_pays = government_contribution(dpmq, con_patient)
 
         contexts.append({
             "li_item_id": r["li_item_id"],
@@ -258,8 +284,9 @@ async def get_item_price(
             },
             "patient_outcome": {
                 "general_patient_charge": gen_patient,
-                "concessional_patient_charge": con_cp,
+                "concessional_patient_charge": con_patient,
                 "government_pays": gov_pays,
+                "government_pays_concessional": con_gov_pays,
             },
         })
 
@@ -320,7 +347,7 @@ async def get_item_patient_cost(
     schedule_id = sched_row["id"]
 
     item = await db.fetchrow(
-        "SELECT i.pbs_code, i.brand_name, i.brand_premium, i.government_price, m.ingredient FROM items i JOIN medicines m ON m.id = i.medicine_id WHERE i.pbs_code = $1 AND i.schedule_id = $2",
+        "SELECT i.pbs_code, i.brand_name, i.brand_premium, i.government_price, m.ingredient FROM items_listing i JOIN medicines m ON m.id = i.medicine_id WHERE i.pbs_code = $1 AND i.schedule_id = $2",
         pbs_code.upper(), schedule_id,
     )
     if not item:
@@ -347,12 +374,21 @@ async def get_item_patient_cost(
     brand_premium = _f(pricing["brand_premium"]) if pricing else _f(item["brand_premium"])
     max_charge = _f(pricing["max_general_patient_charge"]) if pricing else None
 
-    you_pay_gen = min(dpmq, max_charge or dpmq) if dpmq is not None else None
-    you_pay_con = min(dpmq, con_cp) if (dpmq is not None and con_cp is not None) else con_cp
-    gov_pays_gen = round(dpmq - you_pay_gen, 2) if (dpmq and you_pay_gen is not None) else None
-    gov_pays_con = round(dpmq - you_pay_con, 2) if (dpmq and you_pay_con is not None) else None
+    you_pay_gen = patient_charge(dpmq, max_charge)
+    you_pay_con = patient_charge(dpmq, con_cp)
+    gov_pays_gen = government_contribution(dpmq, you_pay_gen)
+    gov_pays_con = government_contribution(dpmq, you_pay_con)
     scripts_gen = round(sn_gen / you_pay_gen) if (sn_gen and you_pay_gen) else None
     scripts_con = round(sn_con / you_pay_con) if (sn_con and you_pay_con) else None
+
+    # Which price basis actually produced this answer. item_pricing holds one row per
+    # (brand, dispensing rule); we take the highest as a conservative representative
+    # and fall back to the item-level snapshot when pricing is unavailable. Callers
+    # need to know which was used. See docs/AUDIT_FINDINGS.md [C2], [H1].
+    price_basis = (
+        "item_pricing.commonwealth_price (highest of the item's brand/dispensing-rule rows)"
+        if pricing else "items.government_price (item-level snapshot)"
+    )
 
     return {
         "data": {
@@ -381,6 +417,20 @@ async def get_item_patient_cost(
             "discount_zone": {
                 "increased_discount_limit": idl,
             },
+        },
+        "meta": {
+            "schedule_code": sched_row["month"],
+            "tier": tier_label(api_key_data),
+            "join_sources": ["/items", "/item-dispensing-rule-relationships", "/copayments"],
+            "price_basis": price_basis,
+            "derivation": "estimated_scripts_to_safety_net=heuristic",
+            "caveat": (
+                "Patient charges are computed as min(dispensed price, applicable cap) from "
+                "PBS fields. estimated_scripts_to_safety_net is an approximation for a single "
+                "patient taking this item repeatedly — it does not account for family "
+                "aggregation, concurrent medicines, or mid-year concession changes. Not a "
+                "PBS-published figure."
+            ),
         },
     }
 

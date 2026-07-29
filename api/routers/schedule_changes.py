@@ -21,10 +21,23 @@ async def _resolve_schedule(db, schedule_code: Optional[str]) -> tuple[str, str]
     return str(row["id"]), row["month"]
 
 
+# summary_of_changes.section is sourced from the PBS `changed_endpoint` field, which
+# arrives as "/items". The ingest now strips the leading slash and migration 009
+# backfilled existing rows, but every comparison here also normalises defensively so
+# un-migrated data still classifies correctly. Previously `section == "items"` never
+# matched, so NEW_LISTING/DELISTING were never emitted and delistings — graded HIGH —
+# were reported as OTHER_MODIFICATION/LOW. See docs/AUDIT_FINDINGS.md [B4].
+SECTION_ITEMS = "items"
+
+
+def _normalise_section(section: str | None) -> str:
+    return (section or "").strip().lstrip("/").lower()
+
+
 def _classify_change(change_type: str | None, section: str | None) -> tuple[str, str]:
     """Return (change_type_code, severity) from PBS raw change_type (INSERT/UPDATE/DELETE) + section."""
     ct = (change_type or "").upper()
-    sec = (section or "").lower()
+    sec = _normalise_section(section)
 
     # Pricing events are the most common DELETE — classify first
     if "pricing-event" in sec or "dispensing-rule" in sec:
@@ -34,7 +47,7 @@ def _classify_change(change_type: str | None, section: str | None) -> tuple[str,
             return "PRICE_CHANGE", "MEDIUM"
 
     # Item listings
-    if sec == "items":
+    if sec == SECTION_ITEMS:
         if ct == "INSERT":
             return "NEW_LISTING", "MEDIUM"
         if ct == "DELETE":
@@ -59,20 +72,53 @@ def _classify_change(change_type: str | None, section: str | None) -> tuple[str,
     return "OTHER_MODIFICATION", "LOW"
 
 
-async def _fetch_drug_names(db, pbs_codes: list[str], schedule_id: str) -> dict[str, str]:
-    """Batch-fetch ingredient names for a list of PBS codes."""
+async def _previous_schedule_id(db, schedule_month: str) -> Optional[str]:
+    """Id of the most recent completed schedule before the given month."""
+    row = await db.fetchrow(
+        "SELECT id FROM schedules WHERE month < $1 AND ingest_status = 'complete' "
+        "ORDER BY month DESC LIMIT 1",
+        schedule_month,
+    )
+    return str(row["id"]) if row else None
+
+
+async def _fetch_drug_names(
+    db, pbs_codes: list[str], schedule_id: str, fallback_schedule_id: Optional[str] = None
+) -> dict[str, str]:
+    """Batch-fetch ingredient names for a list of PBS codes.
+
+    Delisted items no longer exist in the schedule that records their removal, so a
+    lookup scoped to that schedule alone returned nothing and every delisting was
+    reported with drug_name = null. Callers dealing with removals pass the previous
+    schedule as a fallback. See docs/AUDIT_FINDINGS.md [B5].
+    """
     if not pbs_codes:
         return {}
     rows = await db.fetch(
         """
         SELECT i.pbs_code, m.ingredient
-        FROM items i
+        FROM items_listing i
         JOIN medicines m ON m.id = i.medicine_id
         WHERE i.pbs_code = ANY($1) AND i.schedule_id = $2
         """,
         pbs_codes, schedule_id,
     )
-    return {r["pbs_code"]: r["ingredient"] for r in rows}
+    names = {r["pbs_code"]: r["ingredient"] for r in rows}
+
+    missing = [c for c in pbs_codes if c not in names]
+    if missing and fallback_schedule_id:
+        prev_rows = await db.fetch(
+            """
+            SELECT i.pbs_code, m.ingredient
+            FROM items_listing i
+            JOIN medicines m ON m.id = i.medicine_id
+            WHERE i.pbs_code = ANY($1) AND i.schedule_id = $2
+            """,
+            missing, fallback_schedule_id,
+        )
+        for r in prev_rows:
+            names.setdefault(r["pbs_code"], r["ingredient"])
+    return names
 
 
 def _enrich_row(r, drug_names: dict, extra: dict | None = None) -> dict:
@@ -260,29 +306,33 @@ async def get_schedule_new_listings(
         SELECT sc.pbs_code, sc.change_type, sc.effective_date, sc.description, sc.section
         FROM summary_of_changes sc
         WHERE sc.schedule_id = $1
-          AND sc.change_type = 'INSERT' AND sc.section = 'items'
+          AND sc.change_type = 'INSERT' AND LTRIM(sc.section, '/') = 'items'
         ORDER BY sc.pbs_code
         LIMIT $2 OFFSET $3
         """,
         schedule_id, limit, (page - 1) * limit,
     )
     total = await db.fetchval(
-        "SELECT COUNT(*) FROM summary_of_changes WHERE schedule_id = $1 AND change_type = 'INSERT' AND section = 'items'",
+        "SELECT COUNT(*) FROM summary_of_changes WHERE schedule_id = $1 AND change_type = 'INSERT' AND LTRIM(section, '/') = 'items'",
         schedule_id,
     )
 
     pbs_codes = [r["pbs_code"] for r in rows if r["pbs_code"]]
     drug_names = await _fetch_drug_names(db, pbs_codes, schedule_id)
 
-    # is_first_in_atc_class: true if no other item shares the same ATC Level-5 code in the current schedule
+    # Primary ATC per new listing. DISTINCT ON returns exactly one row per item, so
+    # the dict cannot be overwritten by a lower-priority classification — the previous
+    # comprehension kept the LAST row of a priority-ordered result, which meant
+    # split-ATC items reported their lowest-priority code as "primary".
+    # See docs/AUDIT_FINDINGS.md [B6].
     atc_rows = await db.fetch(
         """
-        SELECT iar.pbs_code, iar.atc_code
+        SELECT DISTINCT ON (iar.pbs_code) iar.pbs_code, iar.atc_code
         FROM item_atc_relationships iar
         WHERE iar.pbs_code = ANY($1) AND iar.schedule_id = $2
-        ORDER BY iar.atc_priority_pct DESC NULLS LAST
+        ORDER BY iar.pbs_code, iar.is_primary DESC, iar.atc_priority_pct DESC NULLS LAST, iar.atc_code
         """,
-        pbs_codes or [""], schedule_id,
+        pbs_codes, schedule_id,
     ) if pbs_codes else []
 
     primary_atc = {r["pbs_code"]: r["atc_code"] for r in atc_rows}
@@ -341,35 +391,52 @@ async def get_schedule_delistings(
         SELECT sc.pbs_code, sc.change_type, sc.effective_date, sc.description, sc.section
         FROM summary_of_changes sc
         WHERE sc.schedule_id = $1
-          AND sc.change_type = 'DELETE' AND sc.section = 'items'
+          AND sc.change_type = 'DELETE' AND LTRIM(sc.section, '/') = 'items'
         ORDER BY sc.pbs_code
         LIMIT $2 OFFSET $3
         """,
         schedule_id, limit, (page - 1) * limit,
     )
     total = await db.fetchval(
-        "SELECT COUNT(*) FROM summary_of_changes WHERE schedule_id = $1 AND change_type = 'DELETE' AND section = 'items'",
+        "SELECT COUNT(*) FROM summary_of_changes WHERE schedule_id = $1 AND change_type = 'DELETE' AND LTRIM(section, '/') = 'items'",
         schedule_id,
     )
 
     pbs_codes = [r["pbs_code"] for r in rows if r["pbs_code"]]
-    drug_names = await _fetch_drug_names(db, pbs_codes, schedule_id)
 
-    # therapeutic_alternatives: other active items sharing ATC Level-4
-    atc_rows = await db.fetch(
-        """
-        SELECT iar.pbs_code,
-               LEFT(iar.atc_code, 5) AS atc_l4
-        FROM item_atc_relationships iar
-        WHERE iar.pbs_code = ANY($1) AND iar.schedule_id = $2
-        """,
-        pbs_codes or [""], schedule_id,
-    ) if pbs_codes else []
+    # A delisted item is gone from this schedule, so both its name and its ATC class
+    # must be read from the previous one. Reading them from the current schedule
+    # returned nothing, leaving drug_name null and therapeutic_alternatives empty for
+    # every delisting. See docs/AUDIT_FINDINGS.md [B5].
+    prev_schedule_id = await _previous_schedule_id(db, schedule_month)
+    drug_names = await _fetch_drug_names(db, pbs_codes, schedule_id, prev_schedule_id)
+
+    # ATC Level-4 (first 5 characters of the ATC code) of each delisted item, taken
+    # from whichever schedule still holds the item.
+    atc_rows = []
+    if pbs_codes:
+        atc_rows = await db.fetch(
+            """
+            SELECT DISTINCT ON (iar.pbs_code) iar.pbs_code,
+                   LEFT(iar.atc_code, 5) AS atc_l4
+            FROM item_atc_relationships iar
+            WHERE iar.pbs_code = ANY($1)
+              AND iar.schedule_id = ANY($2)
+            ORDER BY iar.pbs_code, iar.is_primary DESC, iar.atc_priority_pct DESC NULLS LAST
+            """,
+            pbs_codes,
+            [s for s in (schedule_id, prev_schedule_id) if s],
+        )
 
     pbs_to_atc_l4 = {r["pbs_code"]: r["atc_l4"] for r in atc_rows}
 
+    # Alternatives are drawn from the CURRENT schedule — a delisted drug's
+    # replacement must still be listed.
     alternatives: dict[str, list] = {}
     for pc, atc_l4 in pbs_to_atc_l4.items():
+        if not atc_l4:
+            alternatives[pc] = []
+            continue
         alt_rows = await db.fetch(
             """
             SELECT DISTINCT i.pbs_code, m.ingredient, i.brand_name
@@ -388,6 +455,11 @@ async def get_schedule_delistings(
         pc = r["pbs_code"]
         data.append(_enrich_row(r, drug_names, {
             "therapeutic_alternatives": alternatives.get(pc, []),
+            "therapeutic_alternatives_note": (
+                "Heuristic: other PBS items sharing the delisted item's ATC Level-4 "
+                "(pharmacological subgroup). Not a PBS-endorsed substitution list; "
+                "strength, form and indication are not matched."
+            ),
         }))
 
     return {
@@ -455,14 +527,14 @@ async def get_schedule_price_changes(
 
     if pbs_codes:
         curr_rows = await db.fetch(
-            "SELECT pbs_code, government_price FROM items WHERE pbs_code = ANY($1) AND schedule_id = $2",
+            "SELECT pbs_code, government_price FROM items_listing WHERE pbs_code = ANY($1) AND schedule_id = $2",
             pbs_codes, schedule_id,
         )
         current_prices = {r["pbs_code"]: float(r["government_price"]) if r["government_price"] else None for r in curr_rows}
 
         if prev_id:
             prev_rows = await db.fetch(
-                "SELECT pbs_code, government_price FROM items WHERE pbs_code = ANY($1) AND schedule_id = $2",
+                "SELECT pbs_code, government_price FROM items_listing WHERE pbs_code = ANY($1) AND schedule_id = $2",
                 pbs_codes, prev_id,
             )
             prev_prices = {r["pbs_code"]: float(r["government_price"]) if r["government_price"] else None for r in prev_rows}

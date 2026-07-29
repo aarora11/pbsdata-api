@@ -1,37 +1,37 @@
 [
   {
-    "pbs_code": "2622M",
+    "table_keys": {"pbs_code": "2622M"},
     "change_type": "DELETE",
-    "effective_date": "2026-04-01",
-    "description": "Item removed from schedule",
-    "section": "item-pricing-events"
+    "target_effective_date": "2026-04-01",
+    "change_detail": "Item removed from schedule",
+    "changed_endpoint": "/item-pricing-events"
   },
   {
-    "pbs_code": "9999X",
+    "table_keys": {"pbs_code": "9999X"},
     "change_type": "INSERT",
-    "effective_date": "2026-04-01",
-    "description": "New item listed",
-    "section": "items"
+    "target_effective_date": "2026-04-01",
+    "change_detail": "New item listed",
+    "changed_endpoint": "/items"
   },
   {
-    "pbs_code": "2622M",
+    "table_keys": {"pbs_code": "2622M"},
     "change_type": "DELETE",
-    "effective_date": "2026-04-01",
-    "description": "Item delisted",
-    "section": "items"
+    "target_effective_date": "2026-04-01",
+    "change_detail": "Item delisted",
+    "changed_endpoint": "/items"
   },
   {
-    "pbs_code": "5678A",
+    "table_keys": {"pbs_code": "5678A"},
     "change_type": "INSERT",
-    "effective_date": "2026-04-01",
-    "description": "Restriction added",
-    "section": "item-restriction-relationships"
+    "target_effective_date": "2026-04-01",
+    "change_detail": "Restriction added",
+    "changed_endpoint": "/item-restriction-relationships"
   },
   {
-    "pbs_code": "5678A",
+    "table_keys": {"pbs_code": "5678A"},
     "change_type": "DELETE",
-    "effective_date": "2026-04-01",
-    "description": "Prescribing text removed",
-    "section": "restriction-prescribing-text-relationships"
+    "target_effective_date": "2026-04-01",
+    "change_detail": "Prescribing text removed",
+    "changed_endpoint": "/restriction-prescribing-text-relationships"
   }
 ]

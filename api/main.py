@@ -165,6 +165,50 @@ async def health():
     return {"status": "ok", "version": "1.0.0"}
 
 
+@app.get("/health/data")
+async def health_data():
+    """Report whether the schedule the API serves by default is actually usable.
+
+    Every endpoint resolves its default schedule with
+    `WHERE ingest_status='complete' ORDER BY month DESC LIMIT 1`. If that schedule
+    holds no items the entire API returns 404/empty while /health still reports ok —
+    which is exactly the state the 2026-07 audit found. This endpoint makes the
+    condition observable and alertable.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, month, item_count FROM schedules "
+            "WHERE ingest_status = 'complete' ORDER BY month DESC LIMIT 1"
+        )
+        if not row:
+            return {
+                "status": "degraded",
+                "reason": "no completed schedule",
+                "serving_schedule": None,
+            }
+        items = await conn.fetchval(
+            "SELECT COUNT(*) FROM items_listing WHERE schedule_id = $1", row["id"]
+        )
+        priced = await conn.fetchval(
+            "SELECT COUNT(*) FROM item_pricing WHERE schedule_id = $1", row["id"]
+        )
+
+    problems = []
+    if not items:
+        problems.append("serving schedule contains no items")
+    if not priced:
+        problems.append("serving schedule contains no pricing rows")
+
+    return {
+        "status": "ok" if not problems else "degraded",
+        "serving_schedule": row["month"],
+        "item_count": items,
+        "pricing_row_count": priced,
+        "problems": problems,
+    }
+
+
 @app.post("/internal/ingest")
 async def trigger_ingest(
     request: Request,

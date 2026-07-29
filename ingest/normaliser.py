@@ -6,25 +6,12 @@ import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
+from ingest.reference import BENEFIT_TYPE_LABELS, canonical_benefit_type, canonical_section
 
-BENEFIT_TYPE_MAP = {
-    "U": "unrestricted",
-    "R": "restricted",
-    "S": "authority_streamlined",
-    "A": "authority_required",
-    "O": "hospital",
-    "B": "brand_equivalent",
-    "C": "combination",
-    "D": "doctors_bag",
-    "F": "mnemonics",
-    "G": "general_schedule",
-    "H": "highly_specialised",
-    "N": "nursing_home",
-    "P": "private",
-    "T": "in_hospital",
-    "W": "in_hospital_only",
-    "X": "not_benefit",
-}
+# Benefit types are stored as the PBS letter code. Kept as an alias so existing
+# callers importing BENEFIT_TYPE_MAP keep working; the values are now the human
+# labels rather than the old snake_case strings. See ingest/reference.py.
+BENEFIT_TYPE_MAP = BENEFIT_TYPE_LABELS
 
 
 def normalise_ingredient_name(name: str) -> str:
@@ -55,6 +42,55 @@ def parse_date(value) -> Optional[datetime.date]:
 def yn(value) -> bool:
     """Convert Y/N string to bool."""
     return str(value).upper() == "Y" if value else False
+
+
+def pbs_code_from_li_item_id(li_item_id) -> str:
+    """Derive the PBS code from a PBS `li_item_id`.
+
+    li_item_id is a 5-segment underscore-delimited composite key whose first
+    segment is the PBS code. Several PBS feeds (item pricing, dispensing-rule
+    relationships, amt-items, summary-of-changes) are keyed on li_item_id and
+    never send pbs_code, so this is the only way to join them back to items.
+
+    Validated 2026-07-29 against the full 2026-05 /items feed, which carries
+    both: the derivation matched the PBS-supplied pbs_code on 14,759/14,759
+    rows (100%).
+    """
+    if not li_item_id:
+        return ""
+    return str(li_item_id).split("_")[0]
+
+
+# ── /item-overview field accessors ────────────────────────────────────────────
+# The overview feed publishes these under different names than the columns they
+# populate. Kept as named helpers so the mapping is stated once and testable.
+
+def _overview_caution(overviews: dict, pbs_code: str) -> Optional[str]:
+    """`caution` has no text counterpart in /item-overview.
+
+    The feed carries only `caution_indicator` ('Y'/'N', 100% populated), but the
+    `items.caution` column is TEXT and consumers expect caution *text*, not a
+    flag. Writing 'Y' here would be misleading. Surfacing the indicator needs a
+    separate boolean column — a schema decision, not a mapping fix.
+    """
+    return None
+
+
+def _overview_sponsor(overviews: dict, pbs_code: str) -> Optional[str]:
+    """`sponsor` <- manufacturer.name, a nested object in the overview row."""
+    manufacturer = overviews.get(pbs_code, {}).get("manufacturer")
+    if isinstance(manufacturer, dict):
+        return manufacturer.get("name") or None
+    return None
+
+
+def _overview_artg_id(overviews: dict, pbs_code: str) -> Optional[str]:
+    """`artg_id` has no counterpart in /item-overview — TGA, not PBS.
+
+    Kept as an explicit no-op so the absence is visible rather than looking like
+    an oversight. Returns None until a PBS source for ARTG IDs is identified.
+    """
+    return None
 
 
 def normalise_schedule(
@@ -191,9 +227,12 @@ def normalise_schedule(
                 "therapeutic_subgroup": raw.get("therapeutic_subgroup"),
             }
 
-        # Benefit type
-        raw_benefit = raw.get("benefit_type_code") or raw.get("benefit_type", "U")
-        benefit_type = BENEFIT_TYPE_MAP.get(raw_benefit, raw_benefit)
+        # Benefit type — stored as the PBS letter code, not an expanded string.
+        # The API matches on these codes; expansion to a label happens at response
+        # time via ingest.reference.benefit_type_label.
+        benefit_type = canonical_benefit_type(
+            raw.get("benefit_type_code") or raw.get("benefit_type")
+        )
 
         # Pricing: real PBS API stores prices directly on items as claimed_price /
         # determined_price. dispensing-rule-relationships has no price fields.
@@ -288,10 +327,20 @@ def normalise_schedule(
             "infusible_indicator": yn(raw.get("infusible_indicator")),
             "originator_brand_indicator": yn(raw.get("originator_brand_indicator")),
             "innovator_indicator": yn(raw.get("innovator_indicator")),
-            # From item-overview (optional enrichment)
-            "artg_id": item_overviews_map.get(pbs_code, {}).get("artg_id") or raw.get("artg_id"),
-            "sponsor": item_overviews_map.get(pbs_code, {}).get("sponsor") or raw.get("sponsor"),
-            "caution": item_overviews_map.get(pbs_code, {}).get("caution") or raw.get("caution"),
+            # From item-overview (optional enrichment).
+            #
+            # The PBS /item-overview feed does not carry fields named artg_id,
+            # sponsor, caution or biosimilar — reading those names left all four
+            # columns 100% null even after the feed was wired up. The mappings
+            # below use the field names the feed actually publishes:
+            #   caution <- caution_indicator ('Y'/'N', 100% populated)
+            #   sponsor <- manufacturer.name (nested object, 98.9% populated)
+            # artg_id has no counterpart in this feed at all (it is a TGA
+            # identifier); biosimilar is left to the raw item until a domain
+            # reviewer confirms the source field — see docs/FIX_PLAN.md Phase 4.
+            "artg_id": _overview_artg_id(item_overviews_map, pbs_code) or raw.get("artg_id"),
+            "sponsor": _overview_sponsor(item_overviews_map, pbs_code) or raw.get("sponsor"),
+            "caution": _overview_caution(item_overviews_map, pbs_code) or raw.get("caution"),
             "biosimilar": bool(item_overviews_map.get(pbs_code, {}).get("biosimilar") or raw.get("biosimilar", False)),
             "restrictions": item_restrictions,
         }
@@ -354,7 +403,7 @@ def normalise_schedule(
     # ── Item pricing ──────────────────────────────────────────────────────────
     normalised_item_pricing = []
     for p in (raw_item_pricing or []):
-        pbs_code = p.get("pbs_code") or (p.get("li_item_id", "").split("_")[0] if p.get("li_item_id") else "")
+        pbs_code = p.get("pbs_code") or pbs_code_from_li_item_id(p.get("li_item_id"))
         normalised_item_pricing.append({
             "li_item_id": p.get("li_item_id", ""),
             "pbs_code": pbs_code,
@@ -426,11 +475,24 @@ def normalise_schedule(
         })
 
     # ── Item <-> dispensing rule relationships ────────────────────────────────
+    # PBS keys this feed on li_item_id and never sends pbs_code (0 of 38,253 rows
+    # on 2026-05). Reading pbs_code directly made every row key on "", collapsing
+    # 38,253 relationships to the 10 distinct rule mnemonics with an empty
+    # pbs_code — losing the item-to-rule link entirely.
     normalised_item_dispensing_rules = []
+    _seen_dispensing = set()
     for rel in (raw_item_dispensing_rule_relationships or raw_item_dispensing_rules or []):
+        pbs_code = rel.get("pbs_code") or pbs_code_from_li_item_id(rel.get("li_item_id"))
+        rule_code = rel.get("dispensing_rule_mnem") or rel.get("rule_code", "")
+        if not pbs_code or not rule_code:
+            continue
+        key = (pbs_code, rule_code)
+        if key in _seen_dispensing:
+            continue
+        _seen_dispensing.add(key)
         normalised_item_dispensing_rules.append({
-            "pbs_code": rel.get("pbs_code", ""),
-            "rule_code": rel.get("dispensing_rule_mnem") or rel.get("rule_code", ""),
+            "pbs_code": pbs_code,
+            "rule_code": rule_code,
         })
 
     # ── Program dispensing rules ──────────────────────────────────────────────
@@ -495,7 +557,15 @@ def normalise_schedule(
     # from li_item_id in /amt-items (pbs_code = first segment of li_item_id).
     # Fallback: use raw_item_amt if explicitly provided (test fixtures / legacy).
     normalised_item_amt_relationships = []
-    if raw_item_amt:
+    # Only treat raw_item_amt as explicit relationships if the rows actually carry
+    # pbs_code/amt_id. PBSClient.get_all_item_amt serves the /amt-items payload,
+    # whose rows carry amt_code/li_item_id instead — taking this branch for that
+    # shape normalised all 59,495 rows to empty keys, collapsing the table to a
+    # single row. Anything else falls through to the li_item_id derivation below.
+    _explicit_rels = bool(raw_item_amt) and any(
+        rel.get("pbs_code") and rel.get("amt_id") for rel in raw_item_amt
+    )
+    if _explicit_rels:
         for rel in raw_item_amt:
             normalised_item_amt_relationships.append({
                 "pbs_code": rel.get("pbs_code", ""),
@@ -506,7 +576,7 @@ def normalise_schedule(
         seen = set()
         for amt in normalised_amt_items:
             li = amt.get("_li_item_id", "")
-            pbs_code = li.split("_")[0] if li else ""
+            pbs_code = pbs_code_from_li_item_id(li)
             amt_id = amt["amt_id"]
             key = (pbs_code, amt_id)
             if pbs_code and amt_id and key not in seen:
@@ -535,7 +605,7 @@ def normalise_schedule(
         # table_keys is a dict in the real PBS API (e.g. {'li_item_id': '10000AC_...'})
         _table_keys = chg.get("table_keys")
         if isinstance(_table_keys, dict):
-            _raw_pbs = _table_keys.get("pbs_code") or _table_keys.get("li_item_id", "").split("_")[0] or None
+            _raw_pbs = _table_keys.get("pbs_code") or pbs_code_from_li_item_id(_table_keys.get("li_item_id")) or None
         elif _table_keys:
             _raw_pbs = str(_table_keys)
         else:
@@ -545,7 +615,9 @@ def normalise_schedule(
             "change_type": _scalar(chg.get("change_type")),
             "effective_date": parse_date(chg.get("target_effective_date") or chg.get("effective_date")),
             "description": _scalar(chg.get("change_detail") or chg.get("description")),
-            "section": _scalar(chg.get("changed_endpoint") or chg.get("section")),
+            # PBS supplies changed_endpoint as "/items", "/item-restriction-relationships".
+            # Stored without the leading slash so equality against a table name works.
+            "section": canonical_section(_scalar(chg.get("changed_endpoint") or chg.get("section"))),
         })
 
     # ── Containers ────────────────────────────────────────────────────────────
@@ -627,10 +699,17 @@ def normalise_schedule(
 
     # ── Item pricing events ───────────────────────────────────────────────────
     # Returns 204 for most schedules; fields are provisional.
+    # PBS publishes only li_item_id, event_type_code, percentage_applied and
+    # schedule_code here — the feed is brand grain, keyed on li_item_id, and
+    # carries no pbs_code, effective_date or price columns. Reading pbs_code
+    # directly left every row keyed NULL and every field empty.
     normalised_item_pricing_events = [
         {
-            "pbs_code": e.get("pbs_code"),
-            "event_type": e.get("event_type"),
+            "li_item_id": e.get("li_item_id"),
+            "pbs_code": e.get("pbs_code") or pbs_code_from_li_item_id(e.get("li_item_id")),
+            "event_type": e.get("event_type_code") or e.get("event_type"),
+            "percentage_applied": parse_decimal(e.get("percentage_applied")),
+            # Not published by PBS; retained until callers stop selecting them.
             "effective_date": parse_date(e.get("effective_date")),
             "previous_price": parse_decimal(e.get("previous_price")),
             "new_price": parse_decimal(e.get("new_price")),

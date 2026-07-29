@@ -6,6 +6,7 @@ from api.middleware.analytics import analytics_concurrency_check
 from api.database import get_db
 from api.cache import cache_get, cache_set
 from api.routers.shared import _rl
+from ingest.reference import benefit_type_label
 
 router = APIRouter(tags=["market"])
 
@@ -58,12 +59,15 @@ async def market_atc_summary(
 
     atc_upper = atc_code.upper()
 
-    subtree_join = "JOIN item_atc_relationships iar ON iar.atc_code = st.atc_code AND iar.schedule_id = $2"
-    if primary_atc_only:
-        subtree_join += " AND iar.is_primary = TRUE"
-
+    primary_filter = " AND iar.is_primary = TRUE" if primary_atc_only else ""
     inactive_filter = "" if include_inactive else "AND i.benefit_type IS NOT NULL"
 
+    # Each metric is computed over its own grain. The previous version joined
+    # items -> item_pricing -> item_organisation_relationships in one pass and used
+    # COUNT(*) FILTER, which counted the cartesian product rather than items: an
+    # item with 3 sponsors and 4 pricing rows contributed 12. Measured inflation on
+    # live data was 3.12x, and f1_count + f2_count could exceed the item total
+    # printed beside it. See docs/AUDIT_FINDINGS.md [C1].
     aggregate_sql = f"""
         WITH RECURSIVE subtree AS (
             SELECT atc_code FROM atc_codes WHERE atc_code = $1 AND schedule_id = $2
@@ -71,28 +75,46 @@ async def market_atc_summary(
             SELECT c.atc_code FROM atc_codes c
             JOIN subtree s ON c.atc_parent_code = s.atc_code
             WHERE c.schedule_id = $2
+        ),
+        scoped_items AS (
+            SELECT DISTINCT i.pbs_code, i.benefit_type, i.formulary,
+                   i.sixty_day_eligible, i.biosimilar
+            FROM subtree st
+            JOIN item_atc_relationships iar
+              ON iar.atc_code = st.atc_code AND iar.schedule_id = $2{primary_filter}
+            JOIN items i ON i.pbs_code = iar.pbs_code AND i.schedule_id = $2
+            {inactive_filter}
+        ),
+        -- One row per (brand, dispensing rule) for the scoped items. Price
+        -- statistics are the distribution over these rows and are unaffected by
+        -- how many sponsors an item has.
+        scoped_pricing AS (
+            SELECT ip.li_item_id, ip.commonwealth_price
+            FROM item_pricing ip
+            WHERE ip.schedule_id = $2
+              AND ip.pbs_code IN (SELECT pbs_code FROM scoped_items)
+        ),
+        scoped_orgs AS (
+            SELECT DISTINCT ior.organisation_id
+            FROM item_organisation_relationships ior
+            WHERE ior.schedule_id = $2
+              AND ior.pbs_code IN (SELECT pbs_code FROM scoped_items)
         )
         SELECT
-            COUNT(DISTINCT i.pbs_code)                                       AS unique_prescribing_rules,
-            COUNT(DISTINCT ip.li_item_id)                                    AS unique_brands,
-            COUNT(*) FILTER (WHERE i.benefit_type = 'A')                     AS authority_required_count,
-            COUNT(*) FILTER (WHERE i.benefit_type = 'S')                     AS streamlined_count,
-            COUNT(*) FILTER (WHERE i.formulary = 'F1')                       AS f1_count,
-            COUNT(*) FILTER (WHERE i.formulary = 'F2')                       AS f2_count,
-            COUNT(*) FILTER (WHERE i.sixty_day_eligible = TRUE)              AS sixty_day_items,
-            COUNT(*) FILTER (WHERE i.biosimilar = TRUE)                      AS biosimilar_items,
-            MIN(ip.commonwealth_price)                                       AS min_dpmq,
-            MAX(ip.commonwealth_price)                                       AS max_dpmq,
-            AVG(ip.commonwealth_price)                                       AS mean_dpmq,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ip.commonwealth_price) AS median_dpmq,
-            COUNT(DISTINCT ior.organisation_id)                              AS manufacturer_count
-        FROM subtree st
-        {subtree_join}
-        JOIN items i ON i.pbs_code = iar.pbs_code AND i.schedule_id = $2
-        {inactive_filter}
-        LEFT JOIN item_pricing ip ON ip.pbs_code = i.pbs_code AND ip.schedule_id = $2
-        LEFT JOIN item_organisation_relationships ior
-               ON ior.pbs_code = i.pbs_code AND ior.schedule_id = $2
+            (SELECT COUNT(*) FROM scoped_items)                          AS unique_prescribing_rules,
+            (SELECT COUNT(DISTINCT li_item_id) FROM scoped_pricing)      AS unique_brands,
+            (SELECT COUNT(*) FROM scoped_items WHERE benefit_type = 'A') AS authority_required_count,
+            (SELECT COUNT(*) FROM scoped_items WHERE benefit_type = 'S') AS streamlined_count,
+            (SELECT COUNT(*) FROM scoped_items WHERE formulary = 'F1')   AS f1_count,
+            (SELECT COUNT(*) FROM scoped_items WHERE formulary = 'F2')   AS f2_count,
+            (SELECT COUNT(*) FROM scoped_items WHERE sixty_day_eligible) AS sixty_day_items,
+            (SELECT COUNT(*) FROM scoped_items WHERE biosimilar)         AS biosimilar_items,
+            (SELECT MIN(commonwealth_price) FROM scoped_pricing)         AS min_dpmq,
+            (SELECT MAX(commonwealth_price) FROM scoped_pricing)         AS max_dpmq,
+            (SELECT AVG(commonwealth_price) FROM scoped_pricing)         AS mean_dpmq,
+            (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY commonwealth_price)
+             FROM scoped_pricing)                                        AS median_dpmq,
+            (SELECT COUNT(*) FROM scoped_orgs)                           AS manufacturer_count
     """
 
     row = await db.fetchrow(aggregate_sql, atc_upper, schedule_id)
@@ -112,12 +134,16 @@ async def market_atc_summary(
         child_code = child["atc_code"]
         child_row = await db.fetchrow(
             """
-            SELECT COUNT(DISTINCT i.pbs_code) AS item_count,
-                   AVG(ip.commonwealth_price)  AS mean_dpmq
-            FROM item_atc_relationships iar
-            JOIN items i  ON i.pbs_code = iar.pbs_code AND i.schedule_id = $2
-            LEFT JOIN item_pricing ip ON ip.pbs_code = i.pbs_code AND ip.schedule_id = $2
-            WHERE iar.atc_code = $1 AND iar.schedule_id = $2
+            WITH child_items AS (
+                SELECT DISTINCT i.pbs_code
+                FROM item_atc_relationships iar
+                JOIN items i ON i.pbs_code = iar.pbs_code AND i.schedule_id = $2
+                WHERE iar.atc_code = $1 AND iar.schedule_id = $2
+            )
+            SELECT (SELECT COUNT(*) FROM child_items) AS item_count,
+                   (SELECT AVG(ip.commonwealth_price) FROM item_pricing ip
+                    WHERE ip.schedule_id = $2
+                      AND ip.pbs_code IN (SELECT pbs_code FROM child_items)) AS mean_dpmq
             """,
             child_code, schedule_id,
         )
@@ -187,13 +213,11 @@ async def market_price_reduction_events(
         to_row = await db.fetchrow("SELECT id, month FROM schedules WHERE month = $1", to_schedule)
         if not to_row:
             raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": f"Schedule {to_schedule} not found."})
-        to_id = str(to_row["id"])
         to_month = to_row["month"]
     else:
         to_row = await db.fetchrow(
             "SELECT id, month FROM schedules WHERE ingest_status = 'complete' ORDER BY month DESC LIMIT 1"
         )
-        to_id = str(to_row["id"])
         to_month = to_row["month"]
 
     # Fetch price events across the schedule range
@@ -292,8 +316,8 @@ async def market_manufacturer_landscape(
     schedule: Optional[str] = Query(None, description="Schedule month in YYYY-MM format; defaults to the latest complete schedule"),
     atc_prefix: Optional[str] = Query(None, description="Filter by ATC code prefix to scope to a therapeutic class (e.g. 'L01' for antineoplastics)"),
     program_code: Optional[str] = Query(None, description="Filter by PBS program code (e.g. 'GE' for General Schedule)"),
-    formulary: Optional[str] = Query(None, description="Filter by formulary: F1 (brand-substitutable), F2 (not substitutable)"),
-    min_item_count: int = Query(1, ge=1, description="Minimum number of items a manufacturer must have to appear in results"),
+    formulary: Optional[str] = Query(None, description="Filter by formulary code, e.g. F1 (single-brand) or F2 (multiple-brand, price-disclosure)"),
+    min_item_count: int = Query(1, ge=1, description="Minimum number of distinct PBS codes a manufacturer must have to appear in results"),
     api_key_data: dict = Depends(require_tier("enterprise")),
     db=Depends(get_db),
     _concurrency=Depends(analytics_concurrency_check),
@@ -319,14 +343,14 @@ async def market_manufacturer_landscape(
     if program_code:
         params.append(program_code.upper())
         conditions.append(
-            f"EXISTS (SELECT 1 FROM items i2 WHERE i2.pbs_code = ior.pbs_code "
+            f"EXISTS (SELECT 1 FROM items_listing i2 WHERE i2.pbs_code = ior.pbs_code "
             f"AND i2.schedule_id = $1 AND i2.program_code = ${len(params)})"
         )
 
     if formulary:
         params.append(formulary.upper())
         conditions.append(
-            f"EXISTS (SELECT 1 FROM items i3 WHERE i3.pbs_code = ior.pbs_code "
+            f"EXISTS (SELECT 1 FROM items_listing i3 WHERE i3.pbs_code = ior.pbs_code "
             f"AND i3.schedule_id = $1 AND i3.formulary = ${len(params)})"
         )
 
@@ -337,11 +361,14 @@ async def market_manufacturer_landscape(
             ior.organisation_id,
             o.name,
             COUNT(DISTINCT ior.pbs_code)                                AS pbs_code_count,
-            COUNT(DISTINCT ip.li_item_id)                               AS item_count,
-            COUNT(*) FILTER (WHERE i.formulary = 'F1')                 AS f1_count,
-            COUNT(*) FILTER (WHERE i.formulary = 'F2')                 AS f2_count,
-            COUNT(*) FILTER (WHERE i.biosimilar = TRUE)                AS biosimilar_count,
-            COUNT(*) FILTER (WHERE i.benefit_type = 'A')               AS authority_count,
+            COUNT(DISTINCT ip.li_item_id)                               AS brand_count,
+            -- COUNT(DISTINCT pbs_code) rather than COUNT(*): the LEFT JOIN to
+            -- item_pricing repeats each item once per (brand, dispensing rule).
+            -- See docs/AUDIT_FINDINGS.md [C1].
+            COUNT(DISTINCT i.pbs_code) FILTER (WHERE i.formulary = 'F1')   AS f1_count,
+            COUNT(DISTINCT i.pbs_code) FILTER (WHERE i.formulary = 'F2')   AS f2_count,
+            COUNT(DISTINCT i.pbs_code) FILTER (WHERE i.biosimilar = TRUE)  AS biosimilar_count,
+            COUNT(DISTINCT i.pbs_code) FILTER (WHERE i.benefit_type = 'A') AS authority_count,
             MIN(ip.commonwealth_price)                                  AS min_dpmq,
             MAX(ip.commonwealth_price)                                  AS max_dpmq,
             AVG(ip.commonwealth_price)                                  AS mean_dpmq
@@ -351,8 +378,11 @@ async def market_manufacturer_landscape(
         LEFT JOIN organisations o ON o.organisation_id = ior.organisation_id AND o.schedule_id = $1
         WHERE {where}
         GROUP BY ior.organisation_id, o.name
-        HAVING COUNT(DISTINCT ip.li_item_id) >= ${len(params) + 1}
-        ORDER BY COUNT(DISTINCT ip.li_item_id) DESC
+        -- Threshold and ordering are on distinct PBS codes, not brands. Brand
+        -- counts come from item_pricing; gating on them dropped every manufacturer
+        -- whenever pricing was unavailable. See docs/AUDIT_FINDINGS.md [C1].
+        HAVING COUNT(DISTINCT ior.pbs_code) >= ${len(params) + 1}
+        ORDER BY COUNT(DISTINCT ior.pbs_code) DESC
         LIMIT 200
     """
     params.append(min_item_count)
@@ -364,7 +394,9 @@ async def market_manufacturer_landscape(
             "organisation_id": r["organisation_id"],
             "organisation_name": r["name"],
             "pbs_code_count": r["pbs_code_count"],
-            "item_count": r["item_count"],
+            # Named to match what min_item_count actually gates on.
+            "item_count": r["pbs_code_count"],
+            "brand_count": r["brand_count"],
             "f1_count": r["f1_count"],
             "f2_count": r["f2_count"],
             "biosimilar_count": r["biosimilar_count"],
@@ -427,26 +459,40 @@ async def market_schedule_comparison(
     if cached := cache_get(cache_key):
         return cached
 
+    # The ATC filter is injected into three queries that use different table
+    # aliases. Previously one filter string hardcoded alias "i" and was injected
+    # into the price-change query, which aliases items as b/t — PostgreSQL raised
+    # "missing FROM-clause entry for table i" whenever atc_prefix was supplied.
+    # Build the filter per alias instead. See docs/AUDIT_FINDINGS.md [B2].
+    atc_params: list = []
     atc_filter_base = ""
     atc_filter_target = ""
-    atc_params: list = []
+    atc_filter_price = ""
     if atc_prefix:
         atc_params.append(f"{atc_prefix.upper()}%")
-        atc_filter_base = (
-            f"AND EXISTS (SELECT 1 FROM item_atc_relationships iar "
-            f"WHERE iar.pbs_code = i.pbs_code AND iar.schedule_id = i.schedule_id "
-            f"AND iar.atc_code LIKE ${len(atc_params) + 2})"
-        )
+        param_idx = len(atc_params) + 2
+
+        def _atc_filter(alias: str) -> str:
+            return (
+                f"AND EXISTS (SELECT 1 FROM item_atc_relationships iar "
+                f"WHERE iar.pbs_code = {alias}.pbs_code "
+                f"AND iar.schedule_id = {alias}.schedule_id "
+                f"AND iar.atc_code LIKE ${param_idx})"
+            )
+
+        atc_filter_base = _atc_filter("i")
         atc_filter_target = atc_filter_base
+        # Price-change query aliases the base schedule's items as "b".
+        atc_filter_price = _atc_filter("b")
 
     # Items added (in target but not in base)
     added_rows = await db.fetch(
         f"""
         SELECT i.pbs_code, i.brand_name, i.benefit_type, i.formulary
-        FROM items i
+        FROM items_listing i
         WHERE i.schedule_id = $1 {atc_filter_target}
           AND NOT EXISTS (
-              SELECT 1 FROM items i2
+              SELECT 1 FROM items_listing i2
               WHERE i2.pbs_code = i.pbs_code AND i2.schedule_id = $2
           )
         ORDER BY i.pbs_code
@@ -459,10 +505,10 @@ async def market_schedule_comparison(
     removed_rows = await db.fetch(
         f"""
         SELECT i.pbs_code, i.brand_name, i.benefit_type, i.formulary
-        FROM items i
+        FROM items_listing i
         WHERE i.schedule_id = $1 {atc_filter_base}
           AND NOT EXISTS (
-              SELECT 1 FROM items i2
+              SELECT 1 FROM items_listing i2
               WHERE i2.pbs_code = i.pbs_code AND i2.schedule_id = $2
           )
         ORDER BY i.pbs_code
@@ -478,12 +524,12 @@ async def market_schedule_comparison(
                b.government_price AS base_price,
                t.government_price AS target_price,
                (t.government_price - b.government_price) / NULLIF(b.government_price, 0) * 100 AS pct_change
-        FROM items b
+        FROM items_listing b
         JOIN items t ON t.pbs_code = b.pbs_code
         WHERE b.schedule_id = $1 AND t.schedule_id = $2
           AND b.government_price IS NOT NULL AND t.government_price IS NOT NULL
           AND b.government_price != t.government_price
-          {atc_filter_base}
+          {atc_filter_price}
         ORDER BY ABS((t.government_price - b.government_price) / NULLIF(b.government_price, 0)) DESC
         LIMIT 500
         """,
@@ -598,7 +644,7 @@ async def market_formulary_landscape(
             AVG(ip.commonwealth_price)     AS mean_dpmq,
             MIN(ip.commonwealth_price)     AS min_dpmq,
             MAX(ip.commonwealth_price)     AS max_dpmq
-        FROM items i
+        FROM items_listing i
         LEFT JOIN item_pricing ip ON ip.pbs_code = i.pbs_code AND ip.schedule_id = $1
         WHERE {where}
         GROUP BY COALESCE(i.formulary, 'None')
@@ -612,6 +658,7 @@ async def market_formulary_landscape(
     for r in rows:
         data.append({
             "formulary": r["formulary"],
+            # Named to match what min_item_count actually gates on.
             "item_count": r["item_count"],
             "percentage": round(r["item_count"] / total_items * 100, 2) if total_items else 0,
             "mean_dpmq": round(float(r["mean_dpmq"]), 4) if r["mean_dpmq"] else None,
@@ -690,12 +737,12 @@ async def market_biosimilar_landscape(
             COUNT(DISTINCT i.pbs_code) FILTER (WHERE i.biosimilar = FALSE)          AS originator_count,
             AVG(ip.commonwealth_price) FILTER (WHERE i.biosimilar = FALSE)           AS originator_mean_dpmq,
             MIN(ip.commonwealth_price) FILTER (WHERE i.biosimilar = FALSE)           AS originator_min_dpmq
-        FROM items i
+        FROM items_listing i
         JOIN medicines m ON m.id = i.medicine_id
         LEFT JOIN item_pricing ip ON ip.pbs_code = i.pbs_code AND ip.schedule_id = $1
         WHERE i.schedule_id = $1 {atc_cond}
           AND (i.biosimilar = TRUE OR EXISTS (
-              SELECT 1 FROM items i2
+              SELECT 1 FROM items_listing i2
               JOIN medicines m2 ON m2.id = i2.medicine_id
               WHERE m2.ingredient = m.ingredient AND i2.schedule_id = $1 AND i2.biosimilar = TRUE
           ))
@@ -781,7 +828,7 @@ async def market_authority_landscape(
     # Benefit type distribution
     benefit_sql = f"""
         SELECT i.benefit_type, COUNT(DISTINCT i.pbs_code) AS item_count
-        FROM items i WHERE {where}
+        FROM items_listing i WHERE {where}
         GROUP BY i.benefit_type ORDER BY item_count DESC
     """
     benefit_rows = await db.fetch(benefit_sql, *params)
@@ -806,18 +853,15 @@ async def market_authority_landscape(
     """
     prescriber_rows = await db.fetch(prescriber_sql, *params)
 
-    benefit_labels = {
-        "U": "Unrestricted", "R": "Restricted",
-        "A": "Authority Required", "S": "Streamlined Authority",
-    }
 
     result = {
         "data": {
             "benefit_type_distribution": [
                 {
                     "benefit_type": r["benefit_type"],
-                    "label": benefit_labels.get(r["benefit_type"], r["benefit_type"]),
-                    "item_count": r["item_count"],
+                    "label": benefit_type_label(r["benefit_type"]),
+                    # Named to match what min_item_count actually gates on.
+            "item_count": r["item_count"],
                 }
                 for r in benefit_rows
             ],
@@ -895,7 +939,7 @@ async def market_safety_net_burden(
                  THEN CEIL(${ len(params) + 1 }::numeric / i.general_charge)
                  ELSE NULL
             END AS scripts_to_safety_net
-        FROM items i
+        FROM items_listing i
         WHERE i.schedule_id = $1 {atc_cond}
           AND i.general_charge IS NOT NULL AND i.general_charge > 0
         ORDER BY scripts_to_safety_net ASC NULLS LAST
@@ -905,7 +949,21 @@ async def market_safety_net_burden(
 
     rows = await db.fetch(sql, *params)
 
-    scripts_list = [float(r["scripts_to_safety_net"]) for r in rows if r["scripts_to_safety_net"] is not None]
+    # Population statistics must come from a separate un-limited aggregate. The
+    # item list above is truncated to the 500 lowest-scripts items, so computing
+    # min/max/mean over it produced a downward-biased "mean across all items" and a
+    # meaningless max. See docs/AUDIT_FINDINGS.md [C7].
+    stats_sql = f"""
+        SELECT
+            MIN(CEIL(${len(params)}::numeric / i.general_charge)) AS min_scripts,
+            MAX(CEIL(${len(params)}::numeric / i.general_charge)) AS max_scripts,
+            AVG(CEIL(${len(params)}::numeric / i.general_charge)) AS mean_scripts,
+            COUNT(*)                                              AS item_count
+        FROM items_listing i
+        WHERE i.schedule_id = $1 {atc_cond}
+          AND i.general_charge IS NOT NULL AND i.general_charge > 0
+    """
+    stats = await db.fetchrow(stats_sql, *params)
 
     result = {
         "data": {
@@ -915,10 +973,14 @@ async def market_safety_net_burden(
                 "concessional": float(copayment["concessional"]) if copayment["concessional"] else None,
                 "safety_net_threshold_concessional": float(copayment["safety_net_concessional"]) if copayment["safety_net_concessional"] else None,
             },
+            # Computed across every qualifying item, not just the returned page.
             "scripts_to_safety_net": {
-                "min": min(scripts_list) if scripts_list else None,
-                "max": max(scripts_list) if scripts_list else None,
-                "mean": round(sum(scripts_list) / len(scripts_list), 2) if scripts_list else None,
+                "min": float(stats["min_scripts"]) if stats and stats["min_scripts"] is not None else None,
+                "max": float(stats["max_scripts"]) if stats and stats["max_scripts"] is not None else None,
+                "mean": round(float(stats["mean_scripts"]), 2) if stats and stats["mean_scripts"] is not None else None,
+                "population_item_count": stats["item_count"] if stats else 0,
+                "basis": "All items with a positive general patient charge in scope; the "
+                         "items array below is the 500 closest to threshold.",
             },
             "items": [
                 {
@@ -1072,21 +1134,28 @@ async def market_price_pressure_index(
             f"AND iar.atc_code LIKE ${len(params)})"
         )
 
-    # F2 items with brand premium
+    # F2 scope, counted per item rather than per pricing row. total_f2 was
+    # previously COUNT(*) over items LEFT JOIN item_pricing, so it reported the
+    # number of (item, brand, rule) combinations while being labelled an item
+    # count — and was then used as the denominator for a DISTINCT-based numerator.
+    # See docs/AUDIT_FINDINGS.md [C1], [C8].
     f2_sql = f"""
         SELECT
-            COUNT(*) FILTER (WHERE ip.brand_premium > 0)             AS with_brand_premium,
-            COUNT(*)                                                  AS total_f2,
-            AVG(ip.commonwealth_price / NULLIF(i.government_price, 0)) AS mean_dpmq_to_gov_ratio,
-            SUM(CASE WHEN ip.brand_premium > 0 THEN 1 ELSE 0 END)::float
-                / NULLIF(COUNT(*), 0) * 100                          AS pct_with_premium
-        FROM items i
+            COUNT(DISTINCT i.pbs_code) FILTER (WHERE ip.brand_premium > 0) AS with_brand_premium,
+            COUNT(DISTINCT i.pbs_code)                                     AS total_f2,
+            AVG(ip.commonwealth_price / NULLIF(i.government_price, 0))     AS mean_dpmq_to_gov_ratio,
+            COUNT(DISTINCT i.pbs_code) FILTER (WHERE ip.brand_premium > 0)::float
+                / NULLIF(COUNT(DISTINCT i.pbs_code), 0) * 100              AS pct_with_premium
+        FROM items_listing i
         LEFT JOIN item_pricing ip ON ip.pbs_code = i.pbs_code AND ip.schedule_id = $1
         WHERE i.schedule_id = $1 AND i.formulary = 'F2' {atc_cond}
     """
     f2_row = await db.fetchrow(f2_sql, *params)
 
-    # Recent price reductions: items in current schedule that had reductions in pricing events
+    # Recent price reductions in the three schedules up to and including the target.
+    # The window previously had no upper bound, so querying a historical schedule
+    # counted reductions recorded in later months — the index for a past schedule
+    # changed every time a new one was ingested. See docs/AUDIT_FINDINGS.md [C8].
     reductions_sql = f"""
         SELECT COUNT(DISTINCT pe.pbs_code) AS reduction_count
         FROM item_pricing_events pe
@@ -1095,6 +1164,7 @@ async def market_price_pressure_index(
             TO_DATE((SELECT month FROM schedules WHERE id = $1) || '-01', 'YYYY-MM-DD') - INTERVAL '3 months',
             'YYYY-MM'
         )
+          AND s.month <= (SELECT month FROM schedules WHERE id = $1)
           AND (pe.new_price < pe.previous_price OR pe.event_type ILIKE '%reduction%')
           AND pe.previous_price > 0
           {f"AND EXISTS (SELECT 1 FROM item_atc_relationships iar WHERE iar.pbs_code = pe.pbs_code AND iar.schedule_id = $1 AND iar.atc_code LIKE ${len(params)})" if atc_prefix else ""}
@@ -1134,10 +1204,33 @@ async def market_price_pressure_index(
                 else "Moderate" if composite_index >= 30
                 else "Low"
             ),
+            # Raw signals and weights are published so callers can re-weight or
+            # ignore the composite. The weighting is PBSdata.io's, not PBS policy.
+            "signals": {
+                "brand_premium_prevalence": round(premium_pressure, 2),
+                "recent_reduction_signal": round(reduction_signal, 2),
+                "dpmq_ratio_pressure": round(ratio_pressure, 2),
+            },
+            "weights": {
+                "brand_premium_prevalence": 0.5,
+                "recent_reduction_signal": 0.3,
+                "dpmq_ratio_pressure": 0.2,
+            },
         },
         "meta": {
             **_meta(api_key_data, schedule_month),
-            "note": "Composite index derived from F2 brand premium prevalence, recent price reduction events, and DPMQ/government price ratio.",
+            "note": (
+                "Composite index derived from F2 brand premium prevalence, recent price "
+                "reduction events, and DPMQ/government price ratio."
+            ),
+            "derivation": "index=heuristic",
+            "caveat": (
+                "PBSdata.io metric, not a PBS-published measure. Weights are our own and "
+                "are not derived from PBS policy. The dpmq_ratio_pressure signal compares "
+                "item_pricing.commonwealth_price against items.government_price; where "
+                "either is unavailable it contributes no pressure. Use the raw signals if "
+                "you disagree with the weighting."
+            ),
         },
     }
     cache_set(cache_key, result, schedule_id)

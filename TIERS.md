@@ -104,7 +104,7 @@ Analytical and workflow endpoints. Designed for formulary management tools, disp
 - `GET /v1/drugs/{pbs_code}/pricing-events` — discrete pricing events (additions, reductions, deletions)
 - `GET /v1/drugs/{pbs_code}/safety-net` — patient safety net position with estimated scripts-to-threshold
 - `GET /v1/drugs/{pbs_code}/60-day-pair` — 60-day dispensing eligibility and same-ingredient pairs
-- `GET /v1/drugs/{pbs_code}/formulary-status` — formulary classification (F1/F2/F3) with recent pricing events
+- `GET /v1/drugs/{pbs_code}/formulary-status` — formulary classification (F1 single-brand, F2 multiple-brand/price-disclosure, CDL) with recent pricing events
 
 **Item-level:**
 - `GET /v1/items/{li_item_id}/dispensing-context` — full markup band resolution + fee breakdown per dispensing rule

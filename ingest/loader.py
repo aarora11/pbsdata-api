@@ -29,8 +29,19 @@ async def upsert_medicines(conn, medicines: list[dict]) -> dict[str, str]:
 
 
 async def insert_items(conn, items: list[dict], schedule_id: str, medicine_ids: dict[str, str]) -> dict[str, str]:
-    """Insert items and return {pbs_code: item_id} mapping."""
+    """Insert items at brand grain and return {pbs_code: canonical_item_id}.
+
+    PBS keys ITEM_T on (li_item_id, schedule_code) — one row per medicinal
+    product, container and brand. Keying on pbs_code instead collapsed 14,782
+    source rows to 6,921, discarding ~a third of brand names and sponsors.
+
+    The returned mapping stays keyed by pbs_code, holding the *canonical*
+    (lowest li_item_id) row per code, because listing-grain children such as
+    restrictions attach once per PBS code, not once per brand. See
+    docs/reference/README.md for the grain rule.
+    """
     item_ids = {}
+    canonical_li: dict[str, str] = {}
     for item in items:
         ingredient_lower = item.get("ingredient_lower", "")
         medicine_id = medicine_ids.get(ingredient_lower)
@@ -45,13 +56,13 @@ async def insert_items(conn, items: list[dict], schedule_id: str, medicine_ids: 
                 section, program_code, general_charge, concessional_charge,
                 government_price, brand_premium, brand_premium_counts_to_safety_net,
                 sixty_day_eligible, max_quantity, max_repeats, dangerous_drug,
-                artg_id, sponsor, caution, biosimilar
+                artg_id, sponsor, caution, biosimilar, li_item_id
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
                 $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
-                $23, $24, $25, $26
+                $23, $24, $25, $26, $27
             )
-            ON CONFLICT (pbs_code, schedule_id) DO UPDATE SET
+            ON CONFLICT (li_item_id, schedule_id) DO UPDATE SET
                 brand_name = EXCLUDED.brand_name,
                 brand_name_lower = EXCLUDED.brand_name_lower,
                 benefit_type = EXCLUDED.benefit_type,
@@ -63,7 +74,8 @@ async def insert_items(conn, items: list[dict], schedule_id: str, medicine_ids: 
                 artg_id = EXCLUDED.artg_id,
                 sponsor = EXCLUDED.sponsor,
                 caution = EXCLUDED.caution,
-                biosimilar = EXCLUDED.biosimilar
+                biosimilar = EXCLUDED.biosimilar,
+                li_item_id = EXCLUDED.li_item_id
             RETURNING id
             """,
             item["pbs_code"],
@@ -92,19 +104,47 @@ async def insert_items(conn, items: list[dict], schedule_id: str, medicine_ids: 
             item.get("sponsor"),
             item.get("caution"),
             item.get("biosimilar", False),
+            item.get("li_item_id") or None,
         )
-        item_ids[item["pbs_code"]] = str(item_id)
+        # Lowest li_item_id is the canonical row for this PBS code, so the choice
+        # is deterministic rather than insertion-order dependent.
+        code = item["pbs_code"]
+        li = item.get("li_item_id") or ""
+        if code not in canonical_li or li < canonical_li[code]:
+            canonical_li[code] = li
+            item_ids[code] = str(item_id)
     return item_ids
 
 
-async def insert_restrictions(conn, items: list[dict], item_ids: dict[str, str]):
-    """Insert restrictions for each item."""
+async def insert_restrictions(conn, items: list[dict], item_ids: dict[str, str], schedule_id: str):
+    """Insert restrictions once per PBS code.
+
+    Restrictions are listing grain — PBS keys ITEM_RESTRICTION_RLTD_T on
+    (res_code, pbs_code, schedule_code) — while `items` is brand grain, so the
+    same PBS code arrives once per brand carrying an identical restriction set.
+    Iterating every brand row would delete and re-insert the same restrictions
+    up to 16 times; dedupe so each code is processed once, against its canonical
+    item row.
+    """
+    # Clear the whole schedule first. Deleting per item_id leaves orphans behind
+    # whenever the canonical row for a PBS code changes between runs — which is
+    # exactly what happened when items was rekeyed to brand grain, stranding
+    # 15,134 restrictions on rows that were canonical under the old grain.
+    await conn.execute(
+        "DELETE FROM restrictions WHERE item_id IN "
+        "(SELECT id FROM items WHERE schedule_id = $1)",
+        schedule_id,
+    )
+
+    seen_codes: set[str] = set()
     for item in items:
         pbs_code = item["pbs_code"]
+        if pbs_code in seen_codes:
+            continue
+        seen_codes.add(pbs_code)
         item_id = item_ids.get(pbs_code)
         if item_id is None:
             continue
-        await conn.execute("DELETE FROM restrictions WHERE item_id = $1", item_id)
         for r in item.get("restrictions", []):
             await conn.execute(
                 """
@@ -129,7 +169,15 @@ async def insert_restrictions(conn, items: list[dict], item_ids: dict[str, str])
 
 
 async def insert_changes(conn, changes: list[dict], schedule_id: str):
-    """Insert change records."""
+    """Insert change records, replacing any already held for this schedule.
+
+    Without the delete this was the one loader in this module that was not
+    idempotent — re-running an ingest appended a second full set of rows rather
+    than replacing them. A schedule re-ingested repeatedly measured 6.37x
+    duplication (87,983 rows for 13,813 distinct changes, worst case 96 copies
+    of a single change).
+    """
+    await conn.execute("DELETE FROM changes WHERE schedule_id = $1", schedule_id)
     for change in changes:
         await conn.execute(
             """
@@ -537,6 +585,29 @@ async def insert_item_atc_relationships(conn, relationships: list[dict], schedul
             rel.get("atc_priority_pct"),
         )
 
+    # Flag the primary ATC per item: highest atc_priority_pct, ties broken by
+    # atc_code so the result is deterministic across re-ingests. This is the one
+    # definition of "primary ATC" — market, items and schedule-changes all read it
+    # rather than each re-deriving it. See docs/AUDIT_FINDINGS.md [B1], [B6].
+    await conn.execute(
+        """
+        WITH ranked AS (
+            SELECT id,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY pbs_code, schedule_id
+                       ORDER BY atc_priority_pct DESC NULLS LAST, atc_code
+                   ) AS rn
+            FROM item_atc_relationships
+            WHERE schedule_id = $1
+        )
+        UPDATE item_atc_relationships iar
+        SET is_primary = (ranked.rn = 1)
+        FROM ranked
+        WHERE ranked.id = iar.id
+        """,
+        schedule_id,
+    )
+
 
 async def insert_copayments(conn, copayments: Optional[dict], schedule_id: str):
     """Insert schedule-level copayment thresholds."""
@@ -768,12 +839,17 @@ async def insert_item_pricing_events(conn, events: list[dict], schedule_id: str)
     for e in events:
         await conn.execute(
             """
-            INSERT INTO item_pricing_events (schedule_id, pbs_code, event_type, effective_date, previous_price, new_price)
-            VALUES ($1,$2,$3,$4,$5,$6)
+            INSERT INTO item_pricing_events (
+                schedule_id, li_item_id, pbs_code, event_type, percentage_applied,
+                effective_date, previous_price, new_price
+            )
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
             """,
             schedule_id,
+            e.get("li_item_id"),
             e.get("pbs_code"),
             e.get("event_type"),
+            e.get("percentage_applied"),
             e.get("effective_date"),
             e.get("previous_price"),
             e.get("new_price"),
@@ -927,57 +1003,68 @@ async def update_schedule_counts(conn, schedule_id: str, item_count: int, change
 
 
 async def load_to_database(pool, month: str, normalised: dict, changes: list[dict]):
-    """Load all normalised PBS data to the database."""
+    """Load all normalised PBS data to the database.
+
+    The entire load runs in one transaction: a schedule is either fully loaded or
+    left untouched. Without this, a mid-load failure leaves a partially populated
+    schedule that every downstream query silently treats as complete data.
+    """
     async with pool.acquire() as conn:
-        schedule_id = await conn.fetchval(
-            "SELECT id FROM schedules WHERE month = $1", month
-        )
-        if schedule_id is None:
-            raise ValueError(f"Schedule for month {month} not found in database")
+        async with conn.transaction():
+            schedule_id = await conn.fetchval(
+                "SELECT id FROM schedules WHERE month = $1", month
+            )
+            if schedule_id is None:
+                raise ValueError(f"Schedule for month {month} not found in database")
 
-        schedule_id = str(schedule_id)
+            schedule_id = str(schedule_id)
 
-        # Core data
-        medicine_ids = await upsert_medicines(conn, normalised["medicines"])
-        item_ids = await insert_items(conn, normalised["items"], schedule_id, medicine_ids)
-        await insert_restrictions(conn, normalised["items"], item_ids)
-        await insert_changes(conn, changes, schedule_id)
+            await _load_all(conn, schedule_id, normalised, changes)
 
-        # Expanded data — all safe with empty lists when not provided
-        await insert_fees(conn, normalised.get("fees", []), schedule_id)
-        await insert_prescribing_texts(conn, normalised.get("prescribing_texts", []), schedule_id)
-        await insert_indications(conn, normalised.get("indications", []), schedule_id)
-        await insert_amt_items(conn, normalised.get("amt_items", []), schedule_id)
-        await insert_item_amt_relationships(conn, normalised.get("item_amt_relationships", []), schedule_id)
-        await insert_item_dispensing_rules(conn, normalised.get("item_dispensing_rules", []), schedule_id)
-        await insert_program_dispensing_rules(conn, normalised.get("program_dispensing_rules", []), schedule_id)
-        await insert_item_restriction_relationships(conn, normalised.get("item_restriction_relationships", []), schedule_id)
-        await insert_restriction_prescribing_text_relationships(conn, normalised.get("restriction_prescribing_text_relationships", []), schedule_id)
-        await insert_item_prescribing_text_relationships(conn, normalised.get("item_prescribing_text_relationships", []), schedule_id)
-        await insert_summary_of_changes(conn, normalised.get("summary_of_changes", []), schedule_id)
 
-        # Reference data
-        await insert_organisations(conn, normalised.get("organisations", []), schedule_id)
-        await insert_programs(conn, normalised.get("programs", []), schedule_id)
-        await insert_atc_codes(conn, normalised.get("atc_codes", []), schedule_id)
-        await insert_item_atc_relationships(conn, normalised.get("item_atc_relationships", []), schedule_id)
-        await insert_copayments(conn, normalised.get("copayments"), schedule_id)
-        await insert_item_pricing(conn, normalised.get("item_pricing", []), schedule_id)
-        await insert_item_organisation_relationships(conn, normalised.get("item_organisation_relationships", []), schedule_id)
+async def _load_all(conn, schedule_id: str, normalised: dict, changes: list[dict]):
+    """Insert every normalised table. Caller supplies the transaction."""
+    # Core data
+    medicine_ids = await upsert_medicines(conn, normalised["medicines"])
+    item_ids = await insert_items(conn, normalised["items"], schedule_id, medicine_ids)
+    await insert_restrictions(conn, normalised["items"], item_ids, schedule_id)
+    await insert_changes(conn, changes, schedule_id)
 
-        # New endpoints (migration 007)
-        await insert_containers(conn, normalised.get("containers", []), schedule_id)
-        await insert_container_organisation_relationships(conn, normalised.get("container_organisation_relationships", []), schedule_id)
-        await insert_criteria(conn, normalised.get("criteria", []), schedule_id)
-        await insert_criteria_parameter_relationships(conn, normalised.get("criteria_parameter_relationships", []), schedule_id)
-        await insert_parameters(conn, normalised.get("parameters", []), schedule_id)
-        await insert_item_prescribers(conn, normalised.get("item_prescribers", []), schedule_id)
-        await insert_markup_bands(conn, normalised.get("markup_bands", []), schedule_id)
-        await insert_item_pricing_events(conn, normalised.get("item_pricing_events", []), schedule_id)
-        await insert_extemporaneous_ingredients(conn, normalised.get("extemporaneous_ingredients", []), schedule_id)
-        await insert_extemporaneous_preparations(conn, normalised.get("extemporaneous_preparations", []), schedule_id)
-        await insert_extemporaneous_prep_sfp_relationships(conn, normalised.get("extemporaneous_prep_sfp_relationships", []), schedule_id)
-        await insert_extemporaneous_tariffs(conn, normalised.get("extemporaneous_tariffs", []), schedule_id)
-        await insert_standard_formula_preparations(conn, normalised.get("standard_formula_preparations", []), schedule_id)
+    # Expanded data — all safe with empty lists when not provided
+    await insert_fees(conn, normalised.get("fees", []), schedule_id)
+    await insert_prescribing_texts(conn, normalised.get("prescribing_texts", []), schedule_id)
+    await insert_indications(conn, normalised.get("indications", []), schedule_id)
+    await insert_amt_items(conn, normalised.get("amt_items", []), schedule_id)
+    await insert_item_amt_relationships(conn, normalised.get("item_amt_relationships", []), schedule_id)
+    await insert_item_dispensing_rules(conn, normalised.get("item_dispensing_rules", []), schedule_id)
+    await insert_program_dispensing_rules(conn, normalised.get("program_dispensing_rules", []), schedule_id)
+    await insert_item_restriction_relationships(conn, normalised.get("item_restriction_relationships", []), schedule_id)
+    await insert_restriction_prescribing_text_relationships(conn, normalised.get("restriction_prescribing_text_relationships", []), schedule_id)
+    await insert_item_prescribing_text_relationships(conn, normalised.get("item_prescribing_text_relationships", []), schedule_id)
+    await insert_summary_of_changes(conn, normalised.get("summary_of_changes", []), schedule_id)
 
-        await update_schedule_counts(conn, schedule_id, len(item_ids), len(changes))
+    # Reference data
+    await insert_organisations(conn, normalised.get("organisations", []), schedule_id)
+    await insert_programs(conn, normalised.get("programs", []), schedule_id)
+    await insert_atc_codes(conn, normalised.get("atc_codes", []), schedule_id)
+    await insert_item_atc_relationships(conn, normalised.get("item_atc_relationships", []), schedule_id)
+    await insert_copayments(conn, normalised.get("copayments"), schedule_id)
+    await insert_item_pricing(conn, normalised.get("item_pricing", []), schedule_id)
+    await insert_item_organisation_relationships(conn, normalised.get("item_organisation_relationships", []), schedule_id)
+
+    # New endpoints (migration 007)
+    await insert_containers(conn, normalised.get("containers", []), schedule_id)
+    await insert_container_organisation_relationships(conn, normalised.get("container_organisation_relationships", []), schedule_id)
+    await insert_criteria(conn, normalised.get("criteria", []), schedule_id)
+    await insert_criteria_parameter_relationships(conn, normalised.get("criteria_parameter_relationships", []), schedule_id)
+    await insert_parameters(conn, normalised.get("parameters", []), schedule_id)
+    await insert_item_prescribers(conn, normalised.get("item_prescribers", []), schedule_id)
+    await insert_markup_bands(conn, normalised.get("markup_bands", []), schedule_id)
+    await insert_item_pricing_events(conn, normalised.get("item_pricing_events", []), schedule_id)
+    await insert_extemporaneous_ingredients(conn, normalised.get("extemporaneous_ingredients", []), schedule_id)
+    await insert_extemporaneous_preparations(conn, normalised.get("extemporaneous_preparations", []), schedule_id)
+    await insert_extemporaneous_prep_sfp_relationships(conn, normalised.get("extemporaneous_prep_sfp_relationships", []), schedule_id)
+    await insert_extemporaneous_tariffs(conn, normalised.get("extemporaneous_tariffs", []), schedule_id)
+    await insert_standard_formula_preparations(conn, normalised.get("standard_formula_preparations", []), schedule_id)
+
+    await update_schedule_counts(conn, schedule_id, len(item_ids), len(changes))

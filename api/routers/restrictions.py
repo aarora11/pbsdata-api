@@ -8,6 +8,10 @@ from typing import Optional
 
 router = APIRouter(tags=["restrictions"])
 
+# Cap on the applies_to_pbs_codes list returned by /restrictions/{code}.
+# Use ?pbs_code= on /restrictions to page through the full set.
+APPLIES_TO_CAP = 200
+
 
 
 async def _resolve_schedule_id(db, schedule: Optional[str]) -> str:
@@ -127,6 +131,12 @@ async def get_restriction(
     _rl(response, api_key_data)
     schedule_id = await _resolve_schedule_id(db, schedule)
 
+    # restrictions holds one denormalised copy per item, so a restriction_code can
+    # match thousands of rows (measured maximum: 2,124). This previously used
+    # fetchrow with no ORDER BY, returning an arbitrary copy and presenting that
+    # copy's pbs_code as though it were the item for the restriction — two identical
+    # requests could disagree. Ordering makes the choice deterministic, and the full
+    # item list is returned alongside. See docs/AUDIT_FINDINGS.md [C4].
     row = await db.fetchrow(
         """
         SELECT r.id, i.pbs_code, r.restriction_code, r.streamlined_code,
@@ -138,14 +148,46 @@ async def get_restriction(
         FROM restrictions r
         JOIN items i ON i.id = r.item_id
         WHERE r.restriction_code = $1 AND i.schedule_id = $2
+        ORDER BY i.pbs_code
+        LIMIT 1
         """,
         restriction_code.upper(), schedule_id,
     )
     if not row:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Restriction not found."})
 
+    applies_to = await db.fetch(
+        """
+        SELECT i.pbs_code
+        FROM restrictions r
+        JOIN items i ON i.id = r.item_id
+        WHERE r.restriction_code = $1 AND i.schedule_id = $2
+        ORDER BY i.pbs_code
+        LIMIT $3
+        """,
+        restriction_code.upper(), schedule_id, APPLIES_TO_CAP + 1,
+    )
+
     result = dict(row)
     result["id"] = str(result["id"])
+    # A restriction code can be attached to thousands of items (measured max 2,124).
+    # Returning them all inflates every response, so the list is capped and the true
+    # count is reported separately via a COUNT rather than len().
+    truncated = len(applies_to) > APPLIES_TO_CAP
+    result["applies_to_pbs_codes"] = [a["pbs_code"] for a in applies_to[:APPLIES_TO_CAP]]
+    result["applies_to_item_count"] = await db.fetchval(
+        """
+        SELECT COUNT(*) FROM restrictions r JOIN items i ON i.id = r.item_id
+        WHERE r.restriction_code = $1 AND i.schedule_id = $2
+        """,
+        restriction_code.upper(), schedule_id,
+    )
+    result["applies_to_truncated"] = truncated
+    # `pbs_code` is retained for backward compatibility but is only an example.
+    result["pbs_code_note"] = (
+        "pbs_code is the lowest-sorting item carrying this restriction, shown as an "
+        "example. Use applies_to_pbs_codes for the full set."
+    )
 
     # T2+ subscribers receive the prescribing text chain joined in.
     # Base subscribers receive the raw restriction record only.

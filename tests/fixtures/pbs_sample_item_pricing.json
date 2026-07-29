@@ -1,0 +1,67 @@
+[
+  {
+    "li_item_id": "2622M_1",
+    "pbs_code": "2622M",
+    "dispensing_rule_mnem": "RP",
+    "brand_premium": "0.00",
+    "cmnwlth_price_to_pharmacist": "42.50",
+    "max_general_patient_charge": "31.60",
+    "special_patient_contribution": null,
+    "fee_dispensing": "8.37",
+    "fee_dispensing_dd": "4.05",
+    "fee_container_other": "1.02",
+    "fee_container_injectable": "2.10"
+  },
+  {
+    "li_item_id": "2622M_1",
+    "pbs_code": "2622M",
+    "dispensing_rule_mnem": "EP",
+    "brand_premium": "0.00",
+    "cmnwlth_price_to_pharmacist": "45.90",
+    "max_general_patient_charge": "31.60",
+    "special_patient_contribution": null,
+    "fee_dispensing": "8.37",
+    "fee_dispensing_dd": "4.05",
+    "fee_container_other": "1.02",
+    "fee_container_injectable": "2.10"
+  },
+  {
+    "li_item_id": "2622M_2",
+    "pbs_code": "2622M",
+    "dispensing_rule_mnem": "RP",
+    "brand_premium": "3.20",
+    "cmnwlth_price_to_pharmacist": "48.10",
+    "max_general_patient_charge": "31.60",
+    "special_patient_contribution": null,
+    "fee_dispensing": "8.37",
+    "fee_dispensing_dd": null,
+    "fee_container_other": "1.02",
+    "fee_container_injectable": null
+  },
+  {
+    "li_item_id": "1234A_1",
+    "pbs_code": "1234A",
+    "dispensing_rule_mnem": "RP",
+    "brand_premium": "0.00",
+    "cmnwlth_price_to_pharmacist": "1204.75",
+    "max_general_patient_charge": "31.60",
+    "special_patient_contribution": null,
+    "fee_dispensing": "8.37",
+    "fee_dispensing_dd": null,
+    "fee_container_other": "1.02",
+    "fee_container_injectable": null
+  },
+  {
+    "li_item_id": "8591B_1",
+    "pbs_code": "8591B",
+    "dispensing_rule_mnem": "RP",
+    "brand_premium": "0.00",
+    "cmnwlth_price_to_pharmacist": "12.40",
+    "max_general_patient_charge": "0.00",
+    "special_patient_contribution": null,
+    "fee_dispensing": "8.37",
+    "fee_dispensing_dd": null,
+    "fee_container_other": "1.02",
+    "fee_container_injectable": null
+  }
+]

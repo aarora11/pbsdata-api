@@ -1,8 +1,18 @@
 """PBS Government API client."""
 import asyncio
 import httpx
+import structlog
 from typing import Optional
 from api.config import get_settings
+
+logger = structlog.get_logger()
+
+# Rows requested per page. The PBS API rejects anything above an endpoint's cap
+# with a 400, so endpoints that cap below the default are listed explicitly.
+DEFAULT_PAGE_LIMIT = 10000
+PAGE_LIMITS = {
+    "/item-overview": 1000,
+}
 
 
 class PBSClient:
@@ -26,20 +36,52 @@ class PBSClient:
             )
         return self._session
 
-    async def get_all_pages(self, endpoint: str, params: dict) -> list[dict]:
-        """Fetch all pages from a paginated endpoint, with retry on 429."""
+    async def get_all_pages(
+        self, endpoint: str, params: dict, page_limit: int | None = None
+    ) -> list[dict]:
+        """
+        Fetch all pages from a paginated endpoint, with retry on 429 and on
+        transient network errors.
+
+        page_limit is the per-page row count. Most PBS endpoints accept 10000,
+        but some cap lower and return 400 above their cap — see PAGE_LIMITS.
+        """
+        if page_limit is None:
+            page_limit = PAGE_LIMITS.get(endpoint, DEFAULT_PAGE_LIMIT)
         session = await self._get_session()
         results = []
         page = 1
         while True:
-            page_params = {**params, "page": page, "limit": 10000}
+            page_params = {**params, "page": page, "limit": page_limit}
             for attempt in range(8):
-                response = await session.get(endpoint, params=page_params)
+                try:
+                    response = await session.get(endpoint, params=page_params)
+                except httpx.TransportError as exc:
+                    # DNS blips and dropped connections are expected over a full
+                    # ingest: ~34 endpoints spread across ~25 minutes. Without
+                    # this, one blip aborts the whole run.
+                    if attempt == 7:
+                        raise
+                    wait = 5 * (attempt + 1)
+                    logger.warning(
+                        "pbs_client.transport_error_retrying",
+                        endpoint=endpoint, page=page, attempt=attempt + 1,
+                        wait=wait, error=str(exc),
+                    )
+                    await asyncio.sleep(wait)
+                    continue
                 if response.status_code == 429:
                     retry_after = response.headers.get("Retry-After")
                     wait = int(retry_after) if retry_after and retry_after.isdigit() else 30 * (attempt + 1)
                     await asyncio.sleep(wait)
                     continue
+                # A 404 means this schedule does not publish the endpoint at all.
+                # Treat it as "no rows" rather than letting one absent feed abort
+                # the whole ingest — the quality gate is what decides whether the
+                # resulting schedule is usable.
+                if response.status_code == 404:
+                    logger.warning("pbs_client.endpoint_not_found", endpoint=endpoint, page=page)
+                    return results
                 response.raise_for_status()
                 break
             else:
@@ -52,7 +94,13 @@ class PBSClient:
             if not items:
                 break
             results.extend(items)
-            total = data.get("total") if isinstance(data, dict) else None
+            # PBS reports the row count as "total_records" (inside the response
+            # body, not _meta). Reading the wrong key here is not fatal — the
+            # empty-page check above still terminates — but it costs one extra
+            # rate-limited request per endpoint.
+            total = None
+            if isinstance(data, dict):
+                total = data.get("total_records", data.get("total"))
             if total is not None and len(results) >= total:
                 break
             page += 1
@@ -150,8 +198,26 @@ class PBSClient:
         return await self.get_all_pages("/standard-formula-preparations", {"schedule_code": schedule_code})
 
     async def get_all_item_overviews(self, schedule_code: str) -> list[dict]:
-        """Fetch item overview data (artg_id, sponsor, etc.) for a given schedule code."""
-        return await self.get_all_pages("/item-overviews", {"schedule_code": schedule_code})
+        """Fetch item overview data for a given schedule code.
+
+        86 fields per row, including PBS's own pre-joined structures
+        (item_restrictions, item_atcs, item_amts, chart_eligibilities, ...) and
+        the nested `manufacturer` object that carries the sponsor name.
+        """
+        return await self.get_all_pages("/item-overview", {"schedule_code": schedule_code})
+
+    async def get_all_medication_charts(self, schedule_code: str) -> list[dict]:
+        """Fetch medication chart types and durations. Added in PBS API v3.7.8."""
+        return await self.get_all_pages("/medication-charts", {"schedule_code": schedule_code})
+
+    async def get_all_item_chart_eligibilities(self, schedule_code: str) -> list[dict]:
+        """Fetch item <-> medication chart eligibility. Added in PBS API v3.7.8.
+
+        Keyed on pbs_code directly, so it needs no li_item_id derivation. This
+        feed does not report `total_records` and is page-capped, so it relies on
+        the empty-page termination in get_all_pages.
+        """
+        return await self.get_all_pages("/item-chart-eligibilities", {"schedule_code": schedule_code})
 
     async def get_all_item_dispensing_rules(self, schedule_code: str) -> list[dict]:
         """Fetch item <-> dispensing rule relationships for a given schedule code."""
@@ -162,8 +228,12 @@ class PBSClient:
         return await self.get_all_dispensing_rules(schedule_code)
 
     async def get_all_item_amt(self, schedule_code: str) -> list[dict]:
-        """Fetch item <-> AMT concept relationships for a given schedule code."""
-        return await self.get_all_pages("/item-amt-relationships", {"schedule_code": schedule_code})
+        """Fetch item <-> AMT concept relationships for a given schedule code.
+
+        PBS serves these on /amt-items, keyed by li_item_id; there is no
+        /item-amt-relationships endpoint.
+        """
+        return await self.get_all_pages("/amt-items", {"schedule_code": schedule_code})
 
     async def get_all_item_prescribing_texts(self, schedule_code: str) -> list[dict]:
         """Fetch item <-> prescribing text relationships for a given schedule code."""

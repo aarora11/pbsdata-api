@@ -275,15 +275,22 @@ async def test_summary_of_changes_filter_by_schedule(client_expanded, headers):
 # ── Extended item detail ──────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_item_detail_includes_artg_id(client_expanded, headers):
+async def test_item_detail_includes_sponsor(client_expanded, headers):
+    """
+    Sponsor comes from the overview feed's nested `manufacturer` object.
+
+    artg_id is exposed but always null: PBS does not publish ARTG identifiers
+    in /item-overview. The field is asserted present-but-null so its absence is
+    a stated contract rather than an apparent bug.
+    """
     r = await client_expanded.get("/v1/items/2622M", headers=headers)
     assert r.status_code == 200
     body = r.json()
     # Growth (T2) key returns enriched envelope — data fields are under "data"
     data = body["data"]
-    assert "artg_id" in data
-    assert data["artg_id"] == "ARTG12345"
     assert data["sponsor"] == "Merck Serono Pty Ltd"
+    assert "artg_id" in data
+    assert data["artg_id"] is None
 
 
 @pytest.mark.asyncio

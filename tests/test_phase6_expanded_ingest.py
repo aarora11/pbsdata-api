@@ -74,20 +74,44 @@ def test_normaliser_returns_all_new_keys_when_data_provided():
 
 
 def test_normaliser_item_overview_augments_item():
-    """Item overview data (artg_id, sponsor, caution) is merged onto the item."""
+    """
+    Sponsor is merged onto the item from the overview feed.
+
+    This fixture mirrors the real PBS /item-overview response. The previous
+    version invented flat `artg_id`, `sponsor`, `caution` and `biosimilar`
+    fields that the feed does not publish, so this test passed while all four
+    production columns were 100% null. PBS publishes the sponsor as a nested
+    `manufacturer` object.
+    """
     items = load("pbs_sample_items.json")
     restrictions = load("pbs_sample_restrictions.json")
     overviews = load("pbs_sample_item_overviews.json")
     result = normalise_schedule("2026-04", items, restrictions, raw_item_overviews=overviews)
 
     metformin = next(i for i in result["items"] if i["pbs_code"] == "2622M")
-    assert metformin["artg_id"] == "ARTG12345"
     assert metformin["sponsor"] == "Merck Serono Pty Ltd"
-    assert metformin["caution"] is None
 
     humira = next(i for i in result["items"] if i["pbs_code"] == "1234A")
-    assert humira["artg_id"] == "ARTG67890"
-    assert humira["caution"] == "Biosimilar products may be available"
+    assert humira["sponsor"] == "AbbVie Pty Ltd"
+
+
+def test_normaliser_overview_fields_absent_from_pbs_feed_stay_null():
+    """
+    artg_id and caution have no counterpart in the PBS /item-overview feed.
+
+    artg_id is a TGA identifier PBS does not publish here at all; the feed
+    carries only a `caution_indicator` flag, not the caution text that
+    `items.caution` is typed to hold. Both must stay null rather than be
+    populated from a guessed field — see docs/FIX_PLAN.md Phase 4.
+    """
+    items = load("pbs_sample_items.json")
+    restrictions = load("pbs_sample_restrictions.json")
+    overviews = load("pbs_sample_item_overviews.json")
+    result = normalise_schedule("2026-04", items, restrictions, raw_item_overviews=overviews)
+
+    metformin = next(i for i in result["items"] if i["pbs_code"] == "2622M")
+    assert metformin["artg_id"] is None
+    assert metformin["caution"] is None
 
 
 def test_normaliser_item_without_overview_has_none_fields():

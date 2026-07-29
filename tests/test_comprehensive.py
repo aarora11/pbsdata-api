@@ -66,6 +66,13 @@ async def seed_schedule(db, month: str = "2026-04"):
     item_atc     = json.loads((FIXTURES / "pbs_sample_item_atc_relationships.json").read_text())
     item_res     = json.loads((FIXTURES / "pbs_sample_item_restriction_relationships.json").read_text())
     item_pt      = json.loads((FIXTURES / "pbs_sample_item_prescribing_texts.json").read_text())
+    # Feeds the runner previously never fetched, leaving item_pricing,
+    # item_amt_relationships and the overview fields empty in production while the
+    # fixtures sat unused. See docs/AUDIT_FINDINGS.md §0 and FIX_PLAN.md Phase 0.
+    item_pricing = json.loads((FIXTURES / "pbs_sample_item_pricing.json").read_text())
+    item_over    = json.loads((FIXTURES / "pbs_sample_item_overviews.json").read_text())
+    amt_items    = json.loads((FIXTURES / "pbs_sample_amt_items.json").read_text())
+    item_amt     = json.loads((FIXTURES / "pbs_sample_item_amt.json").read_text())
 
     await db.execute(
         "INSERT INTO schedules (month, released_at, ingest_status) VALUES ($1, NOW(), 'complete') "
@@ -89,6 +96,10 @@ async def seed_schedule(db, month: str = "2026-04"):
         raw_item_atc_relationships=item_atc,
         raw_item_restriction_relationships=item_res,
         raw_item_prescribing_text_relationships=item_pt,
+        raw_item_pricing=item_pricing,
+        raw_item_overviews=item_over,
+        raw_amt_items=amt_items,
+        raw_item_amt=item_amt,
     )
     await load_to_database(_Pool(db), month, normalised, [])
 

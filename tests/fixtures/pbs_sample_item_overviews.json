@@ -1,16 +1,54 @@
 [
   {
+    "li_item_id": "2622M_1001_2001_3001_4001",
     "pbs_code": "2622M",
-    "artg_id": "ARTG12345",
-    "sponsor": "Merck Serono Pty Ltd",
-    "caution": null,
-    "biosimilar": false
+    "drug_name": "Rifaximin",
+    "brand_name": "Xifaxan",
+    "program_code": "GE",
+    "benefit_type_code": "A",
+    "caution_indicator": "N",
+    "note_indicator": "Y",
+    "organisation_id": 122,
+    "manufacturer_code": "NE",
+    "manufacturer": {
+      "name": "Merck Serono Pty Ltd",
+      "abn": "12 345 678 901",
+      "street_address": "1 Example St",
+      "city": "Sydney",
+      "state": "NSW",
+      "postcode": "2000",
+      "telephone_number": "1800 000 000",
+      "facsimile_number": null
+    },
+    "originator_brand_indicator": "N",
+    "innovator_indicator": "Y",
+    "policy_applied_bio_sim_up_flag": "N",
+    "schedule_code": null
   },
   {
+    "li_item_id": "1234A_1002_2002_3002_4002",
     "pbs_code": "1234A",
-    "artg_id": "ARTG67890",
-    "sponsor": "AbbVie Pty Ltd",
-    "caution": "Biosimilar products may be available",
-    "biosimilar": false
+    "drug_name": "Rifaximin",
+    "brand_name": "Xifaxan",
+    "program_code": "GE",
+    "benefit_type_code": "A",
+    "caution_indicator": "Y",
+    "note_indicator": "Y",
+    "organisation_id": 122,
+    "manufacturer_code": "NE",
+    "manufacturer": {
+      "name": "AbbVie Pty Ltd",
+      "abn": "12 345 678 901",
+      "street_address": "1 Example St",
+      "city": "Sydney",
+      "state": "NSW",
+      "postcode": "2000",
+      "telephone_number": "1800 000 000",
+      "facsimile_number": null
+    },
+    "originator_brand_indicator": "N",
+    "innovator_indicator": "Y",
+    "policy_applied_bio_sim_up_flag": "Y",
+    "schedule_code": null
   }
 ]

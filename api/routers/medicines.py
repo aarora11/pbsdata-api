@@ -93,7 +93,7 @@ async def get_medicine(
                    i.benefit_type, i.general_charge, i.concessional_charge, i.government_price,
                    i.brand_premium, i.brand_premium_counts_to_safety_net, i.sixty_day_eligible,
                    i.max_quantity, i.max_repeats, i.dangerous_drug
-            FROM items i
+            FROM items_listing i
             WHERE i.medicine_id = $1 AND i.schedule_id = $2 AND i.is_active = TRUE
             ORDER BY i.brand_name
             """,

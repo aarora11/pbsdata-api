@@ -61,7 +61,16 @@ To run with coverage:
 uv run pytest tests/ -v --cov=api --cov=ingest --cov-report=term-missing
 ```
 
-67 tests cover all five phases: database schema, ingest pipeline, auth and rate limiting, API endpoints, and the webhook system.
+268 tests cover the database schema, ingest pipeline, auth and rate limiting, API endpoints, the webhook system, and a regression suite pinning every finding from the 2026-07 data & join audit (`docs/AUDIT_FINDINGS.md`).
+
+The audit regression suite is the one to watch:
+
+```bash
+uv run pytest tests/test_audit_regressions.py -v
+```
+
+It asserts contracts across the ingest/API seam, schema conformance, aggregate
+invariants, and that every Tier C heuristic is disclosed in its response.
 
 ## Triggering a manual ingest
 
@@ -167,5 +176,7 @@ migrations/          — SQL migration files
 scripts/
   migrate.py         — run all migrations
   create_api_key.py  — create API keys from the command line
-tests/               — pytest test suite (67 tests)
+tests/
+  test_audit_regressions.py — regression suite for the 2026-07 audit findings
+  ...                       — phase suites (268 tests total)
 ```

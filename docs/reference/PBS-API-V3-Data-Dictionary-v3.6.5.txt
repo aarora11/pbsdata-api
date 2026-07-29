@@ -1,0 +1,2672 @@
+   
+ 
+1   
+OFFICIAL 
+OFFICIAL 
+ 
+PBS API V3 
+Data Dictionary 
+ PBS Schedule - Data Mart.  
+Dictionary Version 3.6.5 
+API Version 3 
+ 
+This document explains the data elements of the PBS Schedule API, more information 
+about the API can be found on the PBS Software Developers website. 
+ 
+ 
+ 
+Last Modified 2 November 2025 
+ 
+ 
+Department of Health, Disability and Ageing © Commonwealth of Australia 
+ 
+   
+ 
+2   
+OFFICIAL 
+OFFICIAL 
+Table of Contents 
+ 
+ 
+TABLE OF CONTENTS .............................................................................................................................. 2 
+MAIN MODEL IMAGE ............................................................................................................................... 4 
+ENDPOINT AND TABLE SUMMARY ...................................................................................................... 5 
+ENDPOINT DETAIL REPORTS ................................................................................................................ 7 
+/AMT-ITEMS ................................................................................................................................................ 7 
+/ATC-CODES ................................................................................................................................................ 9 
+/CONTAINERS ........................................................................................................................................... 11 
+/CONTAINER-ORGANISATION-RELATIONSHIPS ........................................................................... 12 
+/COPAYMENTS ......................................................................................................................................... 13 
+/CRITERIA .................................................................................................................................................. 15 
+/CRITERIA-PARAMETER-RELATIONSHIPS ..................................................................................... 16 
+/DISPENSING-RULES ............................................................................................................................... 17 
+/EXTEMPORANEOUS-INGREDIENTS ................................................................................................. 18 
+/EXTEMPORANEOUS-PREPARATIONS .............................................................................................. 19 
+/EXTEMPORANEOUS-PREP-SFP-RELATIONSHIPS ........................................................................ 20 
+/EXTEMPORANEOUS-TARIFFS ............................................................................................................ 21 
+/FEES ............................................................................................................................................................ 23 
+/INDICATIONS ........................................................................................................................................... 26 
+/ITEM-ATC-RELATIONSHIPS ............................................................................................................... 27 
+/ITEM-DISPENSING-RULE-RELATIONSHIPS ................................................................................... 28 
+/ITEM-ORGANISATION-RELATIONSHIPS ........................................................................................ 32 
+/ITEM_OVERVIEW ................................................................................................................................... 33 
+/ITEM-PRESCRIBING-TEXT-RELATIONSHIPS ................................................................................ 34 
+/ITEM-PRICING-EVENTS ....................................................................................................................... 35 
+/ITEM-RESTRICTION-RELATIONSHIP .............................................................................................. 36 
+   
+ 
+3   
+OFFICIAL 
+OFFICIAL 
+/ITEMS ......................................................................................................................................................... 38 
+/MARKUP-BANDS ..................................................................................................................................... 47 
+/ORGANISATIONS .................................................................................................................................... 48 
+/PARAMETERS .......................................................................................................................................... 49 
+/PRESCRIBERS .......................................................................................................................................... 50 
+/PRESCRIBING-TEXTS ............................................................................................................................ 51 
+/PROGRAM-DISPENSING-RULES ......................................................................................................... 53 
+/PROGRAMS ............................................................................................................................................... 54 
+/RESTRICTION-PRESCRIBING-TEXT-RELATIONSHIPS ............................................................... 55 
+/RESTRICTIONS ........................................................................................................................................ 56 
+/SCHEDULES .............................................................................................................................................. 58 
+/STANDARD-FORMULA-PREPARATIONS ......................................................................................... 59 
+/SUMMARY-OF-CHANGES ..................................................................................................................... 60 
+   
+ 
+4   
+OFFICIAL 
+OFFICIAL 
+Main Model Image 
+A higher resolution version of this image can be found on the PBS API Resources page of the 
+PBS Software Developers site.  
+ 
+
+   
+ 
+5   
+OFFICIAL 
+OFFICIAL 
+Endpoint and Table Summary 
+ 
+Endpoint (API) Table name (Health 
+database) 
+Primary/Composite Keys 
+/amt-items ITEM_AMT_T pbs_concept_id,  
+li_item_id,  
+schedule_code 
+/atc-codes ATC_T atc_code,  
+schedule_code 
+/container-organisation-
+relationships 
+CONTAINER_WHOLESALER_
+RLTD_T 
+container_code,  
+organisation_id, 
+schedule_code 
+ 
+/containers CONTAINER_T container_code,  
+/copayments COPAYMENT_T schedule_code 
+/criteria CRITERIA_T criteria_prescribing_txt_id,  
+/criteria-parameter-
+relationships 
+CRITERIA_PARAMETER_RLT
+D_T 
+criteria_prescribing_txt_id,  
+parameter_prescribing_txt_id, 
+schedule_code 
+/dispensing-rules DISPENSING_RULE_T dispensing_rule_reference,  
+schedule_code 
+/extemporaneous-ingredients EXTEMPORANEOUS_INGRE
+DIENT_T 
+pbs_code,  
+/extemporaneous-preparations EXTEMPORANEOUS_PREPA
+RATION_T 
+pbs_code, 
+schedule_code 
+/extemporaneous-prep-sfp-
+relationships 
+EX_PREP_SFP_RLTD_T sfp_pbs_code,  
+ex_prep_pbs_code,  
+schedule_code 
+/extemporaneous-tariffs EXTEMPORANEOUS_DRUG_
+TARIFF_T 
+pbs_code,  
+schedule_code 
+/fees FEE_T program_code,  
+schedule_code 
+/indications INDICATION_T indication_prescribing_txt_id,  
+schedule_code 
+/item-atc-relationships ITEM_ATC_RLTD_T atc_code,  
+pbs_code,  
+schedule_code 
+/item-dispensing-rule-
+relationships 
+ITEM_DISPENSING_RULE_R
+LTD_T 
+li_item_id,  
+dispensing_rule_reference, 
+schedule_code 
+/item-organisation-relationships ITEM_ORGANISATION_RLTD
+_T 
+pbs_code,  
+organisation_id,  
+schedule_code 
+/item-overview ITEM_OVERVIEW  
+/item-prescribing-text-
+relationships 
+ITEM_PRESCRIBING_TXT_R
+LTD_T 
+pbs_code,  
+prescribing_txt_id,  
+schedule_code 
+/item-pricing-events ITEM_PRICING_EVENT li_item_id,  
+schedule_code 
+event_type_code 
+/item-restriction-relationships ITEM_RESTRICTION_RLTD_T res_code,  
+pbs_code,  
+schedule_code 
+/items ITEM_T li_item_id,  
+   
+ 
+6   
+OFFICIAL 
+OFFICIAL 
+schedule_code 
+/markup-bands MARKUP_BAND_T program_code,  
+dispensing_rule_mnem,  
+schedule_code 
+/organisations ORGANISATION_T organisation_id,  
+schedule_code 
+/parameters PARAMETER_T parameter_prescribing_txt_id,  
+schedule_code 
+/prescribing-texts PRESCRIBING_TXT_T prescribing_txt_id,  
+schedule_code 
+/prescribers PRESCRIBER_T pbs_code,  
+/program-dispensing-rules PROGRAM_DISPENSING_RU
+LE_T 
+program_code,  
+dispensing_rule_mnem,  
+schedule_code 
+/programs PROGRAM_T program_code,  
+schedule_code 
+/restriction-prescribing-text-
+relationships 
+RSTRCTN_PRSCRBNG_TXT_
+RLTD_T 
+res_code,  
+prescribing_text_id,  
+schedule_code 
+/restrictions RESTRICTION_TEXT_T res_code,  
+schedule_code 
+/schedules SCHEDULE_T schedule_code 
+/standard-formula-preparations STANDARD_FORMULA_PRE
+PARATION_T 
+pbs_code,  
+schedule_code 
+/summary-of-changes SUMMARY_OF_CHANGES_T schedule_code 
+ 
+ 
+ 
+ 
+ 
+   
+ 
+7   
+OFFICIAL 
+OFFICIAL 
+Endpoint Detail Reports 
+ 
+ 
+/amt-items 
+ 
+Table Name ITEM_AMT_T 
+ 
+Open API Tag name ItemAmt 
+Definition PBS concept ID's (MPP, TPP etc) mapped to the equivalent 
+Australian Medicines Terminology (AMT) codes and preferred 
+terms. 
+• Medicinal Product Pack (MPP) = Clinical Drug Package (CDP) 
+• Medicinal Product Unit of Use (MPUU) = Clinical Drug (CD) 
+• Trade Product Pack (TPP) = Branded Clinical Drug Package 
+(BCDP) 
+• Trade Product Unit of Use (TPUU) = Branded Clinical Drug (BCD) 
+Columns  
+ 
+Column Name Definition 
+pbs_concept_id Persistent Identifier of a PBS Concept. i.e. A PBS MPP ID, PBS TPP ID 
+etc. 
+pbs_concept_id value for each concept type will remain constant for that 
+li_item_id over time. 
+The old placeholder id can be generated from the pbs_concept_id, 
+Namespace (constant value of 1000144), AMT type identifier: (constant 
+value of 10), Check digit of the previous values. Eg TPP 
+91091000144103.  
+concept_type_code Concept level of the record. Values: MP, MPP, MPUU, TPP, TPUU (for 
+EFC items only). 
+• Medicinal Product Pack (MPP) = Clinical Drug Package (CDP) 
+• Medicinal Product Unit of Use (MPUU) = Clinical Drug (CD) 
+• Trade Product Pack (TPP) = Branded Clinical Drug Package 
+(BCDP) 
+• Trade Product Unit of Use (TPUU) = Containerized Branded 
+Clinical Drug Package (CBCDP)   
+amt_code Unique identifier of the AMT Code (Australian Medicines Terminology).  
+The AMT is a standards-based national approach to the unique 
+identification (code) and naming of medicines. It has been primarily 
+developed to be used in clinical software applications and to facilitate 
+interoperability between systems. 
+AMT does not always accommodate regulations or PBS listing options 
+and therefore there will always be a small amount of PBS listings that 
+will remain not mapped to an AMT concept, these will be Null. 
+li_item_id Unique identifier for each row on the /items endpoint generated using 
+the Item Code and PharmCIS internal IDs (PIG ID, MP, MPP, TPP). 
+preferred_term Common word or phrase used by Australian clinicians to name a 
+concept. Where the amt_code value is Null, the preferred_term will also 
+be Null (to be amended soon to always be populated).  
+ 
+   
+ 
+8   
+OFFICIAL 
+OFFICIAL 
+non_amt_code Where the listing for the PBS is not mapped to the relevant AMT 
+concept, this field will show the PBS specific code used for the item. 
+Consists of components (pbs_concept_id + 100014410 + checksum 
+digit). NON_AMT_CODE and AMT_CODE are mutually exclusive fields - 
+where the concept is mapped to AMT this field will be NULL. 
+pbs_preferred_term Provides the PBS preferred term description for the PBS listing. In most 
+cases where the PBS is using the AMT concept, this will match the AMT 
+preferred term description. Where there is a case for PBS to use a 
+different term to the AMT, this is shown in this field. Where the PBS is 
+not using the AMT concept, this will show the PBS preferred term. 
+exempt_ind Indicates that an item is exempt from statutory price reductions, via 
+Ministerial discretion, as laid out in Section 84AH of the National Health 
+Act 1953. National Health (Pharmaceutical Benefits Scheme-Exempt 
+items - Section 84AH) Determination 2017. 
+This information is stored against the MPUU concept type. 
+• Medicinal Product Unit of Use (MPUU) = Clinical Drug (CD) 
+  
+Values: Y/N 
+All other concept type will default to N. 
+schedule_code Unique identifier given to each month's Schedule. By having a Schedule 
+Code in each table, 13 months (schedules) worth of data can be 
+maintained in the Data Mart to assist users in the identification of 
+Delisted Items and change-over-time. The date a schedule_code refers 
+to can be found in the /schedules endpoint in effective_date, 
+effective_month, effective_year and start_tsp columns. Please note that 
+there is no requirement for the schedule_code to be sequential or 
+increase. 
+  
+   
+ 
+9   
+OFFICIAL 
+OFFICIAL 
+ 
+/atc-codes 
+ 
+Table Name ATC_T 
+Open API Tag name ATC 
+Definition Anatomical Therapeutic Chemical Codes and hierarchy to map drugs to 
+their equivalent body system. 
+Columns   
+ 
+Column Name Definition 
+atc_code Anatomical Therapeutic Chemical Code used to represent the 
+chemical, pharmacological and therapeutic grouping. Published in 
+the current ATC Index issued by the World Health Organisations 
+(WHO) Collaborating Centre for Drug Statistics Methodology at all 
+levels. See also atc_description. 
+ 
+ATC classification system is defined, and ATC codes referenced, 
+in the Therapeutic Goods (Information relating to Shortages and 
+Discontinuations of Supply of Medicines) Specification 2018. 
+atc_description Description of therapeutic groups represented by an ATC Code. 
+The Anatomical Therapeutic Chemical (ATC) classification system 
+is a measuring unit recommended by the WHO for drug utilisation 
+monitoring and research. 
+Drugs are divided into groups according to the organ or body 
+system on which they act and their chemical, pharmacological and 
+therapeutic properties. 
+The PBS uses the ATC system for categorising PBS medicines 
+into therapeutic groups in the PBS Schedule. 
+ 
+Structure 
+Active substances classified in a hierarchy with five different levels.  
+1st level - fourteen main anatomical/pharmacological groups.  
+2nd level - pharmacological or therapeutic subgroups.  
+3rd level - chemical, pharmacological or therapeutic subgroups. 
+4th level - chemical, pharmacological or therapeutic subgroups. 
+5th level - chemical substance.  
+ 
+The 2nd, 3rd and 4th levels are often 
+used to identify pharmacological subgroups when that is 
+considered more appropriate than therapeutic or chemical 
+subgroups. 
+ 
+https://www.whocc.no/filearchive/publications/2020_guidelines_we
+b.pdfCode Description example - A01AA01 
+A Alimentary tract and metabolism 
+A01 Stomatological preparations 
+A01A Stomatological preparations 
+A01AA Caries prophylactic agents 
+A01AA01 Sodium fluoride 
+atc_level 5 levels of categorisation used for ATC grouping. 
+   
+ 
+10   
+OFFICIAL 
+OFFICIAL 
+atc_parent_code Anatomical Therapeutic Chemical taxonomy is a hierarchy, the 
+parent code links recursively back through the hierarchy to identify 
+the parent Body System. The top-level will have a NULL parent 
+code. 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+11   
+OFFICIAL 
+OFFICIAL 
+/containers 
+ 
+Table Name  CONTAINER_T   
+Open API Tag name Container 
+Definition Lists the containers and related subsidies for preparing extemporaneous benefits. 
+Columns  
+ 
+Column Name Definition 
+container_code Unique identifier code for containers. 
+container_name Container name required for PBS website and Schedule of 
+Pharmaceutical Benefits. 
+mark_up Allowable amount that a retailer can add to the cost of a 
+prescribed item to cover administration, handling and 
+infrastructure overheads for the container type. 
+Mark-ups determined by the Commonwealth price 
+(Pharmaceutical benefits supplied by approved pharmacists) 
+Determination 2020. 
+agreed_purchasing_unit Agreed unit or quantity that a price will be calculated for an 
+extemporaneous ingredient. 
+average_exact_unit_price Average of wholesaler unit prices for containers of 
+extemporaneous ingredients. Required for pricing of 
+extemporaneous ingredients for the PBS. 
+average_rounded_unit_price Rounded price derived from the average of wholesaler unit prices 
+for containers of extemporaneous ingredients. Required for pricing 
+of extemporaneous ingredients for the PBS. Rounding is set in 
+s13, s24 and s25 of Commonwealth price (Pharmaceutical 
+benefits supplied by approved pharmacists) Determination 2020. 
+container_type Descriptor in the format container:xx-xx which provides the type of 
+container. Can be: 
+- bottle-dispensing 
+- dropper-glass 
+- dropper-polythene 
+- bottle-poison 
+- jar-screw-cap 
+- injectable 
+- other 
+container_quantity Volume that the container can hold, required for the PBS Website 
+and Schedule of Pharmaceutical Benefits. 
+container_unit_of_measure Unit of Measure applicable to the container size. Refers to 
+container_quantity. 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint 
+in effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+12   
+OFFICIAL 
+OFFICIAL 
+/container-organisation-relationships 
+ 
+Table name  CONTAINER_WHOLESALER_RLTD_T 
+Open API Tag name ContainerWholesalerRltd 
+Definition Relationships between wholesalers/suppliers and containers used for 
+extemporaneous benefits. 
+Columns  
+ 
+Column Name Definition 
+container_code Unique identifier code for containers. 
+organisation_id Unique identifier for an Organisation that allows the user to infer a 
+wholesaling relationship between the Container and the Organisation.  
+schedule_code Unique identifier given to each month's Schedule. By having a Schedule 
+Code in each table, 13 months (schedules) worth of data can be 
+maintained in the Data Mart to assist users in the identification of 
+Delisted Items and change-over-time. The date a schedule_code refers 
+to can be found in the /schedules endpoint in effective_date, 
+effective_month, effective_year and start_tsp columns. Please note that 
+there is no requirement for the schedule_code to be sequential or 
+increase. 
+   
+ 
+13   
+OFFICIAL 
+OFFICIAL 
+/copayments 
+ 
+Table name COPAYMENT_T  
+Open API Tag name Copayment 
+Definition Lists the different PBS co-payment amounts and PBS Safety Net 
+threshold amounts which apply to general and concessional patients. 
+The PBS Safety Net protects those patients and their families requiring 
+high annual expenditure on PBS or RPBS items. 
+The scheme requires pharmacists, on request by patients, to record the 
+supply of PBS and RPBS items on prescription record forms. When a 
+patient reaches the Safety Net threshold within a calendar year, they 
+qualify to receive PBS or RPBS items at a cheaper price or free of charge 
+for the rest of that year. Any applicable special patient contributions, brand 
+premiums or therapeutic group premiums must still be met by the patient, 
+and do not count towards the Safety Net.  
+The Safety Net threshold is reached by accumulating eligible patient 
+contributions for PBS prescriptions supplied through community 
+pharmacies and private hospitals and for non-PBS out-patient 
+medication supplied by public hospitals. 
+  
+Columns  
+ 
+Column Name Definition 
+general General patient co-payment amount. Applies to Australian residents 
+who hold a Medicare card or patients from countries with a Reciprocal 
+Health Care Agreements (RHCA), or eligible under a Ministerial Order 
+under section 6(1) of the Health Insurance Act 1973. 
+concessional Concessional patient co-payment amount. Australian residents who 
+hold a Medicare card and an eligible concession card receive PBS 
+medicines at the at the concessional rate. 
+safety_net_general General patient Safety Net Threshold amount. When a general patient 
+and their eligible family members reach the General Safety Net 
+threshold within a calendar year, they qualify to receive PBS or RPBS 
+items at the concessional rate for the rest of that year. 
+safety_net_concessional Concessional patient Safety Net Threshold amount. When a 
+concessional patient and their eligible family members reach the 
+Concessional Safety Net threshold within a calendar year, they qualify 
+to receive PBS or RPBS items free of charge for the rest of that year. 
+safety_net_card_issue Fee payable for the issue of a safety net concession card for general 
+patients or a pharmaceutical benefits entitlement card for concessional 
+patients. Fee determined by National Health (Concession Card or 
+Entitlement Card Fee) Determination 2021. 
+increased_discount_limit Maximum Commonwealth price of a prescription for general patients 
+that is eligible for increased discounting. Pharmacies have the option 
+to offer increased discounting for PBS medicines within the Increased 
+Discounting Range (IDR) for the quantity supplied, where the 
+dispensed price is more than the general co-payment amount and less 
+than the increased discount limit.   
+Criteria for increased discounting is in s87AA of the National Health 
+Act 1953 
+ 
+safety_net_ctg_contribution Co-payment amount used to count towards the general PBS Safety 
+Net for certain prescriptions dispensed to registered Closing the Gap 
+   
+ 
+14   
+OFFICIAL 
+OFFICIAL 
+PBS Co-payment Program participants. Specified in s11(4) of the 
+National Health (Closing the Gap – PBS Co-payment Program) 
+Special Arrangement 2016. 
+ 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the identification 
+of Delisted Items and change-over-time. The date a schedule_code 
+refers to can be found in the /schedules endpoint in effective_date, 
+effective_month, effective_year and start_tsp columns. Please note 
+that there is no requirement for the schedule_code to be sequential or 
+increase. 
+ 
+ 
+   
+ 
+15   
+OFFICIAL 
+OFFICIAL 
+/criteria 
+ 
+ 
+Table name CRITERIA_T 
+Open API Tag name Criteria 
+Definition Lists the different circumstance requirements: treatment, population and 
+clinical requirement, and the relationship between the parameters that make 
+up a criteria. These are part of the main headings of restriction text. 
+Columns  
+ 
+Column Name Definition 
+criteria_prescribing_txt_id Unique and persistent identifier for the Criteria. 
+criteria_type The type of requirements – what it is related to: 
+ POPULATION 
+ CLINICAL 
+ TREATMENT 
+parameter_relationship Relationship between Parameters within a Criteria. Current value is 
+only ANY. 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the identification 
+of Delisted Items and change-over-time. The date a schedule_code 
+refers to can be found in the /schedules endpoint in effective_date, 
+effective_month, effective_year and start_tsp columns. Please note 
+that there is no requirement for the schedule_code to be sequential 
+or increase. 
+   
+ 
+16   
+OFFICIAL 
+OFFICIAL 
+/criteria-parameter-relationships 
+ 
+ 
+Table Name CRITERIA_PARAMETER_RLTD_T  
+Open API Tag name CriteriaParameterRltd 
+Definition Specifies relationship between the prescribing text within a criteria.     
+Columns  
+ 
+Column Name Definition 
+criteria_prescribing_txt_id Unique and persistent identifier for the Criteria. 
+parameter_prescribing_txt_id Unique and persistent identifier for the Parameter. 
+pt_position Determines the order of parameter_precribing_txt_id concepts within 
+the criteria_prescribing_txt_id to which it is attached (one to many from 
+the Criteria to Parameter).  
+schedule_code Unique identifier given to each month's Schedule. By having a Schedule 
+Code in each table, 13 months (schedules) worth of data can be 
+maintained in the Data Mart to assist users in the identification of 
+Delisted Items and change-over-time. The date a schedule_code refers 
+to can be found in the /schedules endpoint in effective_date, 
+effective_month, effective_year and start_tsp columns. Please note that 
+there is no requirement for the schedule_code to be sequential or 
+increase. 
+   
+ 
+17   
+OFFICIAL 
+OFFICIAL 
+/dispensing-rules  
+ 
+ 
+Table Name DISPENSING_RULE_T 
+Open API Tag name DispensingRule 
+Definition List of Dispensing rules, names and references to be used in other tables. 
+Columns  
+ 
+Column Name Definition 
+dispensing_rule_mnem Short descriptive phrase to enable the identification of a group of 
+Dispensing Rules. 
+dispensing_rule_reference Unique identifier for a Dispensing Rule that relates the grouping 
+Mnemonic to a class of Item. 
+dispensing_rule_title Easily identifiable title used to differentiate this dispensing rule. 
+community_pharmacy_indica
+tor 
+Indicates that this item can be dispensed by community pharmacies 
+under this rule regardless of where the item was prescribed. 
+Values: TRUE/NULL. 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+ 
+ 
+  
+   
+ 
+18   
+OFFICIAL 
+OFFICIAL 
+/extemporaneous-ingredients  
+ 
+ 
+Endpoint EXTEMPORANEOUS_INGREDIENT_T 
+Open API Tag name ExtemporaneousIngredient 
+Definition List of extemporaneous ingredients applicable to Items, including a unique 
+code, and price per weight.  
+Columns  
+ 
+Column Name Definition 
+pbs_code PBS Item Code relates directly to a Prescribing Rule. A drug/form 
+combination will have a different PBS Item Code for each combination of 
+maximum quantity (or maximum amount), number of repeats, pack quantity, 
+restriction level or if the drug/form combination is listed on different 
+programs. This information is required for the PBS website, Schedule of 
+Pharmaceutical Benefits and legislative instruments compiled by the PBS 
+Publishing Team. 
+agreed_purchasing_unit Agreed unit or quantity that will be used to calculate the price for an 
+extemporaneous ingredient. 
+exact_tenth_gram_per_
+ml_price 
+Exact 0.10g/ml price for an extemporaneous ingredient. Required for PBS 
+website and Schedule of Pharmaceutical Benefits. 
+exact_one_gram_per_
+ml_price 
+Exact 1g/ml price for an extemporaneous ingredient. Required for PBS 
+website and Schedule of Pharmaceutical Benefits. 
+exact_ten_gram_per_ml
+_price 
+Exact 10g/ml price for an extemporaneous ingredient. Required for PBS 
+website and Schedule of Pharmaceutical Benefits. 
+exact_hundred_gram_p
+er_ml_price 
+Exact 100g/ml price for an extemporaneous ingredient. Required for PBS 
+website and Schedule of Pharmaceutical Benefits. 
+rounded_tenth_gram_p
+er_ml_price 
+Rounded 0.10g/ml price for an extemporaneous ingredient. Required for 
+PBS website and Schedule of Pharmaceutical Benefits. 
+rounded_one_gram_per
+_ml_price 
+Rounded 1g/ml price for an extemporaneous ingredient. Required for PBS 
+website and Schedule of Pharmaceutical Benefits. 
+rounded_ten_gram_per
+_ml_price 
+Rounded 10g/ml price for an extemporaneous ingredient. Required for PBS 
+website and Schedule of Pharmaceutical Benefits. 
+rounded_hundred_gram
+_per_ml_price 
+Rounded 100g/ml price for an extemporaneous ingredient. Required for PBS 
+website and Schedule of Pharmaceutical Benefits. 
+schedule_code Unique identifier given to each month's Schedule. By having a Schedule 
+Code in each table, 13 months (schedules) worth of data can be maintained 
+in the Data Mart to assist users in the identification of Delisted Items and 
+change-over-time. The date a schedule_code refers to can be found in the 
+/schedules endpoint in effective_date, effective_month, effective_year and 
+start_tsp columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+19   
+OFFICIAL 
+OFFICIAL 
+ 
+/extemporaneous-preparations 
+ 
+ 
+Endpoint EXTEMPORANEOUS_PREPARATION_T 
+Open API Tag name ExtemporaneousPreparation 
+Definition List of Standard formula extemporaneous preparations applicable to Items, 
+including a unique code, preparation description and agreed prices. 
+Columns  
+ 
+Column Name Definition 
+preparation Specifies the form in which a standard formula preparation is 
+provided. Required for PBS website, legislative instruments and 
+Schedule of Pharmaceutical Benefits. 
+maximum_quantity Maximum quantity of a pharmaceutical benefit allowed to be 
+prescribed/dispensed as recommended by the Pharmaceutical 
+Benefits Advisory Committee (PBAC). 
+pbs_code PBS Item Code relates directly to a Prescribing Rule. A drug/form 
+combination will have a different PBS Item Code for each 
+combination of maximum quantity (or maximum amount), number of 
+repeats, pack quantity, restriction level or if the drug/form 
+combination is listed on different programs. This information is 
+required for the PBS website, Schedule of Pharmaceutical Benefits 
+and legislative instruments compiled by the PBS Publishing Team. 
+maximum_quantity_unit Unit of Measure applicable to the maximum_quantity for the 
+pharmaceutical benefit. 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+20   
+OFFICIAL 
+OFFICIAL 
+/extemporaneous-prep-sfp-relationships  
+ 
+ 
+Table name EX_PREP_SFP_RLTD_T 
+Open API Tag name ExPrepSfpRltd 
+Definition Uses the PBS_CODE value to link Extemporaneous_Preparation records to 
+Standard_Formula_Preparation records. 
+Columns  
+ 
+Column Name Definition 
+sfp_pbs_code PBS Item Code relates directly to a Prescribing Rule Standard 
+Formula Preparations. A drug/form combination will have a 
+different PBS Item Code for each combination of maximum 
+quantity (or maximum amount), number of repeats, pack quantity 
+or if the drug/form combination is listed on different programs. This 
+information is required for the PBS website, Schedule of 
+Pharmaceutical Benefits and legislative instruments compiled by 
+the PBS Publishing Team. 
+ex_prep_pbs_code PBS Item Code relates directly to a Prescribing Rule 
+Extemporaneous Preparations. A drug/form combination will have 
+a different PBS Item Code for each combination of maximum 
+quantity (or maximum amount), number of repeats, pack quantity 
+or if the drug/form combination is listed on different programs. This 
+information is required for the PBS website, Schedule of 
+Pharmaceutical Benefits and legislative. 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+21   
+OFFICIAL 
+OFFICIAL 
+/extemporaneous-tariffs  
+ 
+ 
+Endpoint EXTEMPORANEOUS_DRUG_TARIFF_T 
+Open API Tag name ExtemporaneousDrugTariff 
+Definition Tariffs applicable to extemporaneous preparations. Ingredients which can be 
+compounded by a pharmacist as an extemporaneously prepared benefit. The 
+table includes the PBS codes and pricing details. 
+Columns  
+ 
+Column Name Definition 
+pbs_code PBS Item Code relates directly to a Prescribing Rule. A drug/form 
+combination will have a different PBS Item Code for each 
+combination of maximum quantity (or maximum amount), number of 
+repeats, pack quantity, restriction level or if the drug/form 
+combination is listed on different programs. This information is 
+required for the PBS website, Schedule of Pharmaceutical Benefits 
+and legislative instruments compiled by the PBS Publishing Team. 
+drug_name PBS Schedule drug name, defined as Medicinal Product Pack – 
+Name for Ready prepared and Infusible listings. Drug Tariff name 
+for Extemporaneously Prepared listings. 
+agreed_purchasing_unit Agreed unit or quantity that will be used to calculate the price for an 
+extemporaneous ingredient. 
+markup Allowable amount that a retailer can add to the cost of a prescribed 
+item to cover administration, handling, and infrastructure overheads 
+for the extemporaneous ingredients. 
+rounded_rec_one_tenth_gram Recovery price for one tenth gram/ml rounded amount of an 
+extemporaneous ingredient specified in the Drug Tariff. Required for 
+PBS website and Schedule of Pharmaceutical Benefits. 
+rounded_rec_one_gram Recovery price for 1g/ml rounded amount of an extemporaneous 
+ingredient specified in the Drug Tariff. Required for PBS website and 
+Schedule of Pharmaceutical Benefits. 
+rounded_rec_ten_gram Recovery price for 10g/ml rounded amount of an extemporaneous 
+ingredient specified in the Drug Tariff. Required for PBS website and 
+Schedule of Pharmaceutical Benefits. 
+rounded_rec_hundred_gram Recovery price for 100g/ml rounded amount of an extemporaneous 
+ingredient specified in the Drug Tariff. Required for PBS website and 
+Schedule of Pharmaceutical Benefits. 
+exact_rec_one_tenth_gram Recovery price for one tenth gram/ml exact amount of an 
+extemporaneous ingredient specified in the Drug Tariff. Required for 
+PBS website and Schedule of Pharmaceutical Benefits. 
+exact_rec_one_gram Recovery price for 1g/ml exact amount of an extemporaneous 
+ingredient specified in the Drug Tariff. Required for PBS website and 
+Schedule of Pharmaceutical Benefits. 
+exact_rec_ten_gram Recovery price for 10g/ml exact amount of an extemporaneous 
+ingredient specified in the Drug Tariff. Required for PBS website and 
+Schedule of Pharmaceutical Benefits. 
+exact_rec_hundred_gram Recovery price for 100g/ml exact amount of an extemporaneous 
+ingredient specified in the Drug Tariff. Required for PBS website and 
+Schedule of Pharmaceutical Benefits. 
+   
+ 
+22   
+OFFICIAL 
+OFFICIAL 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+23   
+OFFICIAL 
+OFFICIAL 
+/fees 
+ 
+Endpoint FEE_T 
+Open API Tag name Fee 
+Definition The fees, charges and patient contributions that contribute to the price of a 
+pharmaceutical item at the time of dispensing. All are in addition to the cost of 
+the item itself. 
+Columns  
+ 
+Column Name Definition 
+program_code Code used to group together PBS Items that have the same pricing 
+model and follow the same business rules. Required for the PBS 
+website, Schedule of Pharmaceutical Benefits and legislative 
+instruments compiled by the PBS Publishing Team. 
+List of program codes can be found here: 
+https://data.pbs.gov.au/faq/program-codes.html 
+dispensing_fee_ready_prepared Fee applies for PBS medicine that doesn't need further preparation 
+or compounding. It's a compulsory addition to the pharmacy mark-
+up fee component, for a ready prepared supply except for a public 
+hospital, regardless of the cost of the medicine. The fee is defined 
+in the Commonwealth price (Pharmaceutical benefits supplied by 
+approved pharmacists) Determination 2020. 
+dispensing_fee_dangerous_drug Dangerous drug fee is paid for supplying a medicine listed in 
+Schedule 3 of the National Health (Commonwealth Price and 
+Conditions for Commonwealth Payments for Supply of 
+Pharmaceutical Benefits) Determination 2019 and is in addition to 
+the Administration, Handling and Infrastructure (AHI) fee and 
+dispensing fee. This fee is designed to cover the additional costs 
+charged by wholesalers related to handling fees for dangerous 
+medicines, as well as pharmacist requirements for supplying and 
+recording duties related to the supply of dangerous medicines. The 
+fee is defined in the Commonwealth price (Pharmaceutical benefits 
+supplied by approved pharmacists) Determination 2020. 
+dispensing_fee_extra Also known as the additional patient charge. The additional patient 
+charge is a maximum discretionary charge to general patients if a 
+pharmaceutical item has a dispensed price for maximum quantity 
+less than the general patient co-payment. Fees set by Clause 
+6.2.1(c) of the 8CPA. 
+dispensing_fee_extemporaneous Extemporaneously prepared fee is paid for supplying PBS 
+medicines that requires preparation in pharmacy. This can include 
+where two included components must be mixed before supply.  
+If a solvent is needed, the fee includes the price of 100 mL purified 
+water from the drug tariff. A fee is paid for each multiple quantity 
+ordered. 
+Extemporaneously prepared fee is paid for supplying products that 
+have required pharmacy preparation prior to supply to a patient. 
+The fee is defined in the Commonwealth price (Pharmaceutical 
+benefits supplied by approved pharmacists) Determination 2020. 
+safety_net_recording_fee_ep PBS Safety Net recording fee paid for recording prescriptions for 
+extemporaneous items below the maximum general patient 
+contribution on the prescription record form. The Safety Net 
+recording fee is also known as the additional fee. Fee determined 
+   
+ 
+24   
+OFFICIAL 
+OFFICIAL 
+by s6(1)(ii) of the National Health (Pharmaceutical Benefits) 
+(Subsection 84C(7) Price) Determination 2019.  
+safety_net_recording_fee_rp PBS Safety Net recording fee paid for recording prescriptions for 
+ready-prepared items below the maximum general patient 
+contribution on the prescription record form. The Safety Net 
+recording fee is also known as the additional fee. Fee determined 
+by s6(1)(i) of the National Health (Pharmaceutical Benefits) 
+(Subsection 84C(7) Price) Determination 2019. 
+dispensing_fee_water_added Fee charged for extemporaneously prepared items where purified 
+water is added as part of the preparation process. For lists of items 
+where this fee applies, refer to Schedule 1 and Schedule 2 of 
+National Health (Commonwealth Price and Conditions for 
+Commonwealth Payments for Supply of Pharmaceutical Benefits) 
+Determination 2019. 
+container_fee_injectable Container Fee is the basis of the fee paid to the dispenser for 
+injectable items. It is added to the item price and is only paid when 
+a pack is broken and partial contents requires a container. 
+container_fee_other Container Fee is the basis of the fee paid to the dispenser for non-
+injectable items. It is added to the item price and is only paid when 
+a pack is broken and partial contents requires a container. 
+gnrl_copay_discount_general Maximum allowable discount on general patient co-payment for 
+Australian residents who hold a Medicare card or patients from 
+countries with a RHCA.  
+Information about reduction of this discount from 1 Jan 2025 is 
+presented under Clause 4.2 of the Eighth Community Pharmacy 
+Agreement: https://www.health.gov.au/topics/primary-care/what-we-
+do/8cpa 
+gnrl_copay_discount_hospital Maximum allowable discount on general patient co-payment, for 
+items prescribed at hospitals, for Australian residents who hold a 
+Medicare card or patients from countries with a RHCA.. 
+Decreased in line with decrease in general PBS patient co-payment 
+on 1 Jan 2023 (National Health Amendment (General Co-payment) 
+Act 2022) 
+con_copay_discount_general Maximum allowable discount on concessional patient co-payment 
+for Australian residents who hold a Medicare card and an eligible 
+concession card who can receive medicines under the PBS at the 
+concessional rate.  
+Information about reduction of this discount from 1 Jan 2025 is 
+presented under Clause 4.2 of the Eighth Community Pharmacy 
+Agreement: https://www.health.gov.au/topics/primary-care/what-we-
+do/8cpa. 
+con_copay_discount_hospital Concessional co-payment discount, for items prescribed in 
+hospitals, for Australian residents who hold a Medicare card and an 
+eligible concession card who can receive medicines under the PBS 
+at the concessional rate. 
+efc_diluent_fee Fee added to the price of an item determined to be part of the 
+Efficient Funding of Chemotherapy items scheme, to account for 
+costs incurred in the dilution process and diluent used. Defined in 
+s5 of the National Health (Efficient Funding of Chemotherapy) 
+Special Arrangement 2024. 
+efc_preparation_fee Fee added to the price of an item determined to be part of the 
+Efficient Funding of Chemotherapy items scheme, to account for 
+compounding or preparing the dose of chemotherapy drug in the 
+   
+ 
+25   
+OFFICIAL 
+OFFICIAL 
+infusion. Defined in s5 of the National Health (Efficient Funding of 
+Chemotherapy) Special Arrangement 2024. 
+efc_distribution_fee Fee added to the price of an item determined to be part of the 
+Efficient Funding of Chemotherapy items scheme, to account for 
+costs incurred by the manufacturer for the transport, handling and 
+distribution of the item. Defined in s5 of the National Health 
+(Efficient Funding of Chemotherapy) Special Arrangement 2024. 
+acss_imdq60_payment Also known as the Component 1 ACSS payment, this is the fee that 
+may be payable by the Commonwealth to an approved pharmacist 
+for an ACSS eligible supply, where that supply is of an MDQ item at 
+the maximum dispensed quantity. This fee is paid in addition to the 
+Component 2 ACSS payment, which may be paid for any ACSS 
+eligible supply. 
+acss_payment Also known as the Component 2 ACSS payment, this is the fee that 
+may be payable by the Commonwealth to an approved pharmacist 
+for any ACSS eligible supply. 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+26   
+OFFICIAL 
+OFFICIAL 
+/indications 
+ 
+Table Name INDICATION_T 
+Open API Tag name Indication 
+Definition The Indication refers to what the patient presents as symptoms to support a 
+diagnosis. There is a limit of one Indication per Restriction.  
+The indication consists of: 
+Condition (mandatory) - identifies what is happening 
+Episodicity - how often an episode occurs 
+Severity - how bad it is 
+Recorded in Legal Instruments: 
+- Circumstances and Purposes Column of Schedule 3 to the National 
+Health (Highly Specialised Drugs Program) Special Arrangement 2021  
+- Circumstances and Purposes Column of Schedule 4 to the National 
+Health (Listing of Pharmaceutical Benefits) Instrument 2024  
+- Circumstances and Purposes Column of Schedule 3 to the National 
+Health (Efficient Funding of Chemotherapy) Special Arrangement 2024  
+Columns  
+ 
+Column Name Definition 
+indication_prescribing_txt_id Unique and persistent identifier for an indication. 
+condition Condition for the Indication. Indication - There can only be one 
+Indication per Restriction, so if multiple Indications are required 
+these will be identified via multiple Restrictions. The Indication 
+refers to what a patient would present as symptoms to support a 
+diagnosis. 
+The indication consists of: 
+Condition (mandatory) - identifies what is happening. 
+ 
+episodicity Episodicity for the Indication. Indication - There can only be one 
+Indication per Restriction, so if multiple Indications are required 
+these will be identified via multiple Restrictions. The Indication 
+refers to what a patient would present as symptoms to support a 
+diagnosis. 
+The indication consists of: 
+Episodicity - how often an episode occurs. 
+severity Severity for the Indication. Indication - There can only be one 
+Indication per Restriction, so if multiple Indications are required 
+these will be identified via multiple Restrictions. The Indication 
+refers to what a patient would present as symptoms to support a 
+diagnosis. 
+The indication consists of: 
+Severity - how bad it is. 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+27   
+OFFICIAL 
+OFFICIAL 
+/item-atc-relationships 
+ 
+ 
+Table Name ITEM_ATC_RLTD_T 
+Open API Tag name ItemAtcRltd 
+Definition Represents the many-to-many relationships between Items and 
+equivalent ATC Codes (in the /atc-codes endpoint). 
+Columns  
+ 
+Column Name Definition 
+atc_code Anatomical Therapeutic Chemical Code used to represent the 
+chemical, pharmacological and therapeutic grouping. Published in 
+the current ATC Index issued by the World Health Organisations 
+(WHO) Collaborating Centre for Drug Statistics Methodology at all 
+levels. See also atc_description. 
+ATC classification system is defined, and ATC codes referenced, in 
+the Therapeutic Goods (Information relating to Shortages and 
+Discontinuations of Supply of Medicines) Specification 2018. 
+pbs_code PBS Item Code relates directly to a Prescribing Rule. A drug/form 
+combination will have a different PBS Item Code for each 
+combination of maximum quantity (or maximum amount), number of 
+repeats, pack quantity, restriction level or if the drug/form 
+combination is listed on different programs. This information is 
+required for the PBS website, Schedule of Pharmaceutical Benefits 
+and legislative instruments compiled by the PBS Publishing Team. 
+atc_priority_pct Where there is more than one ATC group assigned to a Prescribing 
+Rule, a split percentage is reported. Where there is only one ATC 
+group assigned, the percentage will be 100.  
+The higher percentage relates to the predominate ATC for the PBS 
+Listing. 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+28   
+OFFICIAL 
+OFFICIAL 
+/item-dispensing-rule-relationships 
+ 
+ 
+Table Name ITEM_DISPENSING_RULE_RLTD_T 
+Open API Tag name ItemDispensingRuleRltd 
+Definition Represents the many-to-many relationships between Items and 
+Dispensing Rules. 
+Columns  
+ 
+Column Name Definition 
+li_item_id Unique identifier for each row on the /items endpoint generated 
+using the Item Code and PharmCIS internal IDs (PIG ID, MP, MPP, 
+TPP). 
+dispensing_rule_mnem Short descriptive phrase to enable the identification of a group of 
+Dispensing Rules. 
+dispensing_rule_reference Unique identifier for a Dispensing Rule that relates the grouping 
+Mnemonic to a class of Item. 
+brand_premium Type of Special Patient Contribution, when there is more than one 
+product per item code and the Responsible Person has set the 
+product price above the lowest priced product. The difference is 
+paid by the consumer. Where the therapeutic_exemption_indicator 
+on the /Items endpoint has a value of ‘Y’ for an li_item_id the value 
+of this premium will be 0.00. 
+Determined by the National Health (Price and Special Patient 
+Contribution) Determination 2022. 
+PBS Schedule displays as Medicinal Premium $ or  Brand 
+premium applies. 
+dispense_fee_type_code *Indicates the type of fee (if any) paid to the pharmacist for 
+dispensing a PBS benefit. The dispensing fee types are: 
+• EP - Extemporaneously prepared (known bug showing as 
+NF) 
+• EW - Extemporaneously prepared with water 
+• NF - No Fee 
+• RP - Ready Prepared 
+ 
+dangerous_drug_fee_code Code used to identify dangerous drug. The dangerous drug fee is 
+paid for supplying dangerous drugs and is in addition to the mark-
+up and other dispensing fees. Dangerous drugs are listed in 
+Schedule 3 of the National Health (Commonwealth Price and 
+Conditions for Commonwealth Payments for Supply of 
+Pharmaceutical Benefits) Determination 2019. 
+Values DD or NULL. 
+This indicates whether this item attracts a dangerous drug fee for 
+Ready Prepared Drugs ONLY. 
+fee_dispensing Fee applied for Dispensing for the dispensing fee types: 
+EW - Extemporaneously prepared with water 
+RP - Ready Prepared. 
+Null for other dispensing fee types. 
+fee_dispensing_ex Additional fee for dispensing fee type: 
+EW - Extemporaneously prepared with water 
+Null for other dispensing fee types. 
+fee_dispensing_dd Additional fee for dispensing of items marked as Dangerous Drugs. 
+Null when no fee applies. 
+fee_water Additional fee for dispensing of items with Water Added in 
+
+   
+ 
+29   
+OFFICIAL 
+OFFICIAL 
+dispensing fee type: 
+EW - Extemporaneously prepared with water 
+Null for other dispensing fee types. 
+fee_container_injectable Additional fee for dispensing of items with an injectable container in 
+dispensing fee type: 
+RP - Ready Prepared. 
+Null for other dispensing fee types. 
+fee_container_other Additional fee for dispensing of items with a container other than 
+injectables in dispensing fee type: 
+RP - Ready Prepared. 
+Null for other dispensing fee types. 
+fee_safety_net_recording Fee applied for recording against the Safety Net for Ready 
+Prepared items.  
+Null when no fee applies. 
+fee_safety_net_recording_ex Fee applied for recording against the Safety Net for 
+Extemporaneously Prepared items.  
+Null when no fee applies. 
+fee_extra Allowable Extra fee.  
+Null when no fee applies. 
+fee_chemo_flat_wholesale Wholesale flat fee applied for Chemotherapy items.  
+Null when no fee applies. 
+fee_chemo_prep Preparation fee applied for Chemotherapy items.  
+Null when no fee applies. 
+fee_diluent Fee for Diluent in Chemotherapy items.  
+Null when no fee applies. 
+submitted_pharmacists_pack_p
+rice 
+Price to Pharmacist for Pack Quantity.  
+Null for Extemporaneous items. 
+max_general_patient_charge Maximum general charge for patient. Shown as General Patient 
+Charge on PBS website.  
+Null for Extemporaneous items. 
+mn_price_dispenser Manufacturer Price to Dispenser for Pack Quantity.  
+Null for Extemporaneous items. 
+mn_price_wholesale_markup_li
+mit 
+Lowest band limit for Manufacturer wholesale markup.  
+Null where Markup does not apply. 
+mn_price_wholesale_markup_c
+ode 
+Wholesale Code for the applied Markup band.  
+Values: A, W, NULL 
+mn_price_wholesale_markup Wholesale Markup band actual value that relates to the 
+MN_PRICE_WHOLESALE_MARKUP_CODE field.   
+Null for Extemporaneous items. 
+mn_pharmacy_price Manufacturer Price to Pharmacist for Pack Quantity.  
+Null for Extemporaneous items. 
+mn_pharmacy_markup_limit Lowest limit value for the applied Manufacturer Pharmacy Markup 
+band. 
+Null where Markup does not apply. 
+mn_pharmacy_markup_code Code for the applied Manufacturer Pharmacy Markup band.  
+Values: A, C, D, E,  NULL 
+mn_pharmacy_markup Actual value for the applied Manufacturer Pharmacy Markup band 
+in field MN_PHARMACY_MARKUP_CODE.  
+Null for Extemporaneous items. 
+therapeutic_group_premium Price premium for drugs identified as being therapeutically 
+interchangeable with other drugs and are therefore included in a 
+therapeutic group. Where the therapeutic_exemption_indicator on 
+the /Items endpoint has a value of ‘Y’ for an li_item_id the value of 
+this premium will be 0.00.  
+ 
+PBS subsidises up to the price of the lowest priced drug in the 
+therapeutic group - the patient pays the difference between the 
+lowest price and the manufacturers price. Determined by the 
+   
+ 
+30   
+OFFICIAL 
+OFFICIAL 
+National Health (Pharmaceutical Benefits—Therapeutic Groups) 
+Determination 2020. 
+PBS Schedule defined as Medicinal Premium $ or  Therapeutic 
+group premium applies. 
+cmnwlth_price_to_pharmacist (COM-CPP) Commonwealth Price to Pharmacist for Community 
+Pharmacy. This field shows the price that the pharmacist pays for 
+the pack. 
+ 
+The group of CPP prices (COM-CPP, PTE-CPP, PUB-CPP) are 
+captured based on all Pharmacy Types (S90-cp, S94-private, S94-
+public) appropriate to the Item. There are up to three CPP prices 
+per item, depending on the Pharmacy Types that have access to 
+associated Program Code. If a Pharmacy Type is not listed, the 
+relevant CPP price will be populated as zero for that Pharmacy 
+Type. Price to Pharmacists is comprised of the ex-manufacturer 
+price with the added wholesale mark-up where applicable (see 
+Eighth Community Pharmacy Agreement). Used to determine the 
+Dispensed Price Max Quantity (DPMQ). Commonwealth Price is 
+defined in s84(1) of the National Health Act 1953. 
+man_price_to_pharmacist (COM-MPP) Manufacturers Price to Pharmacist for Community 
+Pharmacy. 
+ 
+The group of MPP prices (COM-MPP, PTE-MPP, PUB-MPP) are 
+captured based on all Pharmacy Types (S90-cp, S94-private & 
+S94-public) appropriate to the Item. There are up to three MPP 
+prices per item, depending on the Pharmacy Types that have 
+access to the associated Program Code. If a Pharmacy Type is not 
+listed, the relevant MPP price will be populated as zero for that 
+Pharmacy Type. Price to Pharmacists is comprised of the ex-
+manufacturer price with the wholesale mark-up added (see Eighth 
+Community Pharmacy Agreement). 
+man_dispnsd_price_max_qty (COM-MDPMQ) Manufacturers Dispensed Price for Maximum 
+Quantity for Community Pharmacy. 
+ 
+The group of CDPMQ prices (COM-MDPMQ, PTE-MDPMQ, PUB-
+MDPMQ) are captured based on all Pharmacy Types (S90-cp, S94-
+private & S94-public) appropriate to the Item. There are up to three 
+MDPMQ prices per item, depending on the Pharmacy Types that 
+have access to the associated Program Code. If a Pharmacy Type 
+is not listed, the relevant MDPMQ price will be populated as zero for 
+that Pharmacy Type. 
+ 
+Same as Commonwealth Dispensing Price for Max Qty. 
+max_record_val_for_safety_net Maximum amount allowed to be recorded on a patients Safety Net 
+Card. The amount comprises the Reimbursement Dispensed price 
+for maximum quantity plus Safety Net Recording fee and is capped 
+at the General Co Payment amount. Value for safety net purposes’ 
+is determined in s17A of the National Health (Pharmaceutical 
+Benefits) Regulations 2017. 
+Abbreviation: MRVSN 
+cmnwlth_dsp_price_max_qty (COM-MPP) Manufacturers Price to Pharmacist for Community 
+Pharmacy.  
+ 
+The group of MPP prices (COM-MPP, PTE-MPP, PUB-MPP) are 
+captured based on all Pharmacy Types (S90-cp, S94-private & 
+S94-public) appropriate to the Item. There are up to three MPP 
+prices per item, depending on the Pharmacy Types that have 
+access to the associated Program Code. If a Pharmacy Type is not 
+
+   
+ 
+31   
+OFFICIAL 
+OFFICIAL 
+listed, the relevant MPP price will be populated as zero for that 
+Pharmacy Type. Price for dispensing the maximum amount of a 
+product under a given prescribing rule. The Dispensed Price Max 
+Quantity (DPMQ) incorporates the price ex-manufacturer, all fees, 
+mark-ups and patient contributions. Required for the PBS website 
+and Schedule of Pharmaceutical Benefits. 
+tgm_price_phrmcst (COM-TPP) Therapeutic Price to Pharmacist for Community 
+Pharmacy. 
+ 
+The group of TPP prices (COM-TPP, PTE-TPP & PUB-TPP) are 
+captured based on all Pharmacy Types (S90-cp, S94-private & 
+S94-public) appropriate to the Item. There are up to three TPP 
+prices per item, depending on the Pharmacy Types that have 
+access to the associated Program Code. If a Pharmacy Type is not 
+listed, the relevant TPP price will be populated as zero for that 
+Pharmacy Type. Therapeutic Group Manufacturer's Price to 
+Pharmacist (or Special Patient Contribution Manufacturer's Price to 
+Pharmacist) (for manufacturer's pack). For S100 programs this 
+value is the price ex-manufacturer. 
+tgm_disp_price_max_qty COM-MPP) Manufacturers Price to Pharmacist for Community 
+Pharmacy.  
+ 
+The group of MPP prices (COM-MPP, PTE-MPP, PUB-MPP) are 
+captured based on all Pharmacy Types (S90-cp, S94-private & 
+S94-public) appropriate to the Item. There are up to three MPP 
+prices per item, depending on the Pharmacy Types that have 
+access to the associated Program Code. If a Pharmacy Type is not 
+listed, the relevant MPP price will be populated as zero for that 
+Pharmacy Type. Therapeutic Group Manufacturer's Dispensed 
+Price for Maximum Quantity (or Special Patient Contribution 
+Manufacturer's Dispensed Price for Maximum Quantity) (for 
+manufacturer's pack). 
+special_patient_contribution Special patient contribution is payable by all patients in addition to 
+the relevant patient contribution for concessional and general 
+patients (exemptions on medical grounds are available). Where the 
+therapeutic_exemption_indicator on the /Items endpoint has a value 
+of ‘Y’ for an li_item_id the value of this premium will be 0.00. 
+Special Patient Contribution defined by s85B(5) of the National 
+Health Act 1953, SPC for certain HSD pharmaceutical benefits is 
+defined in the National Health (Highly Specialised Drugs Program) 
+Special Arrangement 2021. 
+PBS Schedule defined as Medicinal Premium $ or  Special 
+patient contribution applies. 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+
+   
+ 
+32   
+OFFICIAL 
+OFFICIAL 
+/item-organisation-relationships 
+ 
+ 
+Table name ITEM_ORGANISATION_RLTD_T 
+Open API Tag name ItemOrganisationRltd 
+Definition Represents the relationships between wholesalers/suppliers and extemporaneous 
+benefit items (Prescribing rules). 
+Columns  
+ 
+Column Name Definition 
+pbs_code PBS Item Code relates directly to a Prescribing Rule. A drug/form 
+combination will have a different PBS Item Code for each 
+combination of maximum quantity (or maximum amount), number of 
+repeats, pack quantity, restriction level or if the drug/form 
+combination is listed on different programs. This information is 
+required for the PBS website, Schedule of Pharmaceutical Benefits 
+and legislative instruments compiled by the PBS Publishing Team. 
+organisation_id Unique and persistent identifier for an Organisation that allows the 
+user to infer a wholesaling relationship between the Item and the 
+Organisation. 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+33   
+OFFICIAL 
+OFFICIAL 
+/item_overview 
+ 
+ 
+Table Name ITEM_OVERVIEW_T 
+Open API Tag name ItemOverview 
+Definition Captures the PBS item (drug) and all elements related to that item in one 
+endpoint. 
+This endpoint draws together details for an item from all other tables.  
+Limit of 1000 returned results applies due to the large amount of information 
+returned.  
+Not available as CSV.  
+   
+ 
+34   
+OFFICIAL 
+OFFICIAL 
+/item-prescribing-text-relationships 
+ 
+ 
+Table Name ITEM_PRESCRIBING_TXT_RLTD_T 
+Open API Tag name ItemPrescribingTxtRltd 
+Definition Represents the relationships directly between Items (Prescribing Rules) and 
+individual Prescribing Texts. These are limited to texts of type Note or 
+Caution. Full restrictions for items are mapped via the endpoint /item-
+restriction-relationship, and restriction components are mapped in the 
+endpoint /restriction-prescribing-text-relationships.  
+Columns  
+ 
+Column Name Definition 
+pbs_code PBS Item Code relates directly to a Prescribing Rule. A drug/form 
+combination will have a different PBS Item Code for each 
+combination of maximum quantity (or maximum amount), number of 
+repeats, pack quantity, restriction level or if the drug/form 
+combination is listed on different programs. This information is 
+required for the PBS website, Schedule of Pharmaceutical Benefits 
+and legislative instruments compiled by the PBS Publishing Team. 
+prescribing_txt_id Unique and persistent identifier for the Indication, Treatment Phase, 
+Criterion, Prescribing Instruction, Caution or Note that is included in 
+the restriction. 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+35   
+OFFICIAL 
+OFFICIAL 
+/item-pricing-events 
+ 
+Table Name ITEM_PRICING_EVENT 
+Open API Tag name ItemPricingEvent 
+Definition Represents prices that have changed on the PBS, due to statutory price 
+reductions. As these reductions only happens a few months of the year, the 
+endpoint has no data for several schedules each year. 
+Columns  
+ 
+Column Name Definition 
+li_item_id Unique identifier for each row on the /items endpoint generated 
+using the Item Code and PharmCIS internal IDs (PIG ID, MP, MPP, 
+TPP). 
+percentage_applied Brands of pharmaceutical items with approved ex-manufacturer 
+price reduced by a lower percentage than would otherwise apply. 
+event_type_code Code that describes the type of event that will trigger a change to a 
+Medicinal Product's price.  
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+36   
+OFFICIAL 
+OFFICIAL 
+/item-restriction-relationship 
+ 
+ 
+Table name  ITEM_RESTRICTION_RLTD_T 
+Open API Tag name ItemRestrictionRltd 
+Definition This endpoint maps the many-to-many relationships between Items 
+(Prescribing Rule) and Restrictions. It also displays the Note and Caution 
+elements that are linked to a specific Item (Prescribing Rule). 
+ID codes in this table can be joined with the /restrictions and /restriction-
+prescribing-text-relationships endpoints to determine restriction text for Items 
+(Prescribing Rule) 
+endpoint /restriction-prescribing-text-relationships.  
+Columns  
+ 
+Column Name Definition 
+res_code Unique and persistent identifier for the Restriction (suffix R), or any 
+Caution (suffix C) or Note (suffix N) associated with a Prescribing 
+Rule (Item) that is not otherwise included in the restriction. 
+pbs_code PBS Item Code relates directly to a Prescribing Rule. A drug/form 
+combination will have a different PBS Item Code for each 
+combination of maximum quantity (or maximum amount), number of 
+repeats, pack quantity, restriction level or if the drug/form 
+combination is listed on different programs. This information is 
+required for the PBS website, Schedule of Pharmaceutical Benefits 
+and legislative instruments compiled by the PBS Publishing Team. 
+benefit_type_code Determines if a benefit is restricted or not and if so the level of 
+authority required for prescribing the benefit. 
+Four levels of restriction categorisation are used for medicines on 
+the PBS. This restriction level is recorded at the prescribing rule 
+(item code) level. 
+ 
+ U - Unrestricted 
+ R - Restricted 
+ A - Authority Required  
+ S - Authority Required: Streamlined 
+ 
+Note: A pbs_code can only have one benefit type and therefore 
+Notes and Cautions will automatically show the same benefit as the 
+restricted benefit.  
+ 
+Data columns authority_method and benefit_type_code fields hold 
+the same information but this is stated differently in each field. For 
+example the authority_method = ‘Unrestricted’ while 
+benefit_type_code = ‘U’ 
+ 
+Restrictions that are required to Comply with Written Authority 
+requirements are shown by the column written_authority_required 
+in the /restrictions endpoint.   
+restriction_indicator Indicates that the linked Text is of type Restriction (as compared to 
+a Note or Caution). 
+Values: Y/N. Y = Restriction type, N = Note or Caution type.  
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+   
+ 
+37   
+OFFICIAL 
+OFFICIAL 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+38   
+OFFICIAL 
+OFFICIAL 
+/items 
+ 
+ 
+Table Name ITEM_T 
+Open API Tag name Item 
+Definition Captures the PBS item (drug) and its basic elements. One row per unique 
+medicinal product, container and brand per schedule. It contains data 
+related to a pharmaceutical benefit which is required to generate the PBS 
+Legislative Instruments. 
+Columns  
+ 
+Column Name Definition 
+li_item_id Unique identifier for each row on the /items endpoint 
+generated using the Item Code and PharmCIS internal IDs 
+(PIG ID, MP, MPP, TPP). 
+drug_name PBS Schedule drug name, defined as Medicinal Product 
+Pack – Name for Ready prepared and Infusible listings. Drug 
+Tariff name for Extemporaneously Prepared listings.  
+li_drug_name Legally determined name of a drug used in legislative 
+instruments - such as National Health (Listing of 
+Pharmaceutical Benefits) Instrument 2024. 
+li_form Legally determined form (and strength) of a drug used in 
+legislative instruments, such as National Health (Listing of 
+Pharmaceutical Benefits) Instrument 2024. 
+schedule_form PBS Schedule form, defined as Medicinal Product Pack -
+form & strength. 
+brand_name Brand or trade name used by the responsible person or 
+supplier of a brand of drug. Also the legally determined 
+Brand name used in legislative instruments, such as National 
+Health (Listing of Pharmaceutical Benefits) Instrument 2024.  
+Brand is defined in s84(1) of the National Health Act 1953 
+as: 
+ a) the trade name under which the person who is or will be 
+the responsible person supplies the pharmaceutical item; or 
+ b) if there is no trade name - the name of the person who is 
+or will be the responsible person. 
+Listed Brand is defined in s84(1) of the National Health Act 
+1953 as: 
+a pharmaceutical item means a brand of the pharmaceutical 
+item in relation to which a determination under 
+subsection 85(6) is in force. 
+PBS Schedule defined as Brand Name or Available Brands. 
+program_code Code used to group together PBS Items that have the same 
+pricing model and follow the same business rules. Required 
+for the PBS website, Schedule of Pharmaceutical Benefits 
+and legislative instruments compiled by the PBS Publishing 
+Team. 
+List of program codes can be found here: 
+https://data.pbs.gov.au/faq/program-codes.html. 
+pbs_code PBS Item Code relates directly to a Prescribing Rule. A 
+drug/form combination will have a different PBS Item Code 
+for each combination of maximum quantity (or maximum 
+amount), number of repeats, pack quantity, restriction level 
+   
+ 
+39   
+OFFICIAL 
+OFFICIAL 
+or if the drug/form combination is listed on different 
+programs. This information is required for the PBS website, 
+Schedule of Pharmaceutical Benefits and legislative 
+instruments compiled by the PBS Publishing Team. 
+benefit_type_code Determines if a benefit is restricted or not and if so the level 
+of authority required for prescribing the benefit. 
+Four levels of restriction categorisation are used for 
+medicines on the PBS. This restriction level is recorded at 
+the prescribing rule (item code) level. 
+ 
+ U - Unrestricted 
+ R - Restricted 
+ A - Authority Required  
+ S - Authority Required: Streamlined 
+ 
+Note: A pbs_code can only have one benefit type and 
+therefore Notes and Cautions will automatically show the 
+same benefit as the restricted benefit.  
+ 
+Data columns authority_method and benefit_type_code 
+fields hold the same information but this is stated differently 
+in each field. For example the authority_method = 
+‘Unrestricted’ while benefit_type_code = ‘U’ 
+ 
+In a future release, data column for authority_method will be 
+split to show which Authorities need to Comply with written 
+Authority requirements.  
+caution_indicator Indicates that Cautions exist to be applied to the Item as part 
+of its Restrictions. 
+Values: Y/N 
+note_indicator Indicates that Notes exist to be applied to the Item as part of 
+its Restrictions. 
+Values: Y/N 
+manner_of_administration Legal instrument terminology that describes the manner in 
+which a listed drug can be administered. Manner of 
+administration is defined in s8 of the National Health (Listing 
+of Pharmaceutical Benefits) Instrument 2024. 
+maximum_prescribable_pack Note: Formally MAXIMUM_QUANTITY. The maximum 
+quantity of a pharmaceutical benefit allowed to be 
+prescribed/dispensed as recommended by the 
+Pharmaceutical Benefits Advisory Committee (PBAC). 
+PBS Schedule defined as Max.Qty Packs. 
+moa_preferred_term Legal instrument terminology that describes the manner in 
+which a listed drug can be administered. Manner of 
+administration is defined in s8 of the National Health (Listing 
+of Pharmaceutical Benefits) Instrument 2024. Related field 
+'moa_preferred_term' contains the same information, but 
+includes the text formatting as shown in the Legal 
+instrument. 
+maximum_quantity_units Maximum to be prescribed to provide a sufficient quantity of 
+a drug for one normal course of therapy. Described in units 
+of the drug that can be dispensed, as distinct from 
+maximum_prescribable_pack. 
+number_of_repeats Number of repeat prescriptions of a pharmaceutical 
+benefit allowed to be prescribed/dispensed as 
+   
+ 
+40   
+OFFICIAL 
+OFFICIAL 
+recommended by the Pharmaceutical Benefits Advisory 
+Committee (PBAC). 
+PBS Schedule defined as No. of Rpts. 
+organisation_id Unique and persistent identifier for the linking an Item to its 
+Manufacturer in the /organisations endpoint. 
+manufacturer_code Unique identifier for an 
+organisation/manufacturer/responsible person of a listed 
+brand. A manufacturer_code cannot be associated with a 
+specific Item code (Prescribing Rule) more than once.  
+PBS Schedule defined as Manufacturer. 
+pack_size Quantity contained in the manufacturer's pack: 
+pack quantity for drugs are listed in Schedule 1 to National 
+Health (Listing of Pharmaceutical Benefits) Instrument 2024.  
+pack size is referenced in Schedule 2 to National Health 
+(Highly Specialised Drugs Program) Special Arrangement 
+2021. 
+PBS Schedule pack size, defined as Medicinal Product Pack 
+- pack size. 
+pricing_quantity Quantity of a drug to be used as the unit of measure for 
+pricing calculations. 
+pack_not_to_be_broken_ind Indicates where payment for supply of certain 
+pharmaceutical benefits will only be made if the benefit is 
+supplied as the complete pack.  
+ Y = The maximum quantity matches (or is a multiple of) the 
+pack size and the full maximum quantity should be supplied 
+without breaking the pack. These listings are marked with a 
+double dagger icon in the schedule. 
+ N = The pack may be broken if necessary in order to 
+dispense the prescribed quantity. 
+claimed_price Price claimed by a responsible person, by reference to a 
+quantity or number of units, to be the price for sales of a 
+brand of a pharmaceutical item to approved pharmacists - as 
+per Section 7 of the National Health (Price and Special 
+Patient Contribution) Determination 2022.   
+The difference between the Dispensed Price calculated 
+based on the Claimed Price and the Dispensed Price 
+calculated based on the Determined Price (AEMP) is known 
+as a brand premium and is paid by the patient. 
+determined_price Determined price means the amount specified in a 
+determination in force under subsection 85B(2). Determined 
+price is defined in s84(1) of the National Health Act 1953. 
+Also known as AEMP 
+determined_qty Where a Prescribing Rule (Item) has a maximum_amount 
+instead of a maximum_quantity_units, the value of this field 
+will be Y. This should only apply to Infusible items, i.e. 
+program_code = IN, IP, TY, TZ. 
+Values: Y/N. Extemporaneous = N 
+Also known as ‘maximum quantity type’  
+safety_net_resupply_rule_days Number of days that must elapse for a repeat supply of a 
+drug to be counted towards a patient’s safety net threshold 
+as per the National Health (Pharmaceutical benefits early 
+supply) Instrument 2015. 
+safety_net_resup_rule_cnt_ind Indicates if pharmaceutical item is subject to the Safety Net 
+Early Supply Rule - safety_net_resupply_rule_days.  
+   
+ 
+41   
+OFFICIAL 
+OFFICIAL 
+Values: Y/N. Extemporaneous = N 
+extemporaneous_indicator Indicates medicines that are extemporaneous ingredients. 
+Values: Y/N 
+extemporaneous_standard Indicates the Pharmaceutical Reference Standards which 
+must be applied when specific drugs are compounded by a 
+pharmacy. 
+doctors_bag_group_id Group ID indicating groups of medicines on the Prescriber 
+Bag schedule where a prescribers can access one of the 
+drugs from a group per month. Refer to Section 7(4) - of 
+National Health (Prescriber Bag Supplies) Determination 
+2024. 
+section100_only_indicator Indicates that a drug is only listed on the section 100 
+program/s. i.e. program_code = IN, IP, TY, TZ. 
+Values: Y/N. program_code = EP will default to N. 
+doctors_bag_only_indicator Indicates that a drug is only listed on the prescriber bag 
+program. i.e. program_code = DB. Section 22 of the National 
+Health (Listing of Pharmaceutical Benefits) Instrument 2024 
+provides codes for Listed drugs and pharmaceutical benefits 
+that can only be supplied under the prescriber bag 
+provisions. 
+Values: Y/N. program_code = EP will default to N. 
+brand_substitution_group_id Unique schedule equivalence group ID that indicates that 
+brands of the same form of a drug, or brands of different 
+forms of the same drug are equivalent for the purposes of 
+substitution by the pharmacist. Null for items that cannot be 
+substituted.  
+brand_substitution_group_code Schedule equivalence code used in the PBS schedule that 
+indicates that brands of the same form of a drug, or brands 
+of different forms of the same drug are equivalent for the 
+purposes of substitution by the pharmacist. 
+ a  -flag  
+ b  -flag if there are two groups of equivalent 
+brands against one item code 
+ 
+supply_only_indicator Indicates supply only status. Products that have a status of 
+Supply Only are available for dispensing, but not for 
+prescribing. Ready-prepared pharmaceutical benefits for 
+supply only drugs are listed in Part 2 to Schedule 1 of 
+National Health (Listing of Pharmaceutical Benefits) 
+Instrument 2024.  
+ 
+supply_only_date Date from which the Supply Only status for the item comes 
+into effect. When the Supply Period is in effect, generally the 
+advanced_notice_date will be blank. 
+non_effective_date Date from which the medicine will cease to be listed on the 
+PBS when given an advanced notice date (see 
+advanced_notice_date), and is not placed into Supply Only – 
+ie the date the item is projected to become non-effective.  
+This field will not be populated when a row is removed 
+(becomes non-effective) from the API without advanced 
+notice. This date only shows the non_effective_date for 
+future schedule dates. If the item is removed from a 
+schedule prior to the previously projected 
+
+   
+ 
+42   
+OFFICIAL 
+OFFICIAL 
+non_effective_date, this field will not update, as the whole 
+row is removed from the API in the schedule where delisting 
+occurs.  
+Key dates for rows marked as Supply Only are reported in 
+supply_only_date and supply_only_end_date. 
+weighted_avg_disclosed_price Price Disclosure price and has not been released before. 
+Will be NULL in future schedules until this field can be 
+removed.  
+originator_brand_indicator Indicates that the brand of pharmaceutical item was 
+determined under S99ADB(6B) of the NHA to be an 
+originator brand for the purposes of Price Disclosure, 
+because the listed drug was in F1 or CDL when the brand 
+was determined. 
+paper_med_chart_eligible_ind Eligibility Indicator for Paper National Residential Medication 
+Charts (NRMC) for use in Residential Aged Care Facilities. 
+Requirements for medication chart prescriptions are 
+determined in s41 of the National Health (Pharmaceutical 
+Benefits) Regulations 2017. 
+elect_med_chart_eligible_ind Eligibility Indicator for Electronic National Residential 
+Medication Charts (eNRMC) for use in Residential Aged 
+Care Facilities. Eligible pharmaceutical benefits are 
+determined by s5 of National Health (Electronic National 
+Residential Medication Chart Trial) Special Arrangement 
+2018. 
+hsptl_med_chart_eligible_ind Eligibility Indicator for Hospital Medication Charts. 
+Requirements specified in National Health (Pharmaceutical 
+Benefits Scheme Hospital Medication Chart Paperless 
+Claiming Trial) Special Arrangement 2017. 
+paper_med_chart_duration Duration/Length of the charting cycle for Paper National 
+Residential Medication Charts (NRMC) for use in Residential 
+Aged Care Facilities. Determined as 1, 4 or 12 months in 
+ss41(2)(f) of National Health (Pharmaceutical Benefits) 
+Regulations 2017. 
+elect_med_chart_duration Duration/Length of the charting cycle for Electronic National 
+Residential Medication Charts (eNRMC) for use in 
+Residential Aged Care Facilities. Determined in ss45(3) of 
+National Health (Pharmaceutical Benefits) Regulations 2017. 
+hsptl_chart_acute_duration Duration/Length of the charting cycle for Hospital Medical 
+Charts for patients with Acute conditions. 
+hsptl_chart_sub_acute_duration Duration/Length of the charting cycle for Hospital Medical 
+Charts for patients with Sub-Acute conditions. 
+hsptl_chart_chronic_duration Duration/Length of the charting cycle for Hospital Medical 
+Charts for patients with Chronic conditions. 
+pack_content The number of total unit_of_measure in the manufacturer's 
+pack (TPP). 
+• Trade Product Pack (TPP) = Branded Clinical Drug 
+Package (BCDP) 
+vial_content The amount of active ingredient in a single MPUU. This is 
+not the same as the form-and-strength of the MPUU. 
+• Medicinal Product Unit of Use (MPUU) = Clinical 
+Drug (CD) 
+infusible_indicator Indicates that the Prescribing Rule uses an infusible 
+(Chemotherapy) program. These are drugs that are 
+administered in an infusible form including drugs 
+administered by bolus injection (rapid delivery of medication 
+   
+ 
+43   
+OFFICIAL 
+OFFICIAL 
+via a syringe into a catheter). i.e. program_code = IN, IP, TY, 
+TZ. 
+unit_of_measure Relevant unit of measure (eg, mg) e.g. 1 mg, 1 i.u. E.g. 
+Milligram, Micrograms, International Units. 
+continued_dispensing_flag Indicates that a drug is available under the Continued 
+Dispensing Measure, National Health (Continued 
+Dispensing) Determination 2022 (legislation.gov.au). Supply 
+of an eligible medicine to a person by an approved 
+pharmacist, where there is an immediate need for the 
+medicine, but the Pharmaceutical Benefits Scheme (PBS) 
+prescriber is unable to be contacted and/or is unable to 
+provide an electronic PBS prescription or owing prescription. 
+Continued Dispensing enables community pharmacists to 
+supply the PBS maximum quantity of an eligible medicine to 
+a person at the usual PBS price, under specific 
+circumstances. The person must have previously been 
+supplied the medicine on the basis of a PBS prescription, 
+and the pharmacist may supply the medicine to the patient 
+under Continued Dispensing arrangements once within a 12-
+month period. 
+ 
+60-day prescription quantity of a pharmaceutical benefit may 
+only be dispensed to a patient under Continued Dispensing 
+arrangements if the previous supply of that benefit was the 
+same 60-day prescription quantity. As per the existing CD 
+provisions, a patient may only obtain a given pharmaceutical 
+benefit without a script once per year, regardless of the 
+quantity supplied under those provisions. 
+continued_dispensing_emergency Indicates that a drug is available under the Continued 
+Dispensing Emergency Measure (CDEM), initially put in 
+place for the 2020 bushfire crisis and later extended to 
+support the COVID-19 pandemic, concluded 30 June 2022. 
+CDEM was in place again in 2023. 
+The National Health (Continued Dispensing - Emergency 
+Measure) Determination (Instrument) can be used to provide 
+temporary access under Continued Dispensing 
+arrangements to a wider range of medicines than those 
+available under ongoing arrangements under the National 
+Health (Continued Dispensing) Determination 2022. The 
+Instrument is primarily intended to support patients where 
+there is an immediate need for the medicine but the PBS 
+prescriber is unable to be contacted and/or is unable to 
+provide an electronic PBS prescription or owing prescription. 
+60-day prescription quantity of a pharmaceutical benefit may 
+only be dispensed to a patient under Continued Dispensing 
+arrangements if the previous supply of that benefit was the 
+same 60-day prescription quantity. As per the existing CD 
+provisions, a patient may only obtain a given pharmaceutical 
+benefit without a script once per year, regardless of the 
+quantity supplied under those provisions. 
+maximum_amount Maximum Amount of Medicinal Product which may be 
+prescribed without obtaining a special or additional authority 
+from Medicare Australia. It is based on the maximum amount 
+in terms of the unit_of_Measure. Defined only for infusible 
+items, i.e. program_code = IN, IP, TY, TZ. 
+   
+ 
+44   
+OFFICIAL 
+OFFICIAL 
+formulary A formulary is an official list giving details of prescribable 
+medicines. 
+Section 85AB of the National Health Act 1953 provides that 
+listed drugs be assigned to formularies identified as F1 or 
+F2.   
+ Generally, F1 is intended for single brand drugs and F2 for 
+drugs that have multiple brands or are in a therapeutic group 
+with other drugs with multiple brands. Drugs on F2 are 
+subject to the provisions of the Act relating to statutory price 
+reductions, price disclosure and guarantee of supply.  
+ F1 or F2 - is determined by the National Health (Listed 
+Drugs on F1 or F2) Determination 2021. 
+CDL - Single brand combination drugs. 
+ F2A and F2T - old terms that no longer exist as of 2011. 
+These were used to facilitate PBS reforms/reductions. So 
+F2A and F2T are now collectively F2. 
+ Null - all items not subject to the provisions of the Act. 
+Program codes Repatriation Pharmaceutical Benefits 
+Scheme (RPBS) (R1) and Extemporaneously Prepared 
+Pharmaceutical Benefits (EP). 
+water_added_ind Indicates that a ready prepared item is mixed with purified 
+water (another listed item) prior to dispensing. 
+section_19a_expiry_date The expiry date of an approval for an item granted under 
+Section 19A of the Therapeutic Goods Act. This indicator 
+relates to approvals of items that are not on the Australian 
+Register of Therapeutic Goods (ARTG) but are required due 
+to a shortage of a registered medicine/item and is needed in 
+the interest of public health. This is a DoHAC managed field 
+and may not always match the actual TGA listed expiry date.  
+container_fee_type Determines the type of Fee to be added to the Item 
+dependent on the Container. Container fee is referenced in: 
+Commonwealth price (Pharmaceutical benefits supplied by 
+approved pharmacists) Determination 2020. 
+policy_applied_imdq60_base_flag Indicates whether the Increased Maximum Dispensing 
+Quantity was introduced for this base Prescribing Rule. 
+ 
+This flag is applied to item codes for a single maximum 
+dispensed quantity (MDQ) used to create an increased MDQ 
+item code (i.e. to allow a 60-day prescription). A new item 
+code was created to double the maximum quantity of this 
+single MDQ item code. 
+ 
+Values: Y/N. Extemporaneous = N 
+policy_applied_imdq60_flag Indicates whether the Increased Maximum Dispensing 
+Quantity for 60-day scripts policy has been applied to this 
+Prescribing Rule.  
+ 
+This flag is applied to item codes that have been added to 
+the PBS schedule with an increased maximum dispensed 
+quantity in order to apply this policy (i.e. to allow a 60-day 
+prescription). 
+ 
+Values: Y/N. Extemporaneous = N 
+ 
+
+   
+ 
+45   
+OFFICIAL 
+OFFICIAL 
+policy_applied_bio_sim_up_flag Indicates whether the Biosimilar Uptake Driver policy has 
+been applied to this Prescribing Rule. 
+Information about biosimilar medicines can be found on the 
+Department of Health and Aged Care website. 
+ 
+This flag is applied to item codes where this policy applies.  
+Values: Y/N. Extemporaneous = N. 
+policy_applied_indig_phar_flag Indicates whether the Aboriginal and Torres Strait Islander 
+People policy has been applied to this Prescribing Rule. 
+Listings on the PBS for Aboriginal and Torres Strait Islander 
+people are available for reference on the PBS Website. 
+Values: Y/N. Extemporaneous = N.   
+therapeutic_exemption_indicator Indicator of either Therapeutic Group Premium (TGP) or 
+Other Special Patient Contribution (OSPC) Exemption 
+applies. Affects values of fields ‘brand_premium’, 
+‘therapeutic_group_premium’, ‘special_patient_contribution’ 
+on endpoint /item-dispensing-rule-relationships. 
+Values: Y/N 
+premium_exemption_group_id Lists the group id that links all Items under the same 
+Premium Exemption Group. Null if there is no group.  
+doctors_bag_group_title The title of the indicating group of medicines on the 
+Prescriber Bag schedule where a prescriber can access one 
+of the drugs from a group per month. See also 
+doctors_bag_group_id. 
+Null if there is no group. 
+therapeutic_group_id Group used to denote medicines of the same type treating 
+the same condition. Medicines in a Therapeutic Group are 
+said to be interchangeable at the patient level. Null if there is 
+no group. 
+therapeutic_group_title Title of the Group used to denote medicines of the same 
+type treating the same condition. Medicines in a Therapeutic 
+Group are said to be interchangeable at the patient level. 
+Refer to Schedule 1 to National Health (Pharmaceutical 
+Benefits - Therapeutic Groups) Determination 2020. 
+Null if there is no group. 
+advanced_notice_date Date on which an Item or row of API data is placed into 
+advanced notice status for future delisting or Supply Only 
+purpose. If the non_effective_date changes this will continue 
+to display the first date Advance Notice appears. Refer to 
+non_effective_date for delisting items, and to 
+supply_only_end_date for the Supply Only items to 
+determine the projected date the item will cease to be a PBS 
+benefit. 
+supply_only_end_date End date of the Supply Only period. The date on which the 
+Supply Only period for the row is projected to end, and the 
+item will become non-effective and no longer a PBS benefit.  
+If the item is removed from a schedule prior to the previously 
+projected supply_only_end_date, this field will not update 
+with the new end date, as the whole row is removed from the 
+API in the schedule in the schedule it is no longer effective.  
+If an item in Supply Only status is relisted as a PBS benefit, 
+this will remain in the API, with the supply_only_indicator 
+updating to a value of N. 
+first_listed_date Date at which a listing (per row) on the PBS became 
+effective. 
+   
+ 
+46   
+OFFICIAL 
+OFFICIAL 
+legal_unar_ind  The listed drug is defined as Unrestricted - No Authority 
+Required (UNAR) in the Highly Specialised Drugs special 
+arrangement. Public hospital prescriptions for UNAR drugs 
+can be dispensed by approved s94 public hospital authorities 
+or by s90 approved pharmacists. 
+legal_car_ind  The listed drug is defined as Complex Authority Required in 
+the Highly Specialised Drugs special arrangement. Public 
+hospital prescriptions for CAR drugs can be dispensed by 
+approved s94 public hospital authorities or by s90 approved 
+pharmacists. 
+proportional_price Proportional price refers to the amount proportional to the 
+item pack size, where the item pack size differs from the 
+Determined Price pack size. 
+li_substitution_group_id Code for Equivalence Group as used for Legal Instrument 
+which indicates that brands of the same form of a drug, or 
+brands of different forms of the same drug are equivalent for 
+the purposes of substitution by the pharmacist.  
+innovator_indicator A flag that denotes medicines that contain an active 
+substance or combination of active substances that has not 
+been authorised before. 
+schedule_code Unique identifier given to each month's Schedule. By having 
+a Schedule Code in each table, 13 months (schedules) worth 
+of data can be maintained in the Data Mart to assist users in 
+the identification of Delisted Items and change-over-time. 
+The date a schedule_code refers to can be found in the 
+/schedules endpoint in effective_date, effective_month, 
+effective_year and start_tsp columns. Please note that there 
+is no requirement for the schedule_code to be sequential or 
+increase. 
+   
+ 
+47   
+OFFICIAL 
+OFFICIAL 
+/markup-bands 
+ 
+ 
+Table Name MARKUP_BAND_T 
+Open API Tag name MarkupBand 
+Definition Contains the details of markups available to manufacturers within a PBS 
+program. 
+A mark-up is the sum of all the additional charges and costs imposed on 
+a product necessary to recover production costs and generate a profit for 
+a product. Varying applicability of mark-ups are described in the Manual 
+of resource items and their associated unit costs , see also 
+Commonwealth price (Pharmaceutical benefits supplied by approved 
+pharmacists) Determination 2020. 
+Columns  
+ 
+Column Name Definition 
+program_code Code used to group together PBS Items that have the same pricing 
+model and follow the same business rules. Required for the PBS 
+website, Schedule of Pharmaceutical Benefits and legislative 
+instruments compiled by the PBS Publishing Team. 
+List of program codes can be found here: 
+https://data.pbs.gov.au/faq/program-codes.html. 
+dispensing_rule_mnem Short descriptive phrase to enable the identification of a group of 
+Dispensing Rules. 
+markup_band_code A markup band defining an amount that is added to the price. 
+ A - no mark-up Public hospital  
+ C - standard three-tier ready-prepared mark-up; the price to 
+pharmacist for maximum quantity determines which tier applies 
+ D – S100 or infusibles  
+ E – PQ program code 
+ W - wholesale markup 
+limit Amount at which the markup band begins to apply. 
+variable Variable component of the markup. This value is a percentage that 
+is applied to the (Price to Pharmacist for Maximum Prescribable - 
+offset). The default value is 0%, i.e. no variable component. 
+offset Amount that is added to the Price to Pharmacist for Maximum 
+Prescribable before calculating the variable component of the 
+markup. The default value is 0.00, i.e. no offset. A negative amount 
+is a reduction offset.  
+fixed Fixed component of the markup. This amount is added to the 
+markup. The default value is 0.00, i.e. no fixed component. 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+48   
+OFFICIAL 
+OFFICIAL 
+/organisations 
+ 
+Table Name ORGANISATION_T 
+Open API Tag name Organisation 
+Definition Organisations who supply pharmaceuticals to the PBS system. Also 
+known as manufacturers, responsible persons, suppliers, wholesalers and 
+companies. Responsible person is defined in s84(1) of the National Health 
+Act 1953. Responsible Persons are listed in Schedule 3 to the National 
+Health (Listing of Pharmaceutical Benefits) Instrument 2024. 
+Columns  
+ 
+Column Name Definition 
+organisation_id Unique and persistent identifier for an 
+organisation/manufacturer/responsible person.  
+name Name of the organisation/manufacturer/responsible person. 
+abn Australian Business Number of the 
+organisation/manufacturer/responsible person. 
+street_address Street address of the organisation/manufacturer/responsible 
+person. 
+city City of the organisation/manufacturer/responsible person. 
+state State of the organisation/manufacturer/responsible person. 
+postcode Postcode of the organisation/manufacturer/responsible person. 
+telephone_number Contact number of organisation/manufacturer/responsible person. 
+facsimile_number Fax number of organisation/manufacturer/responsible person. 
+Currently Null values only.  
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+49   
+OFFICIAL 
+OFFICIAL 
+/parameters 
+ 
+ 
+Table Name PARAMETER_T 
+Open API Tag name Parameter 
+Definition Additional information for Parameter records associated with Criteria. 
+Relationships between the parameters for a given Criteria are defined with 
+OR Qualifiers (see the /criteria-parameter-relationship endpoint). 
+Columns  
+ 
+Column Name Definition 
+assessment_type Defines the level of assessment that applies this parameter to a 
+criteria. 
+Values: 
+ IMMEDIATE 
+ FULL 
+parameter_prescribing_txt_id Unique and persistent identifier for a Parameter. 
+parameter_type Determines the type and sub-type categories of the parameter.  
+Values: 
+ TREATMENT_LOCATION 
+ TREATMENT_CARE_TYPE 
+ TREATMENT_PRESCRIBER 
+ CLINICAL_CONDITION 
+ CLINICAL_TREATMENT 
+ CLINICAL_PATIENT 
+ POPULATION_AGE 
+ POPULATION_SEX 
+ POPULATION_OTHER 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+50   
+OFFICIAL 
+OFFICIAL 
+/prescribers 
+ 
+ 
+Table Name PRESCRIBER_T 
+Open API Tag name Prescriber 
+Definition Lists the prescribers that apply to an item. A PBS item may have several 
+prescribers. 
+Columns  
+ 
+Column Name Definition 
+pbs_code PBS Item Code relates directly to a Prescribing Rule. A drug/form 
+combination will have a different PBS Item Code for each 
+combination of maximum quantity (or maximum amount), number of 
+repeats, pack quantity, restriction level or if the drug/form 
+combination is listed on different programs. This information is 
+required for the PBS website, Schedule of Pharmaceutical Benefits 
+and legislative instruments compiled by the PBS Publishing Team. 
+prescriber_code Single character code that identifies the type of prescriber who can 
+prescribe pharmaceutical benefits where indicated in the PBS 
+Schedule. Displays as a 2 letter code on the PBS schedule and in 
+Schedule 1 to the National Health (Listing of Pharmaceutical 
+Benefits) Instrument 2024; and Schedule 1 to the National Health 
+(Prescriber Bag Supplies) Determination 2024.  
+ 
+ M - authorised medical practitioner 
+ N - authorised nurse practitioner 
+ W - authorised midwife 
+ O - authorised optometrist 
+ D - authorised dental practitioner 
+prescriber_type Textual description of the type of Prescriber. 
+Values are: 
+ Dental   
+ Medical Practitioners   
+ Midwives     
+ Optometrist     
+ Nurse Practitioners    
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+
+   
+ 
+51   
+OFFICIAL 
+OFFICIAL 
+/prescribing-texts 
+ 
+Table Name PRESCRIBING_TXT_T 
+Open API Tag name PrescribingTxt 
+Definition Restrictions are also known as prescribing texts. Prescribing texts are divided into 
+two categories – informational (such as notes and cautions) and legal, and include 
+the following components: 
+ 
+Category - Informational 
+Component: 
+ foreword 
+ administrative advice (notes) 
+ caution 
+ 
+ 
+Category: Legal 
+ 
+Components: 
+ definition 
+ prescriber instruction 
+ indication 
+ treatment phase 
+ criteria 
+ parameter 
+Columns  
+ 
+Column Name Definition 
+prescribing_txt_id Unique and persistent identifier for the Indication, Treatment Phase, 
+Criterion, Prescribing Instruction, Caution or Note that is included in 
+the restriction. 
+prescribing_type Text description of the type of restriction element.  
+Values are: 
+ LEGACY_SCHEDULE_TEXT 
+ LEGACY_LI_TEXT 
+ CRITERIA 
+ INDICATION 
+ ADMINISTRATIVE_ADVICE 
+ CAUTION 
+ FORWORD 
+ PARAMETER 
+ PRESCRIBING_INSTRUCTIONS 
+prescribing_txt Restrictions are also broadly described as prescribing texts. The 
+term prescribing texts encompasses informational text such as 
+notes and cautions. This field includes the text information of the 
+restriction element.  
+prscrbg_txt_html Restrictions are also broadly described as prescribing texts. The 
+term prescribing texts encompasses informational text such as 
+notes and cautions. This field presents the prescribing text in basic 
+HTML format (XML format). This is not true HTML full formatting. A 
+future update will represent this information in a more usable way.  
+complex_authority_rqrd_ind This indicates whether an item (prescribing rule) to which this 
+element applies meets the legal definition for the HSD100 - 
+Complex Authority Required Items, identified as CAR in the 
+   
+ 
+52   
+OFFICIAL 
+OFFICIAL 
+legislation.  
+Values: Y - Is Complex, N - Not Complex 
+assessment_type_code One of two criteria used to determine the level of authority required 
+from Services Australia for a prescriber to prescribe an authority 
+required medicine. 
+ IMMEDIATE - the authority can be assessed by prescriber 
+answering YES/NO questions i.e. set criteria. 
+ FULL - the authority needs to be assessed by a someone at 
+Services Australia. This usually requires evidence to be submitted 
+to Services Australia in written form. 
+ NULL - No Value 
+apply_to_increase_mq_flag Indicates that the prescribing_txt contains instructions applicable to 
+the increase of the Maximum Quantity for the prescribing of an 
+Item. Refer to prescribing_txt text information for the specific 
+instructions that apply.  
+Values: Y/N 
+apply_to_increase_nr_flag Indicates that the prescribing_txt contains instructions applicable to 
+the increase of the Number of Repeats for the prescribing of an 
+Item. Refer to prescribing_txt text information for the specific 
+instructions that apply. 
+Values: Y/N 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+53   
+OFFICIAL 
+OFFICIAL 
+/program-dispensing-rules 
+ 
+Table Name PROGRAM_DISPENSING_RULE_T 
+Open API Tag name ProgramDispensingRules 
+Definition Captures the dispensing rules that relate to each individual program. 
+The dispensing rule describes the fees and charges that apply to a 
+Prescribing Rule, depending on the program that Prescribing Rule is 
+listed under, and the setting in which the script for that Prescribing rule 
+is applied.  
+Columns  
+ 
+Column Name Definition 
+program_code Code used to group together PBS Items that have the same pricing 
+model and follow the same business rules. Required for the PBS 
+website, Schedule of Pharmaceutical Benefits and legislative 
+instruments compiled by the PBS Publishing Team. 
+List of program codes can be found here: 
+https://data.pbs.gov.au/faq/program-codes.html. 
+dispensing_rule_mnem Short descriptive phrase to enable the identification of a group of 
+Dispensing Rules. 
+default_indicator Indicates that this is the default dispensing rule for the program. 
+Values = Y/N. 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+54   
+OFFICIAL 
+OFFICIAL 
+/programs 
+ 
+Table Name PROGRAM_T 
+Open API Tag name Program 
+Definition A program represents a subsection of the PBS, related to what setting, 
+and how it is administered. Fees and dispensing rules apply differently to 
+each program. Each Prescribing Rule (item code) can be in only one 
+program.  
+Columns  
+ 
+Column Name Definition 
+program_code Code used to group together PBS Items that have the same pricing 
+model and follow the same business rules. Required for the PBS 
+website, Schedule of Pharmaceutical Benefits and legislative 
+instruments compiled by the PBS Publishing Team. 
+List of program codes can be found here: 
+https://data.pbs.gov.au/faq/program-codes.html 
+program_title Title of program specified by the abbreviation in program_code 
+field.  
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+55   
+OFFICIAL 
+OFFICIAL 
+/restriction-prescribing-text-relationships 
+ 
+ 
+Table Name RSTRCTN_PRSCRBNG_TXT_RLTD_T 
+Open API Tag name RstrctnPrscrbngTxtRltd 
+Definition Represents the relationship between Restrictions and Prescribing Text 
+elements. A Restriction is made from one or many Prescribing Texts - this 
+endpoint shows the connections and order of display for the Prescribing 
+Texts within a Restriction. Prescribing texts are divided into two categories 
+- informational (such as notes and cautions) and legal, and both can be 
+assigned to a restriction code. Specific information on a given Prescribing 
+text can be seen on the /prescribing-texts endpoint.  
+Columns  
+ 
+Column Name Definition 
+res_code Unique and persistent identifier for the Restriction (suffix R), or any 
+Caution (suffix C) or Note (suffix N) associated with a Prescribing 
+Rule (Item) that is not otherwise included in the restriction. 
+prescribing_text_id Unique and persistent identifier for the Indication, Treatment Phase, 
+Criterion, Prescribing Instruction, Caution or Note that is included in 
+the restriction.  
+pt_position Captures the ascending sequence/order number with the one-to-
+many prescribing texts which appear in a restriction. 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+ 
+ 
+ 
+  
+  
+   
+ 
+56   
+OFFICIAL 
+OFFICIAL 
+/restrictions 
+ 
+Table Name RESTRICTION_TEXT_T 
+Open API Tag name RestrictionText 
+Definition Text for restrictions, notes and cautions required in the legislative 
+instruments and the schedule. 
+Columns  
+ 
+Column Name Definition 
+res_code Unique and persistent identifier for the Restriction (suffix R), or any 
+Caution (suffix C) or Note (suffix N) associated with a Prescribing 
+Rule (Item) that is not otherwise included in the restriction. 
+treatment_phase Textual description of how the treatment phase should be handled 
+as part of the Restriction. 
+Null when there is no specified treatment phase. 
+authority_method Determines if a benefit is restricted or not and if so the level of 
+authority required for prescribing the benefit. 
+Four levels of restriction categorisation are used for medicines on 
+the PBS. This restriction level is recorded at the prescribing rule 
+(item code) level. 
+ R - Restricted 
+ A - Authority Required  
+ S - Authority Required: Streamlined 
+Data columns authority_method and benefit_type_code fields hold 
+the same information in other endpoints.  
+In a future release, data column for authority_method will be split to 
+show which Authorities need to Comply with written Authority 
+requirements. 
+treatment_of_code Treatment of Code (ToC) maps directly to the legal instrument text 
+of a restriction, i.e. all restriction text except notes and cautions. For 
+Streamlined Authority listings, the ToC also represents the 
+Streamline Code. The restriction number will change when any of 
+the restriction elements change. A change to a treatment_of_code 
+number will also trigger a change to the restriction_number. A 
+change to a Note or Caution will change a restriction_number, but 
+will not change a treatment_of_code. 
+restriction_number A Restriction Number maps to all the restriction text, including notes 
+and cautions for a given restriction. The restriction number will 
+change when any of the restriction elements change. A change to a 
+treatment_of_code number will also trigger a change to the 
+restriction_number. A change to a Note or Caution will change a 
+restriction_number, but will not change a treatment_of_code. 
+li_html_text Legal Restriction Text or Prescribing Text for the given Restriction, 
+does not include Notes and Cautions. This is not true HTML full 
+formatting. A future update will represent this information in a more 
+usable way. This field is Null for Notes and Cautions as they are not 
+legal. 
+schedule_html_text Schedule Restriction Text including all legal elements and Notes 
+and Cautions. This is not true HTML full formatting. A future update 
+will represent this information in a more usable way. 
+Known issue - does not display information as per schedule. Fix 
+coming soon.  
+note_indicator Indicates that the restriction text relates to a Note. Relates to N 
+suffix in res_code.  
+   
+ 
+57   
+OFFICIAL 
+OFFICIAL 
+caution_indicator Indicates that the restriction text relates to a Caution. Relates to C 
+suffix in res_code. 
+complex_authority_rqrd_ind This indicates whether an item (prescribing rule) to which this 
+element applies meets the legal definition for the HSD100 - 
+Complex Authority Required Items, identified as CAR in the 
+legislation.  
+Values: Y - Is Complex, N - Not Complex 
+assessment_type_code One of two criteria used to determine the level of authority required 
+from Services Australia for a prescriber to prescribe an authority 
+required medicine. 
+ IMMEDIATE - the authority can be assessed by prescriber 
+answering YES/NO questions i.e. set criteria. 
+ FULL - the authority needs to be assessed by a someone at 
+Services Australia. This usually requires evidence to be submitted 
+to Services Australia in written form. This equates to NHL s4 
+Comply with written Authority. 
+ NULL - No Value. 
+criteria_relationship Defines the type of relationship between criteria associated with the 
+restriction text. Currently only has values of ALL or NULL.  
+For a value of All, all Criteria must be satisfied to be eligible for the 
+PBS benefit for the item.  
+variation_rule_applied Indicates that the Restriction has a Variation Rule applied to it. A 
+Variation Rule is a restriction element which is applicable to the 
+authorisation of increased quantities and/or repeats. 
+ 
+first_listing_date The first date at which the restriction became effective on the PBS. 
+written_authority_required Determines if the Authority need to Comply with written Authority 
+requirements. Written Authority Required means the authority 
+application cannot be made by telephone - must be made in writing 
+either via HPOS or by post. Written Authority restrictions are 
+marked as "Compliance with Written Authority Required 
+Procedures" in the listing instrument. 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+58   
+OFFICIAL 
+OFFICIAL 
+/schedules 
+ 
+Table Name SCHEDULE_T 
+Open API Tag name Schedule 
+Definition This endpoint lists all values for the schedule_code available in the 
+Datamart, as used by all other endpoints to distinguish sets of changes. 
+Each row relates to set of PBS data that encompasses the PBS data for 
+the Effective date. Each effective date can have one or more revisions. 
+Thirteen (13) months’ worth of schedules, including the most recent, will 
+be available in the Datamart. 
+Columns  
+ 
+Column Name Definition 
+revision_number Number denoting the sequence of published revisions to the 
+schedule for a given effective_date. Only the final version will be 
+visible for past published schedules.  
+start_tsp Starting timestamp for this Schedule. 
+Example: 2023-10-01T00:00:00.000+10:00 
+effective_date Specific date for which the data mart is valid.  
+Example: 1/10/2023 
+effective_month Specific month for which the data mart is valid in text. 
+Example: OCTOBER 
+effective_year Specific year for which the data mart is valid.  
+Example: 2023 
+publication_status Assigned status of this Schedule indicating the step in the 
+publication process. 
+Values: 
+ Embargo 
+ Published 
+ Embargo (Superseded) 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+59   
+OFFICIAL 
+OFFICIAL 
+/standard-formula-preparations 
+ 
+Table Name STANDARD_FORMULA_PREPARATION_T 
+Open API Tag name StandardFormulaPreparations 
+Definition List of standard formula preparations with agreed prices which can be 
+prepared extemporaneously by a compounding pharmacist. A standard 
+formula preparation is defined in s3 of the National Health 
+(Commonwealth Price - Pharmaceutical Benefits Supplied By Public 
+Hospitals) Determination 2017. 
+Columns  
+ 
+Column Name Definition 
+pbs_code PBS Item Code relates directly to a Prescribing Rule. A drug/form 
+combination will have a different PBS Item Code for each 
+combination of maximum quantity (or maximum amount), number of 
+repeats, pack quantity, restriction level or if the drug/form 
+combination is listed on different programs. This information is 
+required for the PBS website, Schedule of Pharmaceutical Benefits 
+and legislative instruments compiled by the PBS Publishing Team. 
+sfp_drug_name Name given to a standard formula preparation drug using Australian 
+Medicine Terminology (AMT) naming conventions. Displayed on 
+PBS websites, the Schedule of Pharmaceutical Benefits and the 
+legislative instruments compiled by the PBS Publishing Team. 
+Standard formula preparations are listed in Schedule 5 of National 
+Health (Commonwealth Price and Conditions for Commonwealth 
+Payments for Supply of Pharmaceutical Benefits) Determination 
+2019. 
+sfp_reference Indicates the Pharmaceutical Reference Standards which must be 
+applied when specific drugs are compounded by a pharmacy. 
+Standards are referenced in Schedule 5 of the National Health 
+(Commonwealth Price and Conditions for Commonwealth Payments 
+for Supply of Pharmaceutical Benefits) Determination 2019.  
+container_fee Container Fee is paid to the dispenser. It is added to the item price 
+for the container used for the extemporaneously prepared item. 
+dispensing_fee_max_quantity Fee for the Maximum quantity of a PBS Extemporaneously 
+Prepared item.  
+safety_net_price Maximum value that an Item (Prescribing Rule) can have recorded 
+against the PBS Safety Net. 
+max_general_patient_charge Maximum total of all fees and costs that a patient can be charged 
+for an Item (Prescribing Rule). 
+maximum_quantity_unit Unit of Measure applicable to the pharmaceutical benefit. 
+maximum_quantity Maximum quantity of a pharmaceutical benefit allowed to be 
+prescribed/dispensed as recommended by the Pharmaceutical 
+Benefits Advisory Committee (PBAC). 
+schedule_code Unique identifier given to each month's Schedule. By having a 
+Schedule Code in each table, 13 months (schedules) worth of data 
+can be maintained in the Data Mart to assist users in the 
+identification of Delisted Items and change-over-time. The date a 
+schedule_code refers to can be found in the /schedules endpoint in 
+effective_date, effective_month, effective_year and start_tsp 
+columns. Please note that there is no requirement for the 
+schedule_code to be sequential or increase. 
+   
+ 
+60   
+OFFICIAL 
+OFFICIAL 
+/summary-of-changes 
+ 
+Table Name SUMMARY_OF_CHANGES_T 
+Open API Tag name SummaryOfChanges 
+Definition Represents the PBS schedule differences between the specific Datamart 
+schedules (see /schedules). Changes are reported as a new line for 
+differences per table/row/schedule.   
+Columns  
+ 
+Column Name Definition 
+source_schedule_code The schedule_code of the source record.  i.e. the schedule 
+that is base for the comparison. 
+target_effective_date The specific date for which the target record is valid - the 
+effective date of the schedule_code requested for reporting 
+the /summary-of-changes where the change will become 
+effective in PBS data.  
+source_effective_date The specific date for which the source record is valid - the 
+effective date of the source_schedule_code which is used for 
+the comparison for the field.  
+target_publication_status The publication status of the target record. 
+source_publication_status The publication status of the source record. 
+target_revision_number Target revision number for the compared schedule 
+information 
+source_revision_number Source revision number for the compared schedule 
+information 
+changed_table Indicates which table the change relates to. 
+changed_endpoint Indicates which endpoint the change relates to. 
+change_type Determines whether the change to the row between the 
+Schedule and the previous Schedule was an UPDATE, 
+INSERT or DELETE. 
+sql_statement The SQL Statement is code that could be run against a copy 
+of last month's schedule to update it to this month. Note this 
+assumes a one-for-one copy of last month's Schedule was 
+made into the underlying tables against the new Schedule 
+Code. 
+table_keys The internal keys associated with the data change. 
+change_detail Holds the full data set for a table record with updates applied 
+as part of the Schedule release - Data for the target 
+schedule_code. 
+previous_detail Holds the original data for a table record prior to any updates 
+applied as part of the Schedule release - Data for the 
+source_schedule_code 
+deleted_ind If Y then this indicates that this particular change was a row 
+that existed last schedule but as of this schedule_code and 
+effective_date no longer exists. 
+new_ind If Y then this indicates that this particular change was a row 
+that exists in this schedule_code and effective_date couldn't 
+be found in the previous schedule. 
+modified_ind If Y then this indicates that this particular change was a row 
+that existed in both last schedule and this schedule_code and 
+   
+ 
+61   
+OFFICIAL 
+OFFICIAL 
+effective_date however one or more of the column values 
+have changed. 
+schedule_code Unique identifier given to each month's Schedule. By having 
+a Schedule Code in each table, 13 months (schedules) worth 
+of data can be maintained in the Data Mart to assist users in 
+the identification of Delisted Items and change-over-time. The 
+date a schedule_code refers to can be found in the 
+/schedules endpoint in effective_date, effective_month, 
+effective_year and start_tsp columns. Please note that there 
+is no requirement for the schedule_code to be sequential or 
+increase. 
+ 

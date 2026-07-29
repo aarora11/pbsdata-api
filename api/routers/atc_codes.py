@@ -5,6 +5,7 @@ from api.middleware.tier import require_tier, tier_label
 from api.routers.shared import _rl
 from api.database import get_db
 from typing import Optional
+from ingest.reference import benefit_type_label
 
 router = APIRouter(tags=["atc-codes"])
 
@@ -288,7 +289,6 @@ async def get_atc_code_items(
     def _f(v):
         return float(v) if v is not None else None
 
-    benefit_labels = {"U": "Unrestricted", "R": "Restricted", "A": "Authority Required", "S": "Streamlined Authority"}
     data = []
     for r in rows:
         bc = r["benefit_type"] or "U"
@@ -300,7 +300,7 @@ async def get_atc_code_items(
             "strength": r["strength"],
             "pack_size": r["pack_size"],
             "benefit_type_code": bc,
-            "benefit_type_label": benefit_labels.get(bc, bc),
+            "benefit_type_label": benefit_type_label(bc),
             "formulary": r["formulary"],
             "program_code": r["program_code"],
             "matched_atc_code": r["matched_atc_code"],
