@@ -65,7 +65,7 @@ def pbs_code_from_li_item_id(li_item_id) -> str:
 # The overview feed publishes these under different names than the columns they
 # populate. Kept as named helpers so the mapping is stated once and testable.
 
-def _overview_caution(overviews: dict, pbs_code: str) -> Optional[str]:
+def _overview_caution(overviews: dict, li_item_id: str) -> Optional[str]:
     """`caution` has no text counterpart in /item-overview.
 
     The feed carries only `caution_indicator` ('Y'/'N', 100% populated), but the
@@ -76,15 +76,15 @@ def _overview_caution(overviews: dict, pbs_code: str) -> Optional[str]:
     return None
 
 
-def _overview_sponsor(overviews: dict, pbs_code: str) -> Optional[str]:
-    """`sponsor` <- manufacturer.name, a nested object in the overview row."""
-    manufacturer = overviews.get(pbs_code, {}).get("manufacturer")
+def _overview_sponsor(overviews: dict, li_item_id: str) -> Optional[str]:
+    """`sponsor` <- manufacturer.name, a nested object on the brand's overview row."""
+    manufacturer = overviews.get(li_item_id, {}).get("manufacturer")
     if isinstance(manufacturer, dict):
         return manufacturer.get("name") or None
     return None
 
 
-def _overview_artg_id(overviews: dict, pbs_code: str) -> Optional[str]:
+def _overview_artg_id(overviews: dict, li_item_id: str) -> Optional[str]:
     """`artg_id` has no counterpart in /item-overview — TGA, not PBS.
 
     Kept as an explicit no-op so the absence is visible rather than looking like
@@ -152,12 +152,17 @@ def normalise_schedule(
 
     # ── Build lookup maps ─────────────────────────────────────────────────────
 
-    # Item overviews: {pbs_code: overview_data}
+    # Item overviews: {li_item_id: overview_data}.
+    #
+    # Keyed on li_item_id, not pbs_code: /item-overview is brand grain and the
+    # nested manufacturer differs per brand. Keying on pbs_code meant the last
+    # brand's row won and every brand of that code inherited its sponsor — e.g.
+    # "Sunitinib Sandoz" was attributed to Pfizer. Wrong attribution, not a gap.
     item_overviews_map: dict[str, dict] = {}
     for ov in (raw_item_overviews or []):
-        pbs = ov.get("pbs_code", "")
-        if pbs:
-            item_overviews_map[pbs] = ov
+        key = ov.get("li_item_id") or ""
+        if key:
+            item_overviews_map[key] = ov
 
     # Pricing: {li_item_id: {pricing fields}}
     pricing_map: dict[str, dict] = {}
@@ -338,10 +343,10 @@ def normalise_schedule(
             # artg_id has no counterpart in this feed at all (it is a TGA
             # identifier); biosimilar is left to the raw item until a domain
             # reviewer confirms the source field — see docs/FIX_PLAN.md Phase 4.
-            "artg_id": _overview_artg_id(item_overviews_map, pbs_code) or raw.get("artg_id"),
-            "sponsor": _overview_sponsor(item_overviews_map, pbs_code) or raw.get("sponsor"),
-            "caution": _overview_caution(item_overviews_map, pbs_code) or raw.get("caution"),
-            "biosimilar": bool(item_overviews_map.get(pbs_code, {}).get("biosimilar") or raw.get("biosimilar", False)),
+            "artg_id": _overview_artg_id(item_overviews_map, li_item_id) or raw.get("artg_id"),
+            "sponsor": _overview_sponsor(item_overviews_map, li_item_id) or raw.get("sponsor"),
+            "caution": _overview_caution(item_overviews_map, li_item_id) or raw.get("caution"),
+            "biosimilar": bool(item_overviews_map.get(li_item_id, {}).get("biosimilar") or raw.get("biosimilar", False)),
             "restrictions": item_restrictions,
         }
         normalised_items.append(item)

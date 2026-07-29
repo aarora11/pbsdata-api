@@ -22,7 +22,8 @@
     "dangerous_drug": false,
     "atc_code": "A10BA02",
     "therapeutic_group": "Digestive system",
-    "therapeutic_subgroup": "Drugs used in diabetes"
+    "therapeutic_subgroup": "Drugs used in diabetes",
+    "li_item_id": "2622M_1001_2001_3001_4001"
   },
   {
     "pbs_code": "2623N",
@@ -47,7 +48,8 @@
     "dangerous_drug": false,
     "atc_code": "A10BA02",
     "therapeutic_group": "Digestive system",
-    "therapeutic_subgroup": "Drugs used in diabetes"
+    "therapeutic_subgroup": "Drugs used in diabetes",
+    "li_item_id": "2623N_1002_2002_3002_4002"
   },
   {
     "pbs_code": "8591B",
@@ -72,7 +74,8 @@
     "dangerous_drug": false,
     "atc_code": "C10AA05",
     "therapeutic_group": "Cardiovascular system",
-    "therapeutic_subgroup": "Lipid modifying agents"
+    "therapeutic_subgroup": "Lipid modifying agents",
+    "li_item_id": "8591B_1003_2003_3003_4003"
   },
   {
     "pbs_code": "1234A",
@@ -97,7 +100,8 @@
     "dangerous_drug": false,
     "atc_code": "L04AB04",
     "therapeutic_group": "Antineoplastic and immunomodulating agents",
-    "therapeutic_subgroup": "Immunosuppressants"
+    "therapeutic_subgroup": "Immunosuppressants",
+    "li_item_id": "1234A_1004_2004_3004_4004"
   },
   {
     "pbs_code": "5678B",
@@ -122,7 +126,8 @@
     "dangerous_drug": true,
     "atc_code": "N05AH02",
     "therapeutic_group": "Nervous system",
-    "therapeutic_subgroup": "Antipsychotics"
+    "therapeutic_subgroup": "Antipsychotics",
+    "li_item_id": "5678B_1005_2005_3005_4005"
   },
   {
     "pbs_code": "9999Z",
@@ -147,7 +152,8 @@
     "dangerous_drug": false,
     "atc_code": "R06AE07",
     "therapeutic_group": "Respiratory system",
-    "therapeutic_subgroup": "Antihistamines for systemic use"
+    "therapeutic_subgroup": "Antihistamines for systemic use",
+    "li_item_id": "9999Z_1006_2006_3006_4006"
   },
   {
     "pbs_code": "1111A",
@@ -172,7 +178,8 @@
     "dangerous_drug": false,
     "atc_code": "A02BC01",
     "therapeutic_group": "Digestive system",
-    "therapeutic_subgroup": "Drugs for acid related disorders"
+    "therapeutic_subgroup": "Drugs for acid related disorders",
+    "li_item_id": "1111A_1007_2007_3007_4007"
   },
   {
     "pbs_code": "3344C",
@@ -197,7 +204,8 @@
     "dangerous_drug": false,
     "atc_code": "C08CA01",
     "therapeutic_group": "Cardiovascular system",
-    "therapeutic_subgroup": "Calcium channel blockers"
+    "therapeutic_subgroup": "Calcium channel blockers",
+    "li_item_id": "3344C_1008_2008_3008_4008"
   },
   {
     "pbs_code": "4455D",
@@ -222,7 +230,8 @@
     "dangerous_drug": false,
     "atc_code": "C09AA05",
     "therapeutic_group": "Cardiovascular system",
-    "therapeutic_subgroup": "ACE inhibitors"
+    "therapeutic_subgroup": "ACE inhibitors",
+    "li_item_id": "4455D_1009_2009_3009_4009"
   },
   {
     "pbs_code": "5566E",
@@ -247,7 +256,8 @@
     "dangerous_drug": false,
     "atc_code": "R03AC02",
     "therapeutic_group": "Respiratory system",
-    "therapeutic_subgroup": "Adrenergics for systemic use"
+    "therapeutic_subgroup": "Adrenergics for systemic use",
+    "li_item_id": "5566E_1010_2010_3010_4010"
   },
   {
     "pbs_code": "6677F",
@@ -272,7 +282,8 @@
     "dangerous_drug": false,
     "atc_code": "N06AB06",
     "therapeutic_group": "Nervous system",
-    "therapeutic_subgroup": "Antidepressants"
+    "therapeutic_subgroup": "Antidepressants",
+    "li_item_id": "6677F_1011_2011_3011_4011"
   },
   {
     "pbs_code": "7788G",
@@ -297,7 +308,8 @@
     "dangerous_drug": false,
     "atc_code": "H03AA01",
     "therapeutic_group": "Systemic hormonal preparations",
-    "therapeutic_subgroup": "Thyroid therapy"
+    "therapeutic_subgroup": "Thyroid therapy",
+    "li_item_id": "7788G_1012_2012_3012_4012"
   },
   {
     "pbs_code": "8899H",
@@ -322,7 +334,8 @@
     "dangerous_drug": false,
     "atc_code": "C07AB02",
     "therapeutic_group": "Cardiovascular system",
-    "therapeutic_subgroup": "Beta blocking agents"
+    "therapeutic_subgroup": "Beta blocking agents",
+    "li_item_id": "8899H_1013_2013_3013_4013"
   },
   {
     "pbs_code": "9910J",
@@ -347,7 +360,8 @@
     "dangerous_drug": false,
     "atc_code": "A02BC02",
     "therapeutic_group": "Digestive system",
-    "therapeutic_subgroup": "Drugs for acid related disorders"
+    "therapeutic_subgroup": "Drugs for acid related disorders",
+    "li_item_id": "9910J_1014_2014_3014_4014"
   },
   {
     "pbs_code": "1021K",
@@ -372,7 +386,8 @@
     "dangerous_drug": false,
     "atc_code": "C09CA04",
     "therapeutic_group": "Cardiovascular system",
-    "therapeutic_subgroup": "Angiotensin II antagonists"
+    "therapeutic_subgroup": "Angiotensin II antagonists",
+    "li_item_id": "1021K_1015_2015_3015_4015"
   },
   {
     "pbs_code": "2032L",
@@ -397,7 +412,8 @@
     "dangerous_drug": false,
     "atc_code": "C10AA07",
     "therapeutic_group": "Cardiovascular system",
-    "therapeutic_subgroup": "Lipid modifying agents"
+    "therapeutic_subgroup": "Lipid modifying agents",
+    "li_item_id": "2032L_1016_2016_3016_4016"
   },
   {
     "pbs_code": "3043M",
@@ -422,7 +438,8 @@
     "dangerous_drug": false,
     "atc_code": "A02BC05",
     "therapeutic_group": "Digestive system",
-    "therapeutic_subgroup": "Drugs for acid related disorders"
+    "therapeutic_subgroup": "Drugs for acid related disorders",
+    "li_item_id": "3043M_1017_2017_3017_4017"
   },
   {
     "pbs_code": "4054N",
@@ -447,7 +464,8 @@
     "dangerous_drug": false,
     "atc_code": "R03BA05",
     "therapeutic_group": "Respiratory system",
-    "therapeutic_subgroup": "Drugs for obstructive airway diseases"
+    "therapeutic_subgroup": "Drugs for obstructive airway diseases",
+    "li_item_id": "4054N_1018_2018_3018_4018"
   },
   {
     "pbs_code": "5065P",
@@ -472,7 +490,8 @@
     "dangerous_drug": false,
     "atc_code": "A10BH01",
     "therapeutic_group": "Digestive system",
-    "therapeutic_subgroup": "Drugs used in diabetes"
+    "therapeutic_subgroup": "Drugs used in diabetes",
+    "li_item_id": "5065P_1019_2019_3019_4019"
   },
   {
     "pbs_code": "6076Q",
@@ -497,6 +516,7 @@
     "dangerous_drug": false,
     "atc_code": "N03AX16",
     "therapeutic_group": "Nervous system",
-    "therapeutic_subgroup": "Antiepileptics"
+    "therapeutic_subgroup": "Antiepileptics",
+    "li_item_id": "6076Q_1020_2020_3020_4020"
   }
 ]
