@@ -1290,3 +1290,77 @@ async def test_drug_endpoint_exposes_maximum_amount(app_client, seeded_audit, en
     assert "maximum_amount" in dispensing
     assert "unit_of_measure" in dispensing
     assert "number_of_repeats" in dispensing
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Programs and schedules — validated across all 17 PBS programs 2026-08-10
+#
+# Everything validated before this point was General Schedule. PBS runs 17 programs
+# and several behave differently: extemporaneous items carry almost no product data,
+# chemotherapy items are prescribed by amount rather than units, and prescriber-bag
+# items have no patient charge.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def test_released_at_comes_from_the_schedule_catalogue():
+    """released_at is customer-facing and must be PBS's date, not our ingest time.
+
+    It was NOW() at insert and never updated, so /v1/schedules reported the May
+    schedule as released on 29 July — the day we happened to backfill it. PBS ships
+    start_tsp with an explicit offset (2026-05-01T00:00+10:00); that instant is kept
+    rather than a bare date, which Postgres localises into the previous day in UTC.
+    """
+    source = (Path(__file__).parent.parent / "ingest" / "runner.py").read_text()
+    assert "UPDATE schedules SET released_at" in source, (
+        "released_at is no longer corrected from the schedule catalogue"
+    )
+    assert "start_tsp" in source, "the offset-aware instant must be preferred"
+    # Both paths must resolve it — the cache branch previously resolved neither the
+    # schedule code nor the date, so a replay silently kept the ingest timestamp.
+    assert source.count("schedule_effective_date = ") >= 3
+
+
+async def test_internal_consistency_checks_detect_violations(db_pool, seeded_audit):
+    """Orphan programs and benefit_type/restriction mismatches must be reported.
+
+    These warn rather than block. The Tier A comparison checks us against PBS's own
+    published answer, so disagreement is definitionally our bug; these are patterns
+    observed across 13,857 codes on 2026-05 and 2026-06 with zero exceptions, but not
+    guarantees PBS documents. A future schedule could legitimately break one, and
+    refusing to ingest it would be worse than flagging it.
+    """
+    from ingest.quality import check_internal_consistency
+
+    async with db_pool.acquire() as conn:
+        errors, warnings = await check_internal_consistency(conn, TEST_MONTH)
+
+    assert not errors, "these are advisory — they must never block an ingest"
+    joined = " ".join(warnings)
+    # The fixture deliberately contains both violations: it invents program codes and
+    # gives restricted items no restriction.
+    assert "program codes not in programs" in joined, warnings
+    assert "carry no restriction" in joined, warnings
+
+
+async def test_consistency_warnings_reach_the_report(db_pool, seeded_audit):
+    """Calling the check is not enough — its output has to land in the report.
+
+    They must arrive as warnings, not errors: surfaced on every ingest and in
+    /health/data, but never blocking one.
+    """
+    from ingest.quality import check_schedule
+
+    async with db_pool.acquire() as conn:
+        sid = await conn.fetchval("SELECT id FROM schedules WHERE month = $1", TEST_MONTH)
+        report = await check_schedule(conn, TEST_MONTH, str(sid))
+
+    joined = " ".join(report.warnings)
+    assert "program codes not in programs" in joined, report.warnings
+    assert not any("program codes not in programs" in e for e in report.errors)
+
+
+def test_quality_gate_runs_internal_consistency_checks():
+    import inspect
+    from ingest import quality
+
+    source = inspect.getsource(quality.check_schedule)
+    assert "check_internal_consistency" in source

@@ -3,7 +3,7 @@ import asyncio
 import json
 import os
 import structlog
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 from ingest.pbs_client import PBSClient
 from ingest.normaliser import normalise_schedule
@@ -107,6 +107,10 @@ async def run_ingest(
 
         # ── Fetch phase (or load from cache) ──────────────────────────────────
         schedule_code = None
+        # PBS's own effective_date for this schedule. schedules.released_at was set to
+        # NOW() at insert, i.e. when we happened to ingest — so /v1/schedules reported
+        # the May schedule as released in July. The catalogue carries the real date.
+        schedule_effective_date = None
         if _cache_exists(cache_dir, month):
             log.info("ingest.cache_hit", cache_dir=str(cache_dir / month))
             raw_items                            = _load_raw(cache_dir, month, "items")
@@ -145,6 +149,16 @@ async def run_ingest(
             raw_standard_formula_preparations        = _load_raw(cache_dir, month, "standard_formula_preparations") or []
             raw_medication_charts                    = _load_raw(cache_dir, month, "medication_charts") or []
             raw_item_chart_eligibilities             = _load_raw(cache_dir, month, "item_chart_eligibilities") or []
+            # The catalogue is cached alongside the feeds, so a cache run can resolve
+            # the schedule the same way a live fetch does. It previously left both
+            # schedule_code and the effective date unset.
+            cached_schedules = _load_raw(cache_dir, month, "schedules") or []
+            matched_cached = [s for s in cached_schedules
+                              if str(s.get("effective_date", "")).startswith(schedule_date)]
+            if matched_cached:
+                schedule_code = str(matched_cached[-1]["schedule_code"])
+                schedule_effective_date = (matched_cached[-1].get("start_tsp")
+                                           or matched_cached[-1].get("effective_date"))
             log.info(
                 "ingest.loaded_from_cache",
                 items=len(raw_items or []),
@@ -165,6 +179,8 @@ async def run_ingest(
                     schedule_code = schedule_date
                 else:
                     schedule_code = str(matched[-1]["schedule_code"])
+                    schedule_effective_date = (matched[-1].get("start_tsp")
+                                               or matched[-1].get("effective_date"))
                 log.info("ingest.resolved_schedule_code", schedule_code=schedule_code)
 
                 # Fetch all endpoints concurrently — max 2 in-flight at once to
@@ -291,6 +307,29 @@ async def run_ingest(
             lambda name: _load_raw(cache_dir, month, name),
         )
         log.info("ingest.raw_stored", endpoints=len(raw_counts), rows=sum(raw_counts.values()))
+
+        # released_at is customer-facing on /v1/schedules, so it must be the date PBS
+        # made the schedule effective — not the unrelated date we happened to ingest it.
+        if schedule_effective_date:
+            # PBS sends start_tsp with an explicit offset (2026-05-01T00:00+10:00).
+            # Keep the instant it names rather than a bare date, which Postgres would
+            # localise into the previous day in UTC and read as the wrong month.
+            raw_effective = str(schedule_effective_date)
+            try:
+                effective = datetime.fromisoformat(raw_effective)
+            except ValueError:
+                try:
+                    effective = date.fromisoformat(raw_effective[:10])
+                except ValueError:
+                    log.warning("ingest.bad_effective_date", value=raw_effective)
+                    effective = None
+            if effective is not None:
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        "UPDATE schedules SET released_at = $1 WHERE month = $2",
+                        effective, month,
+                    )
+                log.info("ingest.released_at", month=month, effective_date=str(effective))
 
         # ── Normalise all data ─────────────────────────────────────────────────
         normalised = normalise_schedule(

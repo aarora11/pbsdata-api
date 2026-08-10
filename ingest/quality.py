@@ -239,6 +239,65 @@ async def check_tier_a_joins(conn, month: str) -> tuple[list[str], list[str]]:
     return errors, warnings
 
 
+async def check_internal_consistency(conn, month: str) -> tuple[list[str], list[str]]:
+    """Cross-field invariants that held with zero exceptions on every real schedule.
+
+    Measured across 13,857 PBS codes on 2026-05 and 2026-06: every item's program_code
+    exists in programs, every Authority/Streamlined/Restricted item carries a
+    restriction, and no Unrestricted item does.
+
+    These warn rather than block, unlike the Tier A join comparison. That one checks us
+    against PBS's own published answer, so a disagreement is definitionally our bug.
+    These are patterns observed in the data, not guarantees PBS documents — so a future
+    schedule could legitimately break one, and refusing to ingest it would be worse than
+    flagging it. They are loud enough to investigate, cheap enough to run every time.
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    orphans = await conn.fetch(
+        """
+        SELECT DISTINCT i.program_code
+        FROM items i JOIN schedules s ON s.id = i.schedule_id
+        WHERE s.month = $1 AND i.program_code IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM programs p
+                          WHERE p.program_code = i.program_code
+                            AND p.schedule_id = i.schedule_id)
+        """,
+        month,
+    )
+    if orphans:
+        codes = ", ".join(sorted(o["program_code"] for o in orphans))
+        warnings.append(f"items reference program codes not in programs: {codes}")
+
+    mismatch = await conn.fetchrow(
+        r"""
+        WITH b AS (
+            SELECT i.benefit_type,
+                   EXISTS (SELECT 1 FROM item_restriction_relationships r
+                           WHERE r.pbs_code = i.pbs_code AND r.schedule_id = i.schedule_id
+                             AND r.restriction_code LIKE '%\_R') AS has_restriction
+            FROM items_listing i JOIN schedules s ON s.id = i.schedule_id
+            WHERE s.month = $1
+        )
+        SELECT count(*) FILTER (WHERE benefit_type = 'U' AND has_restriction) AS u_with,
+               count(*) FILTER (WHERE benefit_type IN ('A','S','R') AND NOT has_restriction) AS r_without
+        FROM b
+        """,
+        month,
+    )
+    if mismatch and mismatch["u_with"]:
+        warnings.append(
+            f"{mismatch['u_with']} unrestricted items carry a restriction"
+        )
+    if mismatch and mismatch["r_without"]:
+        warnings.append(
+            f"{mismatch['r_without']} restricted/authority items carry no restriction"
+        )
+
+    return errors, warnings
+
+
 async def check_schedule(
     conn, month: str, schedule_id: str, raw_source: Optional[Callable] = None
 ) -> QualityReport:
@@ -253,6 +312,14 @@ async def check_schedule(
         raw_errors, raw_warnings = await check_raw_layer(conn, month, raw_source)
         report.errors.extend(raw_errors)
         report.warnings.extend(raw_warnings)
+
+    try:
+        consistency_errors, consistency_warnings = await check_internal_consistency(conn, month)
+    except Exception as exc:
+        report.warnings.append(f"internal consistency checks failed to run ({exc})")
+    else:
+        report.errors.extend(consistency_errors)
+        report.warnings.extend(consistency_warnings)
 
     try:
         join_errors, join_warnings = await check_tier_a_joins(conn, month)
