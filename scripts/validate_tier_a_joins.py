@@ -29,11 +29,28 @@ from pathlib import Path
 import asyncpg
 
 CACHE = Path(os.environ.get("PBS_CACHE_DIR", "/tmp/pbs_raw_cache"))
-DSN = os.environ.get("DATABASE_URL", "postgresql://pbsapi:pbsapi@localhost:5433/pbsapi")
+DSN = os.environ.get("DATABASE_URL", "postgresql://pbsapi:pbsapi@localhost:5432/pbsapi")
 
 
-def _overview(month: str) -> list[dict]:
-    return json.loads((CACHE / month / "item_overviews.json").read_text())
+async def _overview(conn, month: str) -> list[dict]:
+    """PBS's own pre-joined rows for a month, preferring the raw landing layer.
+
+    raw_feed_rows is the better source: it is reconciled against the fetch on
+    every ingest (ingest/quality.check_raw_layer), so it is guaranteed to equal
+    what PBS served, and it survives the on-disk fetch cache being cleared —
+    /tmp/pbs_raw_cache is not durable. The cache is kept as a fallback so the
+    script still works against a database predating the raw layer.
+    """
+    rows = await conn.fetch(
+        "SELECT payload FROM raw_feed_rows WHERE month = $1 AND endpoint = '/item-overview' "
+        "ORDER BY row_index",
+        month,
+    )
+    if rows:
+        return [json.loads(r["payload"]) if isinstance(r["payload"], str) else r["payload"]
+                for r in rows]
+    cached = CACHE / month / "item_overviews.json"
+    return json.loads(cached.read_text()) if cached.exists() else []
 
 
 def _pairs(rows, field, extract):
@@ -58,7 +75,7 @@ async def _db_pairs(conn, month, table, col, code_col="pbs_code"):
 
 
 async def validate_month(conn, month: str) -> list[tuple]:
-    ov = _overview(month)
+    ov = await _overview(conn, month)
     results = []
 
     checks = [
@@ -112,10 +129,16 @@ async def validate_month(conn, month: str) -> list[tuple]:
 async def main(months):
     conn = await asyncpg.connect(DSN)
     failed = False
+    no_data = []
+    validated = 0
     for month in months:
-        if not (CACHE / month / "item_overviews.json").exists():
-            print(f"{month}: no cached item_overviews — skipping")
+        if not await _overview(conn, month):
+            # Not "skipping": a validator that silently validates nothing and
+            # then reports success is worse than no validator at all.
+            print(f"{month}: *** NO /item-overview DATA — CANNOT VALIDATE ***")
+            no_data.append(month)
             continue
+        validated += 1
         print(f"\n=== {month} " + "=" * 62)
         print(f"{'join':<38}{'PBS':>9}{'ours':>9}{'missing':>9}{'extra':>8}   verdict")
         print("-" * 82)
@@ -128,9 +151,16 @@ async def main(months):
             if ex_extra:
                 print(f"    extra   e.g. {ex_extra}")
     await conn.close()
-    print("\n" + ("SOME JOINS DISAGREE WITH PBS" if failed else
-                  "ALL TIER A JOINS MATCH PBS'S OWN PRE-JOINED VIEW"))
-    return 1 if failed else 0
+    if failed:
+        print("\nSOME JOINS DISAGREE WITH PBS")
+    elif validated:
+        print(f"\nALL TIER A JOINS MATCH PBS'S OWN PRE-JOINED VIEW "
+              f"({validated} month{'s' if validated != 1 else ''} validated)")
+    else:
+        print("\nNOTHING WAS VALIDATED — no month had /item-overview data")
+    if no_data:
+        print(f"NOT VALIDATED: {', '.join(no_data)}")
+    return 1 if (failed or no_data) else 0
 
 
 if __name__ == "__main__":

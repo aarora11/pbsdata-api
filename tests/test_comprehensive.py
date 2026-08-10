@@ -603,7 +603,7 @@ async def test_t3_drug_blocked_for_growth(app_client, seeded, growth_key):
 
 @pytest.mark.asyncio
 async def test_schedule_changes_summary_structure(app_client, seeded, scale_key):
-    r = await app_client.get("/v1/schedule-changes/2026-04", headers=h(scale_key))
+    r = await app_client.get(f"/v1/schedule-changes/{TEST_MONTH}", headers=h(scale_key))
     assert r.status_code == 200
     data = r.json()["data"]
     assert "total_changes" in data
@@ -692,7 +692,7 @@ async def test_schedule_changes_404_unknown_month(app_client, seeded, scale_key)
 
 @pytest.mark.asyncio
 async def test_schedule_changes_blocked_for_growth(app_client, seeded, growth_key):
-    r = await app_client.get("/v1/schedule-changes/2026-04", headers=h(growth_key))
+    r = await app_client.get(f"/v1/schedule-changes/{TEST_MONTH}", headers=h(growth_key))
     assert r.status_code == 403
 
 

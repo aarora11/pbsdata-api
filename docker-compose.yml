@@ -9,6 +9,8 @@ x-app: &app
       condition: service_healthy
 
 services:
+  # Real ingested PBS data (2026-05, 2026-06). Backed by the external volume
+  # pbsdata_fresh_pgdata, which predates this stack — see volumes: below.
   postgres:
     image: postgres:16-alpine
     environment:
@@ -19,6 +21,25 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pbsapi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Separate empty database for the test suite. The suite inserts fixtures and
+  # counts rows, so it must not run against postgres: the real data collides
+  # with those counts (10 failures).
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pbsapi
+      POSTGRES_PASSWORD: pbsapi
+      POSTGRES_DB: pbsapi
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata_test:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pbsapi"]
       interval: 5s
@@ -59,13 +80,13 @@ services:
     image: pbsdata-api:test
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://pbsapi:pbsapi@postgres:5432/pbsapi
+      DATABASE_URL: postgresql://pbsapi:pbsapi@postgres-test:5432/pbsapi
       PYTHONPATH: /app
     command: ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
     volumes:
       - ./tests:/app/tests
     depends_on:
-      postgres:
+      postgres-test:
         condition: service_healthy
     restart: "no"
     profiles:
@@ -84,4 +105,9 @@ services:
       - ingest
 
 volumes:
+  # Declared external so compose adopts the existing volume in place rather than
+  # creating an empty one, and so `compose down -v` cannot drop the real data.
   pgdata:
+    external: true
+    name: pbsdata_fresh_pgdata
+  pgdata_test:
