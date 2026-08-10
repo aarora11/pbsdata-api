@@ -1,18 +1,23 @@
 [
   {
-    "program_code": "GE",
-    "rule_code": "RULE001",
-    "dispensing_quantity": 60,
-    "dispensing_unit": "tablet",
-    "repeats_allowed": 5,
-    "description": "General Schedule standard repeat dispensing rule"
+    "dispensing_rule_reference": "rp-s90-cp",
+    "dispensing_rule_mnem": "s90-cp",
+    "dispensing_rule_title": "Community Pharmacy",
+    "community_pharmacy_indicator": "true",
+    "schedule_code": 4664
   },
   {
-    "program_code": "RA",
-    "rule_code": "RULE002",
-    "dispensing_quantity": 2,
-    "dispensing_unit": "syringe",
-    "repeats_allowed": 5,
-    "description": "RA program biologic dispensing rule"
+    "dispensing_rule_reference": "in-s90-cp",
+    "dispensing_rule_mnem": "s90-cp",
+    "dispensing_rule_title": "Community Pharmacy",
+    "community_pharmacy_indicator": "true",
+    "schedule_code": 4664
+  },
+  {
+    "dispensing_rule_reference": "rp-s94-public",
+    "dispensing_rule_mnem": "s94-public",
+    "dispensing_rule_title": "Public Hospital",
+    "community_pharmacy_indicator": "false",
+    "schedule_code": 4664
   }
 ]

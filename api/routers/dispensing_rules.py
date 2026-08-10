@@ -45,7 +45,9 @@ async def list_dispensing_rules(
     if program_code:
         rows = await db.fetch(
             """
-            SELECT program_code, rule_code, dispensing_quantity, dispensing_unit, repeats_allowed, description
+            SELECT program_code, rule_code, dispensing_rule_mnem, dispensing_rule_title,
+                   community_pharmacy_indicator, dispensing_quantity, dispensing_unit,
+                   repeats_allowed, description
             FROM program_dispensing_rules WHERE schedule_id = $1 AND program_code = $2
             ORDER BY rule_code
             """,
@@ -54,7 +56,9 @@ async def list_dispensing_rules(
     else:
         rows = await db.fetch(
             """
-            SELECT program_code, rule_code, dispensing_quantity, dispensing_unit, repeats_allowed, description
+            SELECT program_code, rule_code, dispensing_rule_mnem, dispensing_rule_title,
+                   community_pharmacy_indicator, dispensing_quantity, dispensing_unit,
+                   repeats_allowed, description
             FROM program_dispensing_rules WHERE schedule_id = $1
             ORDER BY program_code, rule_code
             """,
@@ -93,7 +97,9 @@ async def get_dispensing_rules_by_program(
 
     rows = await db.fetch(
         """
-        SELECT rule_code, dispensing_quantity, dispensing_unit, repeats_allowed, description
+        SELECT rule_code, dispensing_rule_mnem, dispensing_rule_title,
+               community_pharmacy_indicator, dispensing_quantity, dispensing_unit,
+               repeats_allowed, description
         FROM program_dispensing_rules
         WHERE program_code = $1 AND schedule_id = $2
         ORDER BY rule_code
@@ -118,8 +124,12 @@ async def get_dispensing_rules_by_program(
     "/dispensing-rules/{rule_code}",
     summary="Get Dispensing Rule Detail",
     description=(
-        "Returns a single dispensing rule by rule code, including quantity, unit, repeats, description, "
-        "and a list of PBS item codes linked to this rule.\n\n"
+        "Returns a dispensing rule by `dispensing_rule_reference` (e.g. `rp-s90-cp`), including "
+        "quantity, unit, repeats, title, and the PBS item codes linked to it.\n\n"
+        "A `dispensing_rule_mnem` (e.g. `s90-cp`) is also accepted. PBS defines a mnemonic as "
+        "naming a *group* of rules, so it resolves to every rule in that group — `s90-cp` covers "
+        "`in-s90-cp`, `rp-s90-cp`, `rp-np-s90-cp` and `rp-np-nc-s90-cp`. The response reports "
+        "which form matched via `matched_on`.\n\n"
         "Available on all tiers."
     ),
 )
@@ -133,21 +143,44 @@ async def get_dispensing_rule(
     _rl(response, api_key_data)
     schedule_id = await _resolve_schedule_id(db, schedule)
 
-    row = await db.fetchrow(
-        """
-        SELECT program_code, rule_code, dispensing_quantity, dispensing_unit, repeats_allowed, description
-        FROM program_dispensing_rules WHERE rule_code = $1 AND schedule_id = $2
-        """,
+    columns = (
+        "program_code, rule_code, dispensing_rule_reference, dispensing_rule_mnem, "
+        "dispensing_rule_title, community_pharmacy_indicator, dispensing_quantity, "
+        "dispensing_unit, repeats_allowed, description"
+    )
+
+    # The reference is the unique key, so try it first and return exactly one rule.
+    rows = await db.fetch(
+        f"SELECT {columns} FROM program_dispensing_rules "
+        f"WHERE rule_code = $1 AND schedule_id = $2",
         rule_code, schedule_id,
     )
-    if not row:
+    matched_on = "dispensing_rule_reference"
+
+    if not rows:
+        # Fall back to the mnemonic, which PBS defines as naming a group of rules.
+        # Callers written against the pre-014 paths land here rather than 404ing.
+        rows = await db.fetch(
+            f"SELECT {columns} FROM program_dispensing_rules "
+            f"WHERE dispensing_rule_mnem = $1 AND schedule_id = $2 ORDER BY rule_code",
+            rule_code, schedule_id,
+        )
+        matched_on = "dispensing_rule_mnem"
+
+    if not rows:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Dispensing rule not found."})
 
-    result = dict(row)
-    # Include items linked to this rule
+    references = [r["rule_code"] for r in rows]
     linked_items = await db.fetch(
-        "SELECT pbs_code FROM item_dispensing_rules WHERE rule_code = $1 AND schedule_id = $2",
-        rule_code, schedule_id,
+        "SELECT DISTINCT pbs_code FROM item_dispensing_rules "
+        "WHERE rule_code = ANY($1::text[]) AND schedule_id = $2 ORDER BY pbs_code",
+        references, schedule_id,
     )
+
+    result = dict(rows[0])
+    result["matched_on"] = matched_on
+    # A mnemonic can match several rules; the group is always reported so a caller
+    # arriving on the old vocabulary can see what it actually resolved to.
+    result["matched_rules"] = [dict(r) for r in rows]
     result["linked_items"] = [r["pbs_code"] for r in linked_items]
     return result

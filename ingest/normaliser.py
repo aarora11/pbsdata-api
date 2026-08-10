@@ -46,9 +46,21 @@ def parse_date(value) -> Optional[datetime.date]:
         return None
 
 
+# PBS is not consistent about how it spells a boolean. Most indicator fields are Y/N
+# ("caution_indicator": "Y"), but /dispensing-rules sends the strings "true"/"false"
+# for community_pharmacy_indicator. A Y/N-only test read "true" as False, so every one
+# of the 17 dispensing rules came out non-community-pharmacy — including the five that
+# carry the DPMQ pbs.gov.au publishes.
+_TRUTHY = frozenset({"Y", "YES", "TRUE", "T", "1"})
+
+
 def yn(value) -> bool:
-    """Convert Y/N string to bool."""
-    return str(value).upper() == "Y" if value else False
+    """Convert a PBS boolean — Y/N or true/false, in either case — to a bool."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().upper() in _TRUTHY
 
 
 def pbs_code_from_li_item_id(li_item_id) -> str:
@@ -510,7 +522,11 @@ def normalise_schedule(
     _seen_dispensing = set()
     for rel in (raw_item_dispensing_rule_relationships or raw_item_dispensing_rules or []):
         pbs_code = rel.get("pbs_code") or pbs_code_from_li_item_id(rel.get("li_item_id"))
-        rule_code = rel.get("dispensing_rule_mnem") or rel.get("rule_code", "")
+        # The reference is the key PBS documents for this table. The mnemonic names a
+        # group of rules (s90-cp spans in-/rp-/rp-np-/rp-np-nc-), so keying on it lost
+        # the distinction entirely and disagreed with /item-overview on every row.
+        mnem = rel.get("dispensing_rule_mnem")
+        rule_code = rel.get("dispensing_rule_reference") or mnem or rel.get("rule_code", "")
         if not pbs_code or not rule_code:
             continue
         key = (pbs_code, rule_code)
@@ -520,6 +536,7 @@ def normalise_schedule(
         normalised_item_dispensing_rules.append({
             "pbs_code": pbs_code,
             "rule_code": rule_code,
+            "dispensing_rule_mnem": mnem,
         })
 
     # ── Program dispensing rules ──────────────────────────────────────────────
@@ -527,10 +544,16 @@ def normalise_schedule(
     # dispensing_unit, or repeats_allowed. Those fields only appear in test fixtures.
     normalised_program_dispensing_rules = []
     for rule in (raw_dispensing_rules or raw_program_dispensing_rules or []):
+        mnem = rule.get("dispensing_rule_mnem")
+        reference = rule.get("dispensing_rule_reference")
         normalised_program_dispensing_rules.append({
             "program_code": rule.get("program_code") or None,  # NULL from real API
-            "rule_code": rule.get("dispensing_rule_mnem") or rule.get("rule_code", ""),
-            "dispensing_rule_reference": rule.get("dispensing_rule_reference"),
+            # Keying on the mnemonic collapsed PBS's 17 rules to 10 rows, so seven
+            # never reached the API at all.
+            "rule_code": reference or mnem or rule.get("rule_code", ""),
+            "dispensing_rule_reference": reference,
+            "dispensing_rule_mnem": mnem,
+            "dispensing_rule_title": rule.get("dispensing_rule_title"),
             "community_pharmacy_indicator": yn(rule.get("community_pharmacy_indicator")) if rule.get("community_pharmacy_indicator") is not None else None,
             "dispensing_quantity": rule.get("dispensing_quantity"),
             "dispensing_unit": rule.get("dispensing_unit"),

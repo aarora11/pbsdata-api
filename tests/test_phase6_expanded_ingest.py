@@ -66,7 +66,8 @@ def test_normaliser_returns_all_new_keys_when_data_provided():
     assert len(result["amt_items"]) == 2
     assert len(result["item_amt_relationships"]) == 2
     assert len(result["item_dispensing_rules"]) == 3
-    assert len(result["program_dispensing_rules"]) == 2
+    # One row per dispensing_rule_reference — s90-cp covers two of the three.
+    assert len(result["program_dispensing_rules"]) == 3
     assert len(result["item_restriction_relationships"]) == 5
     assert len(result["restriction_prescribing_text_relationships"]) == 2
     assert len(result["item_prescribing_text_relationships"]) == 2
@@ -257,8 +258,19 @@ async def test_loader_inserts_program_dispensing_rules(db):
     )
     await load_to_database(FakePool(db), "2026-04", normalised, [])
 
+    # One row per dispensing_rule_reference. Keying these on dispensing_rule_mnem
+    # collapsed PBS's 17 published rules to 10, so /v1/dispensing-rules silently
+    # omitted seven of them.
     count = await db.fetchval("SELECT COUNT(*) FROM program_dispensing_rules")
-    assert count == 2
+    assert count == 3
+    refs = await db.fetch("SELECT rule_code, dispensing_rule_mnem, community_pharmacy_indicator FROM program_dispensing_rules ORDER BY rule_code")
+    assert [r["rule_code"] for r in refs] == ["in-s90-cp", "rp-s90-cp", "rp-s94-public"]
+    # Two references share one mnemonic — the reason the mnemonic is not a key.
+    assert [r["dispensing_rule_mnem"] for r in refs] == ["s90-cp", "s90-cp", "s94-public"]
+    # PBS spells this boolean "true"/"false", not Y/N; a Y/N-only test read every
+    # rule as non-community-pharmacy.
+    assert [r["community_pharmacy_indicator"] for r in refs] == [True, True, False]
+
     link_count = await db.fetchval("SELECT COUNT(*) FROM item_dispensing_rules")
     assert link_count == 3
 

@@ -17,13 +17,16 @@ from ingest.reference import (
 
 router = APIRouter(tags=["drugs"])
 
-# item_pricing carries no per-brand name, so every li_item_id under a PBS code is
-# returned with the item-level brand_name. /drugs/{code}/brands disclosed this;
-# /drugs/{code}?include_brands=true and /full-profile returned the same repeated
-# structure with no note. See docs/AUDIT_FINDINGS.md [F8].
+# item_pricing carries no per-brand name, so every li_item_id under a PBS code used to
+# be returned with the item-level brand_name and this note disclosed it ([F8]). Since
+# migration 011 rekeyed items to brand grain, the real per-brand name and sponsor are
+# available by joining items on li_item_id, and the brand queries now do — verified
+# against pbs.gov.au, which lists a manufacturer per brand and matched all 8 brands of
+# 13842M exactly. The note is kept only for the fallback path where item_pricing has no
+# row and there is genuinely nothing per-brand to report.
 BRAND_NAME_NOTE = (
-    "Per-brand names are not available in this schema version; brand_name reflects "
-    "the item-level name for every li_item_id."
+    "No per-brand pricing rows were found for this item, so brand_name reflects the "
+    "item-level name."
 )
 
 
@@ -203,6 +206,9 @@ async def get_drug(
         """,
         pbs_code.upper(), schedule_id,
     )
+    if not org and item["sponsor"]:
+        # See _gather_drug_data: /organisations covers 1.5% of items, items.sponsor 98.9%.
+        org = {"organisation_id": None, "name": item["sponsor"], "state": None, "abn": None}
     atc_rows = await db.fetch(
         """
         SELECT iar.atc_code, iar.atc_priority_pct, a.atc_description, a.atc_level
@@ -230,22 +236,25 @@ async def get_drug(
     if include_brands:
         pricing_rows = await db.fetch(
             """
-            SELECT li_item_id,
-                   MAX(commonwealth_price)         AS commonwealth_price,
-                   MAX(max_general_patient_charge)  AS max_general_patient_charge,
-                   MAX(brand_premium)              AS brand_premium,
-                   MAX(fee_dispensing)             AS fee_dispensing
-            FROM item_pricing
-            WHERE pbs_code = $1 AND schedule_id = $2
-            GROUP BY li_item_id
-            ORDER BY li_item_id
+            SELECT p.li_item_id, i.brand_name, i.sponsor,
+                   MAX(p.commonwealth_price)          AS commonwealth_price,
+                   MAX(p.max_general_patient_charge)  AS max_general_patient_charge,
+                   MAX(p.brand_premium)               AS brand_premium,
+                   MAX(p.fee_dispensing)              AS fee_dispensing
+            FROM item_pricing p
+            LEFT JOIN items i
+                   ON i.li_item_id = p.li_item_id AND i.schedule_id = p.schedule_id
+            WHERE p.pbs_code = $1 AND p.schedule_id = $2
+            GROUP BY p.li_item_id, i.brand_name, i.sponsor
+            ORDER BY i.brand_name NULLS LAST, p.li_item_id
             """,
             pbs_code.upper(), schedule_id,
         )
         brands_data = [
             {
                 "li_item_id": r["li_item_id"],
-                "brand_name": item["brand_name"],
+                "brand_name": r["brand_name"] or item["brand_name"],
+                "manufacturer": r["sponsor"],
                 "formulary": item["formulary"],
                 "pricing": {
                     "commonwealth_price": float(r["commonwealth_price"]) if r["commonwealth_price"] else None,
@@ -255,7 +264,8 @@ async def get_drug(
                 },
             }
             for r in pricing_rows
-        ] or [{"li_item_id": None, "brand_name": item["brand_name"], "formulary": item["formulary"], "pricing": None}]
+        ] or [{"li_item_id": None, "brand_name": item["brand_name"],
+               "manufacturer": item["sponsor"], "formulary": item["formulary"], "pricing": None}]
 
     def _f(v):
         return float(v) if v is not None else None
@@ -281,7 +291,7 @@ async def get_drug(
                 "program_title": program["program_title"] if program else None,
             },
             "primary_manufacturer": dict(org) if org else None,
-            "primary_manufacturer_note": "Primary sponsor only. Multiple organisations may be listed; use /organisations for full coverage.",
+            "primary_manufacturer_note": "PBS lists a manufacturer per brand, not a primary one — see brands[].manufacturer. This field reports the sponsor of the representative brand.",
             "classification": {
                 "primary_atc_code": atc["atc_code"] if atc else item["medicine_atc_code"],
                 "primary_atc_description": atc["atc_description"] if atc else None,
@@ -312,8 +322,10 @@ async def get_drug(
                 "artg_id": item["artg_id"],
                 "caution": item["caution"],
             },
-            **({"brands": brands_data, "brand_name_note": BRAND_NAME_NOTE}
+            **({"brands": brands_data}
                if include_brands else {}),
+            **({"brand_name_note": BRAND_NAME_NOTE}
+               if include_brands and brands_data and brands_data[0]["li_item_id"] is None else {}),
         },
         "meta": _meta(api_key_data, schedule_month, [
             "/items", "/programs", "/organisations", "/atc-codes", "/prescribers",
@@ -344,24 +356,29 @@ async def get_drug_brands(
     schedule_id, schedule_month = await _resolve_schedule(db, schedule)
 
     item = await db.fetchrow(
-        "SELECT pbs_code, brand_name, formulary FROM items_listing WHERE pbs_code = $1 AND schedule_id = $2",
+        "SELECT pbs_code, brand_name, sponsor, formulary FROM items_listing WHERE pbs_code = $1 AND schedule_id = $2",
         pbs_code.upper(), schedule_id,
     )
     if not item:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Drug not found."})
 
-    # item_pricing holds one row per (li_item_id, dispensing_rule_mnem) — aggregate to brand level
+    # item_pricing holds one row per (li_item_id, dispensing rule) — aggregate to brand
+    # level, then join items on li_item_id for the real per-brand name and sponsor.
+    # That join is 1:1 by the UNIQUE (li_item_id, schedule_id) added in migration 011,
+    # so it cannot fan out the way a pbs_code join would.
     pricing_rows = await db.fetch(
         """
-        SELECT li_item_id,
-               MAX(commonwealth_price)        AS commonwealth_price,
-               MAX(max_general_patient_charge) AS max_general_patient_charge,
-               MAX(brand_premium)             AS brand_premium,
-               MAX(fee_dispensing)            AS fee_dispensing
-        FROM item_pricing
-        WHERE pbs_code = $1 AND schedule_id = $2
-        GROUP BY li_item_id
-        ORDER BY li_item_id
+        SELECT p.li_item_id, i.brand_name, i.sponsor,
+               MAX(p.commonwealth_price)         AS commonwealth_price,
+               MAX(p.max_general_patient_charge) AS max_general_patient_charge,
+               MAX(p.brand_premium)              AS brand_premium,
+               MAX(p.fee_dispensing)             AS fee_dispensing
+        FROM item_pricing p
+        LEFT JOIN items i
+               ON i.li_item_id = p.li_item_id AND i.schedule_id = p.schedule_id
+        WHERE p.pbs_code = $1 AND p.schedule_id = $2
+        GROUP BY p.li_item_id, i.brand_name, i.sponsor
+        ORDER BY i.brand_name NULLS LAST, p.li_item_id
         """,
         pbs_code.upper(), schedule_id,
     )
@@ -373,7 +390,8 @@ async def get_drug_brands(
     for r in pricing_rows:
         brands.append({
             "li_item_id": r["li_item_id"],
-            "brand_name": item["brand_name"],  # schema stores one brand per pbs_code; see phase-2 roadmap
+            "brand_name": r["brand_name"] or item["brand_name"],
+            "manufacturer": r["sponsor"],
             "formulary": item["formulary"],
             "pricing": {
                 "commonwealth_price": _f(r["commonwealth_price"]),
@@ -388,6 +406,7 @@ async def get_drug_brands(
         brands.append({
             "li_item_id": None,
             "brand_name": item["brand_name"],
+            "manufacturer": item["sponsor"],
             "formulary": item["formulary"],
             "pricing": None,
         })
@@ -396,7 +415,6 @@ async def get_drug_brands(
         "data": {
             "pbs_code": item["pbs_code"],
             "brand_count": len(brands),
-            "brand_name_note": BRAND_NAME_NOTE,
             "brands": brands,
         },
         "meta": _meta(api_key_data, schedule_month, ["/items", "/item-dispensing-rule-relationships"]),
@@ -738,7 +756,8 @@ async def get_drug_full_profile(
     for r in pricing_rows:
         brands.append({
             "li_item_id": r["li_item_id"],
-            "brand_name": item["brand_name"],
+            "brand_name": r["brand_name"] or item["brand_name"],
+            "manufacturer": r["sponsor"],
             "pricing": {
                 "commonwealth_price": _f(r["commonwealth_price"]),
                 "max_general_patient_charge": _f(r["max_general_patient_charge"]),
@@ -786,7 +805,7 @@ async def get_drug_full_profile(
             },
             "program": dict(program) if program else None,
             "primary_manufacturer": dict(org) if org else None,
-            "primary_manufacturer_note": "Primary sponsor only. Multiple organisations may be listed; use /organisations for full coverage.",
+            "primary_manufacturer_note": "PBS lists a manufacturer per brand, not a primary one — see brands[].manufacturer. This field reports the sponsor of the representative brand.",
             "classification": {
                 "primary_atc_code": atc_rels[0]["atc_code"] if atc_rels else item["medicine_atc_code"],
                 "primary_atc_description": atc_rels[0]["atc_description"] if atc_rels else None,
@@ -795,7 +814,12 @@ async def get_drug_full_profile(
             "restriction": {
                 "benefit_type_code": benefit_code,
                 "benefit_type_label": benefit_type_label(benefit_code),
-                "restriction_count": len(restriction_list),
+                "restriction_count": sum(1 for r in restriction_list
+                                         if r["type"] == RESTRICTION_KIND_RESTRICTION),
+                "note_count": sum(1 for r in restriction_list
+                                  if r["type"] == RESTRICTION_KIND_NOTE),
+                "caution_count": sum(1 for r in restriction_list
+                                     if r["type"] == RESTRICTION_KIND_CAUTION),
                 "restrictions": restriction_list,
             },
             "prescribers": [dict(p) for p in prescribers],
@@ -830,6 +854,12 @@ async def _gather_drug_data(db, pbs_code: str, schedule_id: str):
         "SELECT program_code FROM items_listing WHERE pbs_code = $1 AND schedule_id = $2) AND schedule_id = $2",
         pbs_code, schedule_id,
     )
+    # /organisations covers only 1.5% of items, so this join returned null for almost
+    # every drug. items.sponsor is the same fact at brand grain, is 98.9% populated,
+    # and is one of the joins validated against PBS's own item-overview — so it is the
+    # fallback rather than the other way round. Note PBS itself has no concept of a
+    # "primary" manufacturer: pbs.gov.au lists one per brand, which is what
+    # data.brands[].manufacturer reports.
     org = await db.fetchrow(
         """
         SELECT o.organisation_id, o.name, o.state, o.abn
@@ -839,6 +869,13 @@ async def _gather_drug_data(db, pbs_code: str, schedule_id: str):
         """,
         pbs_code, schedule_id,
     )
+    if not org:
+        sponsor = await db.fetchval(
+            "SELECT sponsor FROM items_listing WHERE pbs_code = $1 AND schedule_id = $2",
+            pbs_code, schedule_id,
+        )
+        if sponsor:
+            org = {"organisation_id": None, "name": sponsor, "state": None, "abn": None}
     prescribers = await db.fetch(
         "SELECT prescriber_code, prescriber_type FROM item_prescribers WHERE pbs_code = $1 AND schedule_id = $2 ORDER BY prescriber_code",
         pbs_code, schedule_id,
@@ -866,13 +903,16 @@ async def _gather_drug_data(db, pbs_code: str, schedule_id: str):
     )
     pricing_rows = await db.fetch(
         """
-        SELECT li_item_id,
-               MAX(commonwealth_price) AS commonwealth_price,
-               MAX(max_general_patient_charge) AS max_general_patient_charge,
-               MAX(brand_premium) AS brand_premium,
-               MAX(fee_dispensing) AS fee_dispensing
-        FROM item_pricing WHERE pbs_code = $1 AND schedule_id = $2
-        GROUP BY li_item_id ORDER BY li_item_id
+        SELECT p.li_item_id, i.brand_name, i.sponsor,
+               MAX(p.commonwealth_price) AS commonwealth_price,
+               MAX(p.max_general_patient_charge) AS max_general_patient_charge,
+               MAX(p.brand_premium) AS brand_premium,
+               MAX(p.fee_dispensing) AS fee_dispensing
+        FROM item_pricing p
+        LEFT JOIN items i ON i.li_item_id = p.li_item_id AND i.schedule_id = p.schedule_id
+        WHERE p.pbs_code = $1 AND p.schedule_id = $2
+        GROUP BY p.li_item_id, i.brand_name, i.sponsor
+        ORDER BY i.brand_name NULLS LAST, p.li_item_id
         """,
         pbs_code, schedule_id,
     )

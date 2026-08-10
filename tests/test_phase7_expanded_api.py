@@ -222,26 +222,57 @@ async def test_amt_by_id_includes_linked_items(client_expanded, headers):
 async def test_dispensing_rules_200(client_expanded, headers):
     r = await client_expanded.get("/v1/dispensing-rules", headers=headers)
     assert r.status_code == 200
-    assert r.json()["meta"]["total"] == 2
+    # One row per dispensing_rule_reference. Keying on the mnemonic collapsed PBS's
+    # 17 real rules to 10, so seven never reached the API at all.
+    assert r.json()["meta"]["total"] == 3
+    refs = {d["rule_code"] for d in r.json()["data"]}
+    assert refs == {"rp-s90-cp", "in-s90-cp", "rp-s94-public"}
 
 
 @pytest.mark.asyncio
-async def test_dispensing_rules_filter_by_program(client_expanded, headers):
+async def test_dispensing_rules_filter_by_program_matches_nothing(client_expanded, headers):
+    """PBS's /dispensing-rules carries no program_code, so this filter cannot match.
+
+    The old fixture invented one. The filter is kept because the column exists and
+    older schedules may carry it, but it must degrade to an empty list rather than
+    erroring.
+    """
     r = await client_expanded.get("/v1/dispensing-rules?program_code=GE", headers=headers)
     assert r.status_code == 200
-    data = r.json()["data"]
-    assert len(data) == 1
-    assert data[0]["program_code"] == "GE"
+    assert r.json()["data"] == []
 
 
 @pytest.mark.asyncio
-async def test_dispensing_rule_by_code_200(client_expanded, headers):
-    r = await client_expanded.get("/v1/dispensing-rules/RULE001", headers=headers)
+async def test_dispensing_rule_by_reference_200(client_expanded, headers):
+    r = await client_expanded.get("/v1/dispensing-rules/rp-s90-cp", headers=headers)
     assert r.status_code == 200
     body = r.json()
-    assert body["rule_code"] == "RULE001"
-    assert "linked_items" in body
+    assert body["rule_code"] == "rp-s90-cp"
+    assert body["matched_on"] == "dispensing_rule_reference"
+    assert body["dispensing_rule_title"] == "Community Pharmacy"
+    assert body["community_pharmacy_indicator"] is True
+    assert len(body["matched_rules"]) == 1
     assert "2622M" in body["linked_items"]
+
+
+@pytest.mark.asyncio
+async def test_dispensing_rule_by_mnemonic_resolves_to_the_group(client_expanded, headers):
+    """A mnemonic names a GROUP of rules, so it resolves to all of them.
+
+    This keeps pre-014 callers working: they used the mnemonic as though it were a key.
+    """
+    r = await client_expanded.get("/v1/dispensing-rules/s90-cp", headers=headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["matched_on"] == "dispensing_rule_mnem"
+    assert {m["rule_code"] for m in body["matched_rules"]} == {"rp-s90-cp", "in-s90-cp"}
+    assert "2622M" in body["linked_items"]
+
+
+@pytest.mark.asyncio
+async def test_dispensing_rule_unknown_code_404(client_expanded, headers):
+    r = await client_expanded.get("/v1/dispensing-rules/RULE001", headers=headers)
+    assert r.status_code == 404
 
 
 # ── Summary of changes ────────────────────────────────────────────────────────
@@ -307,6 +338,5 @@ async def test_item_dispensing_rules_200(client_expanded, headers):
     r = await client_expanded.get("/v1/items/2622M/dispensing-rules", headers=headers)
     assert r.status_code == 200
     data = r.json()["data"]
-    assert len(data) == 1
-    assert data[0]["rule_code"] == "RULE001"
-    assert data[0]["program_code"] == "GE"
+    # Two references share the s90-cp mnemonic; keying on the mnemonic merged them.
+    assert {d["rule_code"] for d in data} == {"rp-s90-cp", "in-s90-cp"}

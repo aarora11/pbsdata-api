@@ -1,5 +1,20 @@
 [
-  {"pbs_code": "2622M", "rule_code": "RULE001"},
-  {"pbs_code": "2623N", "rule_code": "RULE001"},
-  {"pbs_code": "1234A", "rule_code": "RULE002"}
+  {
+    "li_item_id": "2622M_1001_2001_3001_4001",
+    "dispensing_rule_reference": "rp-s90-cp",
+    "dispensing_rule_mnem": "s90-cp",
+    "schedule_code": 4664
+  },
+  {
+    "li_item_id": "2622M_1001_2001_3001_4001",
+    "dispensing_rule_reference": "in-s90-cp",
+    "dispensing_rule_mnem": "s90-cp",
+    "schedule_code": 4664
+  },
+  {
+    "li_item_id": "1234A_1004_2004_3004_4004",
+    "dispensing_rule_reference": "rp-s94-public",
+    "dispensing_rule_mnem": "s94-public",
+    "schedule_code": 4664
+  }
 ]

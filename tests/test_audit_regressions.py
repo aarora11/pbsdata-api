@@ -449,24 +449,34 @@ async def test_substitution_warns_strength_and_form_are_not_matched(
         await _delete_key(db_pool, h)
 
 
-async def test_brand_lists_disclose_repeated_names(app_client, seeded_audit, db_pool):
-    """[F8] Every li_item_id is returned with the same item-level brand name.
+async def test_brand_lists_carry_real_per_brand_names_and_manufacturers(
+    app_client, seeded_audit, db_pool
+):
+    """[F8] superseded: brand lists now carry the real per-brand name and sponsor.
 
-    /drugs/{code}/brands disclosed this; the inline and full-profile variants
-    returned the same structure with no note.
+    Every li_item_id used to be returned with the same item-level brand name, disclosed
+    by brand_name_note. Migration 011 rekeyed items to brand grain, so the real values
+    are a 1:1 join on li_item_id away. pbs.gov.au confirms the shape: it lists a
+    manufacturer per brand — all 8 brands of 13842M matched items.sponsor exactly.
+    The note now appears only when there is genuinely no per-brand row.
     """
     k, h = await _insert_key(db_pool, "scale")
     try:
         headers = {"X-API-Key": k}
         inline = await app_client.get(
             f"/v1/drugs/2622M?include_brands=true&schedule={TEST_MONTH}", headers=headers)
-        if inline.status_code == 200:
-            assert "brand_name_note" in inline.json()["data"]
+        assert inline.status_code == 200, inline.text
+        brands = inline.json()["data"]["brands"]
+        assert brands, "expected per-brand rows"
+        assert all("manufacturer" in b for b in brands)
+        # Real per-brand rows must not be accompanied by the "no per-brand data" note.
+        if brands[0]["li_item_id"] is not None:
+            assert "brand_name_note" not in inline.json()["data"]
 
         profile = await app_client.get(
             f"/v1/drugs/2622M/full-profile?schedule={TEST_MONTH}", headers=headers)
-        if profile.status_code == 200:
-            assert "brand_name_note" in profile.json()["data"]["brands"]
+        assert profile.status_code == 200, profile.text
+        assert all("manufacturer" in b for b in profile.json()["data"]["brands"]["items"])
     finally:
         await _delete_key(db_pool, h)
 
@@ -937,3 +947,126 @@ async def test_authority_workflow_excludes_notes_and_cautions(
     assert "4236_4236_R" in codes
     assert "7606_N" not in codes
     assert "9001_C" not in codes
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Dispensing rules and manufacturers — validated against pbs.gov.au 2026-08-10
+#
+# The mnemonic is not a key. The data dictionary calls dispensing_rule_reference the
+# "Unique identifier for a Dispensing Rule" and names it the primary key of both
+# /dispensing-rules and /item-dispensing-rule-relationships, while the mnemonic only
+# identifies a "GROUP of Dispensing Rules". Keying on it collapsed 17 rules to 10.
+#
+# pbs.gov.au lists a manufacturer per brand — all 8 brands of 13842M matched
+# items.sponsor exactly — so there is no "primary" manufacturer in PBS's model.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def test_yn_accepts_both_pbs_boolean_spellings():
+    """PBS spells booleans Y/N in most feeds but true/false in /dispensing-rules.
+
+    A Y/N-only test read "true" as False, so all 17 dispensing rules came out
+    non-community-pharmacy — including the five carrying the DPMQ pbs.gov.au publishes.
+    """
+    from ingest.normaliser import yn
+
+    for truthy in ("Y", "y", "Yes", "true", "TRUE", "True", "1", True):
+        assert yn(truthy) is True, f"{truthy!r} should be truthy"
+    for falsy in ("N", "n", "false", "FALSE", "No", "0", "", None, False):
+        assert yn(falsy) is False, f"{falsy!r} should be falsy"
+
+
+def test_dispensing_rules_keyed_on_reference_not_mnemonic():
+    from ingest.normaliser import normalise_schedule
+    import json
+
+    items = json.loads((FIXTURES / "pbs_sample_items.json").read_text())
+    restrictions = json.loads((FIXTURES / "pbs_sample_restrictions.json").read_text())
+    result = normalise_schedule(
+        "2026-04", items, restrictions,
+        raw_program_dispensing_rules=json.loads(
+            (FIXTURES / "pbs_sample_program_dispensing_rules.json").read_text()),
+        raw_item_dispensing_rules=json.loads(
+            (FIXTURES / "pbs_sample_item_dispensing_rules.json").read_text()),
+    )
+
+    rules = {r["rule_code"]: r for r in result["program_dispensing_rules"]}
+    # Two references share the s90-cp mnemonic; keying on the mnemonic lost one.
+    assert set(rules) == {"rp-s90-cp", "in-s90-cp", "rp-s94-public"}
+    assert rules["rp-s90-cp"]["dispensing_rule_mnem"] == "s90-cp"
+    assert rules["in-s90-cp"]["dispensing_rule_mnem"] == "s90-cp"
+    assert rules["rp-s90-cp"]["dispensing_rule_title"] == "Community Pharmacy"
+    assert rules["rp-s90-cp"]["community_pharmacy_indicator"] is True
+    assert rules["rp-s94-public"]["community_pharmacy_indicator"] is False
+
+    links = result["item_dispensing_rules"]
+    assert {l["rule_code"] for l in links} == {"rp-s90-cp", "in-s90-cp", "rp-s94-public"}
+    # PBS keys this feed on li_item_id and never sends pbs_code.
+    assert {l["pbs_code"] for l in links} == {"2622M", "1234A"}
+
+
+async def test_dispensing_rule_endpoint_resolves_reference_and_mnemonic(
+    app_client, seeded_audit, ent_key
+):
+    headers = {"X-API-Key": ent_key}
+
+    exact = await app_client.get(
+        f"/v1/dispensing-rules/rp-s90-cp?schedule={TEST_MONTH}", headers=headers)
+    assert exact.status_code == 200, exact.text
+    assert exact.json()["matched_on"] == "dispensing_rule_reference"
+    assert len(exact.json()["matched_rules"]) == 1
+
+    # The mnemonic names a group, so it resolves to every rule in it. This is what
+    # keeps callers written against the pre-014 vocabulary working.
+    group = await app_client.get(
+        f"/v1/dispensing-rules/s90-cp?schedule={TEST_MONTH}", headers=headers)
+    assert group.status_code == 200, group.text
+    assert group.json()["matched_on"] == "dispensing_rule_mnem"
+    assert {m["rule_code"] for m in group.json()["matched_rules"]} == {"rp-s90-cp", "in-s90-cp"}
+
+
+async def test_drug_endpoints_report_manufacturer_per_brand(
+    app_client, seeded_audit, ent_key
+):
+    """PBS lists a manufacturer per brand; primary_manufacturer was always null.
+
+    It joined items.organisation_id, which is 0% populated, while items.sponsor is
+    98.9% populated and is one of the joins validated against PBS's item-overview.
+    """
+    headers = {"X-API-Key": ent_key}
+
+    r = await app_client.get(
+        f"/v1/drugs/2622M/brands?schedule={TEST_MONTH}", headers=headers)
+    assert r.status_code == 200, r.text
+    brands = r.json()["data"]["brands"]
+    assert brands
+    assert all("manufacturer" in b for b in brands)
+
+    detail = await app_client.get(f"/v1/drugs/2622M?schedule={TEST_MONTH}", headers=headers)
+    assert detail.status_code == 200, detail.text
+    data = detail.json()["data"]
+    assert data["primary_manufacturer"] is not None
+    assert "per brand" in data["primary_manufacturer_note"]
+
+
+async def test_primary_manufacturer_falls_back_to_sponsor(
+    app_client, seeded_audit, ent_key, db_pool
+):
+    """The organisations join covers 1.5% of items, so it misses almost always.
+
+    The fixture happens to have an organisations row, which is exactly why this needs
+    its own test: with the row present the fallback never runs, and primary_manufacturer
+    was null across production while items.sponsor sat populated at 98.9%.
+    """
+    headers = {"X-API-Key": ent_key}
+    async with db_pool.acquire() as conn:
+        sid = await conn.fetchval("SELECT id FROM schedules WHERE month = $1", TEST_MONTH)
+        await conn.execute(
+            "DELETE FROM item_organisation_relationships "
+            "WHERE pbs_code = '2622M' AND schedule_id = $1", sid,
+        )
+
+    r = await app_client.get(f"/v1/drugs/2622M?schedule={TEST_MONTH}", headers=headers)
+    assert r.status_code == 200, r.text
+    manufacturer = r.json()["data"]["primary_manufacturer"]
+    assert manufacturer is not None, "must fall back to items.sponsor, not return null"
+    assert manufacturer["name"] == "Merck Serono Pty Ltd"

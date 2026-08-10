@@ -383,13 +383,17 @@ async def insert_item_dispensing_rules(conn, rules: list[dict], schedule_id: str
     for rule in rules:
         await conn.execute(
             """
-            INSERT INTO item_dispensing_rules (schedule_id, pbs_code, rule_code)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (pbs_code, rule_code, schedule_id) DO NOTHING
+            INSERT INTO item_dispensing_rules (
+                schedule_id, pbs_code, rule_code, dispensing_rule_mnem
+            )
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (pbs_code, rule_code, schedule_id) DO UPDATE SET
+                dispensing_rule_mnem = EXCLUDED.dispensing_rule_mnem
             """,
             schedule_id,
             rule.get("pbs_code", ""),
             rule.get("rule_code", ""),
+            rule.get("dispensing_rule_mnem"),
         )
 
 
@@ -403,13 +407,16 @@ async def insert_program_dispensing_rules(conn, rules: list[dict], schedule_id: 
             """
             INSERT INTO program_dispensing_rules (
                 schedule_id, program_code, rule_code,
-                dispensing_rule_reference, community_pharmacy_indicator,
+                dispensing_rule_reference, dispensing_rule_mnem, dispensing_rule_title,
+                community_pharmacy_indicator,
                 dispensing_quantity, dispensing_unit, repeats_allowed, description
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             ON CONFLICT (rule_code, schedule_id) DO UPDATE SET
                 program_code = EXCLUDED.program_code,
                 dispensing_rule_reference = EXCLUDED.dispensing_rule_reference,
+                dispensing_rule_mnem = EXCLUDED.dispensing_rule_mnem,
+                dispensing_rule_title = EXCLUDED.dispensing_rule_title,
                 community_pharmacy_indicator = EXCLUDED.community_pharmacy_indicator,
                 dispensing_quantity = EXCLUDED.dispensing_quantity,
                 dispensing_unit = EXCLUDED.dispensing_unit,
@@ -420,6 +427,8 @@ async def insert_program_dispensing_rules(conn, rules: list[dict], schedule_id: 
             rule.get("program_code"),  # NULL from real API
             rule.get("rule_code", ""),
             rule.get("dispensing_rule_reference"),
+            rule.get("dispensing_rule_mnem"),
+            rule.get("dispensing_rule_title"),
             rule.get("community_pharmacy_indicator"),
             rule.get("dispensing_quantity"),
             rule.get("dispensing_unit"),
