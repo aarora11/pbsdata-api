@@ -64,11 +64,11 @@ def _pairs(rows, field, extract):
     return out
 
 
-async def _db_pairs(conn, month, table, col, code_col="pbs_code"):
+async def _db_pairs(conn, month, table, col, code_col="pbs_code", where=""):
     rows = await conn.fetch(
         f"SELECT DISTINCT t.{code_col} AS c, t.{col} AS v FROM {table} t "
         f"JOIN schedules s ON s.id = t.schedule_id "
-        f"WHERE s.month = $1 AND t.{col} IS NOT NULL",
+        f"WHERE s.month = $1 AND t.{col} IS NOT NULL {where}",
         month,
     )
     return {(r["c"], str(r["v"])) for r in rows}
@@ -83,9 +83,16 @@ async def validate_month(conn, month: str) -> list[tuple]:
          _pairs(ov, "item_atcs", lambda e: (e.get("atc") or {}).get("atc_code")),
          await _db_pairs(conn, month, "item_atc_relationships", "atc_code")),
 
+        # PBS nests only true restrictions under item_restrictions, while our
+        # relationship table also holds the notes and cautions that arrive on the same
+        # feed. Compare like with like by taking only the restriction-kind rows; the
+        # notes and cautions are still stored, and /drugs/{code}/restrictions returns
+        # them tagged. Before the split this reported +12,904 extra, which is exactly
+        # the 11,939 notes + 965 cautions.
         ("item_restriction_relationships",
          _pairs(ov, "item_restrictions", lambda e: e.get("res_code")),
-         await _db_pairs(conn, month, "item_restriction_relationships", "restriction_code")),
+         await _db_pairs(conn, month, "item_restriction_relationships", "restriction_code",
+                         where="AND t.restriction_code LIKE '%\\_R'")),
 
         ("item_prescribing_text_relationships",
          _pairs(ov, "item_prescribing_texts", lambda e: e.get("prescribing_txt_id")),

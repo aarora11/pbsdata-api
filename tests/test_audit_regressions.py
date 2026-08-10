@@ -695,21 +695,34 @@ async def test_quality_gate_catches_a_never_populated_column(db_pool, seeded_aud
     assert any("program_code" in e and "never populated" in e for e in report.errors)
 
 
-async def test_quality_gate_warns_but_does_not_block_on_open_questions(db_pool, seeded_audit):
-    """authority_method and li_item_id are 100% null pending domain review.
+async def test_quality_gate_blocks_on_null_authority_method(db_pool, seeded_audit):
+    """authority_method is no longer an open question, so a null one must block.
 
-    They must be reported every ingest, but must not block a load — otherwise no
-    real schedule could ever complete while those questions are open.
+    It was 100% null because the loader's INSERT omitted the column, not because PBS
+    withheld it — the feed populates it on every restriction. The gate previously only
+    warned; now that the source field is confirmed, a regression to all-null is an
+    error. Notes and cautions legitimately carry no authority method, so the threshold
+    sits above their share rather than at zero.
     """
-    from ingest.quality import check_schedule
+    from ingest.quality import check_schedule, NULL_RATE_LIMITS
+
+    limit = next(l for l in NULL_RATE_LIMITS if l[0] == "restrictions" and l[1] == "authority_method")
+    assert limit[3] is True, "authority_method must block, not warn"
 
     async with db_pool.acquire() as conn:
         sid = await conn.fetchval("SELECT id FROM schedules WHERE month = $1", TEST_MONTH)
         report = await check_schedule(conn, TEST_MONTH, str(sid))
+        assert report.ok, f"seeded data should pass the gate: {report.errors}"
 
-    joined = " ".join(report.warnings)
-    assert "authority_method" in joined, "the null authority_method must still be reported"
-    assert report.ok, "open domain questions must not block an otherwise valid ingest"
+        # Mutation: blank every authority_method, exactly what the dropped column did.
+        await conn.execute(
+            "UPDATE restrictions SET authority_method = NULL WHERE item_id IN "
+            "(SELECT id FROM items WHERE schedule_id = $1)", sid,
+        )
+        regressed = await check_schedule(conn, TEST_MONTH, str(sid))
+
+    assert not regressed.ok, "an all-null authority_method must fail the gate"
+    assert any("authority_method" in e for e in regressed.errors)
 
 
 def test_runner_gates_completion_on_quality():
@@ -760,3 +773,167 @@ def test_cache_invalidation_still_works():
     assert cache_mod.cache_get("a") is None
     assert cache_mod.cache_get("b") == 2
     cache_mod.cache_clear()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Restrictions, notes and cautions — validated against pbs.gov.au 2026-08-10
+#
+# /restrictions returns three different things and we served all three as
+# restrictions. pbs.gov.au shows one restriction for item 10001J (Rifaximin) where
+# this API returned three; the two extras were notes. On 2026-06 that was 10,148
+# restrictions against 11,939 notes and 965 cautions — a 2.3x overstatement on a
+# clinical endpoint.
+#
+# PBS marks the difference three independent ways and all three agree exactly, so
+# any one of them alone would do; the code prefers the explicit flags.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def test_restriction_kind_from_explicit_flags():
+    from ingest.reference import restriction_kind
+
+    assert restriction_kind({"res_code": "7606_N", "note_indicator": "Y"}) == "note"
+    assert restriction_kind({"res_code": "9001_C", "caution_indicator": "Y"}) == "caution"
+    assert restriction_kind(
+        {"res_code": "17266_4306_R", "note_indicator": "N", "caution_indicator": "N"}
+    ) == "restriction"
+
+
+def test_restriction_kind_falls_back_to_res_code_suffix():
+    """The data dictionary ties the flag to the suffix: note_indicator "Relates to N
+    suffix in res_code". Either signal alone must classify correctly."""
+    from ingest.reference import restriction_kind
+
+    assert restriction_kind({"res_code": "7606_N"}) == "note"
+    assert restriction_kind({"res_code": "9001_C"}) == "caution"
+    assert restriction_kind({"res_code": "17266_4306_R"}) == "restriction"
+    # Unknown shape defaults to restriction, matching the feed's own default.
+    assert restriction_kind({"res_code": "12345"}) == "restriction"
+    assert restriction_kind({}) == "restriction"
+
+
+def test_authority_method_accepts_both_published_forms():
+    """The dictionary (v3.6.5) documents R/A/S; the live API (v3.7.8) sends the long
+    form. Storage is the PBS letter, matching how benefit_type is handled."""
+    from ingest.reference import canonical_authority_method, is_authority_required
+
+    assert canonical_authority_method("AUTHORITY_REQUIRED") == "A"
+    assert canonical_authority_method("STREAMLINED") == "S"
+    assert canonical_authority_method("RESTRICTED") == "R"
+    assert canonical_authority_method("A") == "A"
+    assert canonical_authority_method(None) is None
+    # An unrecognised value must surface as itself, never as a guess.
+    assert canonical_authority_method("NEW_PBS_VALUE") == "NEW_PBS_VALUE"
+
+    # A Restricted Benefit carries criteria but needs no authority approval.
+    assert is_authority_required("AUTHORITY_REQUIRED") is True
+    assert is_authority_required("STREAMLINED") is True
+    assert is_authority_required("RESTRICTED") is False
+    assert is_authority_required(None) is False
+
+
+def test_normaliser_tags_kind_and_keeps_note_text():
+    """li_html_text is null for notes and cautions by design — the dictionary says
+    they "are not legal". Reading only that field left 56% of rows with no text."""
+    from ingest.normaliser import normalise_schedule
+    import json
+
+    items = json.loads((FIXTURES / "pbs_sample_items.json").read_text())
+    restrictions = json.loads((FIXTURES / "pbs_sample_restrictions.json").read_text())
+    rels = json.loads((FIXTURES / "pbs_sample_item_restriction_relationships.json").read_text())
+
+    result = normalise_schedule(
+        "2026-04", items, restrictions, raw_item_restriction_relationships=rels
+    )
+    metformin = next(i for i in result["items"] if i["pbs_code"] == "2622M")
+    by_code = {r["restriction_code"]: r for r in metformin["restrictions"]}
+
+    assert by_code["4236_4236_R"]["restriction_kind"] == "restriction"
+    assert by_code["7606_N"]["restriction_kind"] == "note"
+    assert by_code["9001_C"]["restriction_kind"] == "caution"
+
+    # Every kind carries text, and the note's comes from schedule_html_text.
+    assert all(r["restriction_text"] for r in metformin["restrictions"])
+    assert "maximum quantity" in by_code["7606_N"]["restriction_text"]
+
+    # authority_method is stored as the PBS letter and only restrictions have one.
+    assert by_code["4236_4236_R"]["authority_method"] == "S"
+    assert by_code["7606_N"]["authority_method"] is None
+    # Streamlined code is treatment_of_code, not a copy of res_code.
+    assert by_code["4236_4236_R"]["streamlined_code"] == "4236"
+    assert by_code["7606_N"]["streamlined_code"] is None
+
+
+async def test_loader_persists_authority_method(db_pool, seeded_audit):
+    """The normaliser always computed authority_method; the loader's INSERT column
+    list omitted it, so it measured 100% null while the feed populated every row."""
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT r.restriction_code, r.restriction_kind, r.authority_method,
+                   r.authority_required, r.restriction_text, r.streamlined_code
+            FROM restrictions r JOIN items i ON i.id = r.item_id
+            JOIN schedules s ON s.id = i.schedule_id
+            WHERE s.month = $1
+            """,
+            TEST_MONTH,
+        )
+
+    assert rows, "fixture schedule should have restrictions"
+    by_code = {r["restriction_code"]: r for r in rows}
+
+    assert by_code["4236_4236_R"]["authority_method"] == "S"
+    assert by_code["4236_4236_R"]["authority_required"] is True
+    assert by_code["4236_4236_R"]["streamlined_code"] == "4236"
+    assert by_code["8176_8176_R"]["authority_method"] == "A"
+
+    # Every row is classified and every row has text.
+    assert all(r["restriction_kind"] in ("restriction", "note", "caution") for r in rows)
+    assert all(r["restriction_text"] for r in rows)
+
+
+async def test_restrictions_endpoint_tags_type_and_counts_restrictions_only(
+    app_client, seeded_audit, ent_key
+):
+    """The endpoint returns all three kinds tagged, but restriction_count counts only
+    restrictions — it previously counted notes and cautions as restrictions too."""
+    r = await app_client.get(
+        f"/v1/drugs/2622M/restrictions?schedule={TEST_MONTH}",
+        headers={"X-API-Key": ent_key},
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()["data"]
+
+    kinds = {e["restriction_code"]: e["type"] for e in data["restrictions"]}
+    assert kinds["4236_4236_R"] == "restriction"
+    assert kinds["7606_N"] == "note"
+    assert kinds["9001_C"] == "caution"
+
+    assert data["restriction_count"] == 1, "notes and cautions are not restrictions"
+    assert data["note_count"] == 1
+    assert data["caution_count"] == 1
+    assert len(data["restrictions"]) == 3, "all three kinds are still returned"
+
+    # The clinical fields the endpoint used to return as null/false for an authority
+    # listing, plus the text it never returned at all.
+    entry = next(e for e in data["restrictions"] if e["type"] == "restriction")
+    assert entry["authority_method"] == "S"
+    assert entry["authority_method_label"] == "Authority Required (Streamlined)"
+    assert entry["authority_required"] is True
+    assert entry["restriction_text"]
+
+
+async def test_authority_workflow_excludes_notes_and_cautions(
+    app_client, seeded_audit, ent_key
+):
+    """A note carries no authority, so a workflow built over one emitted "No authority
+    required" for advisory text that was never a restriction."""
+    r = await app_client.get(
+        f"/v1/drugs/2622M/authority-workflow?schedule={TEST_MONTH}",
+        headers={"X-API-Key": ent_key},
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()["data"]
+    codes = [w["restriction_code"] for w in data["workflows"]]
+    assert "4236_4236_R" in codes
+    assert "7606_N" not in codes
+    assert "9001_C" not in codes

@@ -6,7 +6,14 @@ import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from ingest.reference import BENEFIT_TYPE_LABELS, canonical_benefit_type, canonical_section
+from ingest.reference import (
+    BENEFIT_TYPE_LABELS,
+    canonical_authority_method,
+    canonical_benefit_type,
+    canonical_section,
+    is_authority_required,
+    restriction_kind,
+)
 
 # Benefit types are stored as the PBS letter code. Kept as an alias so existing
 # callers importing BENEFIT_TYPE_MAP keep working; the values are now the human
@@ -277,20 +284,35 @@ def normalise_schedule(
         item_restrictions = []
         for res_code in res_codes:
             r = restriction_lookup.get(res_code, {})
+            kind = restriction_kind(r) if r else restriction_kind({"res_code": res_code})
+            method = canonical_authority_method(r.get("authority_method"))
+            # Notes and cautions carry no legal text, so li_html_text is null for them
+            # by design; schedule_html_text is the only place their content appears.
+            # Preferring li_html_text keeps restrictions on the authoritative field,
+            # which matters because the dictionary flags schedule_html_text as having
+            # a known display defect.
+            text = r.get("li_html_text") or r.get("schedule_html_text") or r.get("restriction_text")
+            # PBS sends treatment_of_code as a number; both columns it feeds are VARCHAR.
+            toc = r.get("treatment_of_code")
+            toc = str(toc) if toc is not None else None
             item_restrictions.append({
                 "res_code": res_code,
                 "restriction_code": res_code,
-                "streamlined_code": res_code,  # backward compat alias
+                "restriction_kind": kind,
+                # treatment_of_code "also represents the Streamline Code" for
+                # Streamlined listings (data dictionary). It is not a streamlined code
+                # on any other listing, and was previously a copy of res_code.
+                "streamlined_code": toc if method == "S" else None,
                 "treatment_phase": r.get("treatment_phase"),
-                "authority_method": r.get("authority_method"),
-                "treatment_of_code": r.get("treatment_of_code"),
+                "authority_method": method,
+                "treatment_of_code": toc,
                 "restriction_number": r.get("restriction_number"),
                 "li_html_text": r.get("li_html_text"),
-                "restriction_text": r.get("li_html_text") or r.get("restriction_text"),  # compat
+                "restriction_text": text,
                 "indication": r.get("indication"),  # legacy compat
                 "written_authority_required": yn(r.get("written_authority_required")),
                 "complex_authority_required": yn(r.get("complex_authority_rqrd_ind")),
-                "authority_required": yn(r.get("complex_authority_rqrd_ind")) or bool(r.get("authority_required", False)),
+                "authority_required": is_authority_required(method),
                 "prescriber_type": r.get("prescriber_type"),
                 "continuation_only": "continu" in str(r.get("treatment_phase", "")).lower() or bool(r.get("continuation_only", False)),
                 "clinical_criteria": r.get("clinical_criteria"),

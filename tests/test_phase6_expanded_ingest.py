@@ -67,7 +67,7 @@ def test_normaliser_returns_all_new_keys_when_data_provided():
     assert len(result["item_amt_relationships"]) == 2
     assert len(result["item_dispensing_rules"]) == 3
     assert len(result["program_dispensing_rules"]) == 2
-    assert len(result["item_restriction_relationships"]) == 3
+    assert len(result["item_restriction_relationships"]) == 5
     assert len(result["restriction_prescribing_text_relationships"]) == 2
     assert len(result["item_prescribing_text_relationships"]) == 2
     assert len(result["summary_of_changes"]) == 5
@@ -275,7 +275,9 @@ async def test_loader_inserts_item_restriction_relationships(db):
     await load_to_database(FakePool(db), "2026-04", normalised, [])
 
     count = await db.fetchval("SELECT COUNT(*) FROM item_restriction_relationships")
-    assert count == 3
+    # 3 restrictions + 1 note + 1 caution: the fixture mirrors the real feed, which
+    # returns all three kinds from /restrictions.
+    assert count == 5
 
 
 @pytest.mark.asyncio

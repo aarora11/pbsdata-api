@@ -151,9 +151,13 @@ async def insert_restrictions(conn, items: list[dict], item_ids: dict[str, str],
                 INSERT INTO restrictions (
                     item_id, restriction_code, restriction_type, streamlined_code,
                     indication, restriction_text, prescriber_type,
-                    authority_required, continuation_only, clinical_criteria
+                    authority_required, continuation_only, clinical_criteria,
+                    restriction_kind, authority_method, treatment_phase,
+                    treatment_of_code, li_html_text,
+                    written_authority_required, complex_authority_required
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                        $11, $12, $13, $14, $15, $16, $17)
                 """,
                 item_id,
                 r.get("restriction_code"),
@@ -165,6 +169,16 @@ async def insert_restrictions(conn, items: list[dict], item_ids: dict[str, str],
                 r.get("authority_required", False),
                 r.get("continuation_only", False),
                 r.get("clinical_criteria"),
+                # Everything below was normalised on every ingest and then dropped by
+                # this INSERT, which is why authority_method measured 100% null while
+                # the feed populated it on all 3,030 restrictions.
+                r.get("restriction_kind"),
+                r.get("authority_method"),
+                r.get("treatment_phase"),
+                r.get("treatment_of_code"),
+                r.get("li_html_text"),
+                r.get("written_authority_required", False),
+                r.get("complex_authority_required", False),
             )
 
 

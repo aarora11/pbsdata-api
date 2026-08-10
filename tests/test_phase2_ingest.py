@@ -121,19 +121,36 @@ def test_brand_premium_never_counts_to_safety_net():
             f"Item {item['pbs_code']} has brand_premium_counts_to_safety_net=True"
 
 
+def _normalise_with_restrictions():
+    """Normalise the sample schedule the way production links restrictions.
+
+    PBS's /restrictions feed carries no pbs_code — items are linked through
+    /item-restriction-relationships. Passing the relationships explicitly exercises
+    that path instead of the pbs_code fallback, which only ever fired for fixtures.
+    """
+    return normalise_schedule(
+        "2026-04",
+        load_fixture("pbs_sample_items.json"),
+        load_fixture("pbs_sample_restrictions.json"),
+        raw_item_restriction_relationships=load_fixture(
+            "pbs_sample_item_restriction_relationships.json"
+        ),
+    )
+
+
 def test_normaliser_attaches_restrictions_to_items():
-    items = load_fixture("pbs_sample_items.json")
-    restrictions = load_fixture("pbs_sample_restrictions.json")
-    result = normalise_schedule("2026-04", items, restrictions)
+    result = _normalise_with_restrictions()
     metformin = next(i for i in result["items"] if i["pbs_code"] == "2622M")
     assert len(metformin["restrictions"]) >= 1
+    # The streamlined code is PBS's treatment_of_code, not the res_code. The data
+    # dictionary: for Streamlined listings the ToC "also represents the Streamline
+    # Code". Previously this was a copy of res_code and passed for the wrong reason.
     assert metformin["restrictions"][0]["streamlined_code"] == "4236"
+    assert metformin["restrictions"][0]["restriction_code"] == "4236_4236_R"
 
 
 def test_adalimumab_has_two_restrictions():
-    items = load_fixture("pbs_sample_items.json")
-    restrictions = load_fixture("pbs_sample_restrictions.json")
-    result = normalise_schedule("2026-04", items, restrictions)
+    result = _normalise_with_restrictions()
     humira = next(i for i in result["items"] if i["pbs_code"] == "1234A")
     assert len(humira["restrictions"]) == 2
     has_continuation = any(r["continuation_only"] for r in humira["restrictions"])

@@ -1,5 +1,7 @@
 [
-  {"pbs_code": "2622M", "restriction_code": "4236"},
-  {"pbs_code": "1234A", "restriction_code": "8176"},
-  {"pbs_code": "1234A", "restriction_code": "8177"}
+  {"pbs_code": "2622M", "res_code": "4236_4236_R", "schedule_code": 4664},
+  {"pbs_code": "2622M", "res_code": "7606_N", "schedule_code": 4664},
+  {"pbs_code": "2622M", "res_code": "9001_C", "schedule_code": 4664},
+  {"pbs_code": "1234A", "res_code": "8176_8176_R", "schedule_code": 4664},
+  {"pbs_code": "1234A", "res_code": "8177_8177_R", "schedule_code": 4664}
 ]

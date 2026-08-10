@@ -4,7 +4,16 @@ from api.middleware.tier import require_tier, tier_label
 from api.routers.shared import _rl
 from api.database import get_db
 from typing import Optional
-from ingest.reference import benefit_type_label, formulary_label, authority_method_label, FORMULARY_NOTE
+from collections import Counter
+from ingest.reference import (
+    benefit_type_label,
+    formulary_label,
+    authority_method_label,
+    FORMULARY_NOTE,
+    RESTRICTION_KIND_RESTRICTION,
+    RESTRICTION_KIND_NOTE,
+    RESTRICTION_KIND_CAUTION,
+)
 
 router = APIRouter(tags=["drugs"])
 
@@ -623,12 +632,13 @@ async def get_drug_restrictions(
     restrictions = await db.fetch(
         """
         SELECT r.restriction_code, r.streamlined_code, r.restriction_type,
+               r.restriction_kind, r.restriction_text,
                r.authority_required, r.authority_method, r.treatment_of_code,
                r.written_authority_required, r.continuation_only, r.treatment_phase
         FROM restrictions r
         JOIN items i ON i.id = r.item_id
         WHERE i.pbs_code = $1 AND i.schedule_id = $2
-        ORDER BY r.restriction_code
+        ORDER BY r.restriction_kind, r.restriction_code
         """,
         pbs_code.upper(), schedule_id,
     )
@@ -639,15 +649,25 @@ async def get_drug_restrictions(
     for r in restrictions:
         restriction_list.append({
             "restriction_code": r["restriction_code"],
+            # PBS returns restrictions, notes and cautions from one feed. Only the
+            # first is a restriction; the other two are advisory text attached to the
+            # listing. They are returned together, tagged, because notes and cautions
+            # are clinically useful — but callers filtering on restrictions must use
+            # this field. See docs/AUDIT_FINDINGS.md.
+            "type": r["restriction_kind"],
             "streamlined_code": r["streamlined_code"],
             "restriction_type": r["restriction_type"],
+            "restriction_text": r["restriction_text"],
             "authority_required": r["authority_required"],
             "authority_method": r["authority_method"],
+            "authority_method_label": authority_method_label(r["authority_method"]),
             "treatment_of_code": r["treatment_of_code"],
             "written_authority_required": r["written_authority_required"],
             "continuation_only": r["continuation_only"],
             "treatment_phase": r["treatment_phase"],
         })
+
+    counts = Counter(r["type"] for r in restriction_list)
 
     return {
         "data": {
@@ -655,7 +675,11 @@ async def get_drug_restrictions(
             "drug_name": item["ingredient"],
             "benefit_type_code": benefit_code,
             "benefit_type_label": benefit_type_label(benefit_code),
-            "restriction_count": len(restriction_list),
+            # Counts the restrictions only. `restriction_count` previously counted
+            # notes and cautions too, overstating it 2.3x across the schedule.
+            "restriction_count": counts.get(RESTRICTION_KIND_RESTRICTION, 0),
+            "note_count": counts.get(RESTRICTION_KIND_NOTE, 0),
+            "caution_count": counts.get(RESTRICTION_KIND_CAUTION, 0),
             "restrictions": restriction_list,
         },
         "meta": _meta(api_key_data, schedule_month, ["/item-restriction-relationships", "/restrictions"]),
@@ -727,9 +751,12 @@ async def get_drug_full_profile(
     for r in restrictions:
         restriction_list.append({
             "restriction_code": r["restriction_code"],
+            "type": r["restriction_kind"],
             "restriction_type": r["restriction_type"],
+            "restriction_text": r["restriction_text"],
             "authority_required": r["authority_required"],
             "authority_method": r["authority_method"],
+            "authority_method_label": authority_method_label(r["authority_method"]),
             "written_authority_required": r["written_authority_required"],
             "continuation_only": r["continuation_only"],
             "treatment_phase": r["treatment_phase"],
@@ -818,10 +845,12 @@ async def _gather_drug_data(db, pbs_code: str, schedule_id: str):
     )
     restrictions = await db.fetch(
         """
-        SELECT r.restriction_code, r.restriction_type, r.authority_required, r.authority_method,
+        SELECT r.restriction_code, r.restriction_type, r.restriction_kind,
+               r.restriction_text, r.authority_required, r.authority_method,
                r.written_authority_required, r.continuation_only, r.treatment_phase
         FROM restrictions r JOIN items i ON i.id = r.item_id
-        WHERE i.pbs_code = $1 AND i.schedule_id = $2 ORDER BY r.restriction_code
+        WHERE i.pbs_code = $1 AND i.schedule_id = $2
+        ORDER BY r.restriction_kind, r.restriction_code
         """,
         pbs_code, schedule_id,
     )
@@ -893,13 +922,13 @@ async def get_drug_restriction_full(
     restrictions = await db.fetch(
         f"""
         SELECT r.restriction_code, r.streamlined_code, r.restriction_type, r.indication,
-               r.restriction_text, r.authority_required, r.authority_method,
+               r.restriction_kind, r.restriction_text, r.authority_required, r.authority_method,
                r.written_authority_required, r.complex_authority_required,
                r.continuation_only, r.treatment_phase, r.treatment_of_code,
                r.prescriber_type, r.li_html_text, r.clinical_criteria
         FROM restrictions r JOIN items i ON i.id = r.item_id
         WHERE i.pbs_code = $1 AND i.schedule_id = $2 {restriction_filter}
-        ORDER BY r.restriction_code
+        ORDER BY r.restriction_kind, r.restriction_code
         """,
         *params,
     )
@@ -918,6 +947,8 @@ async def get_drug_restriction_full(
         )
         result.append({
             **dict(r),
+            "type": r["restriction_kind"],
+            "authority_method_label": authority_method_label(r["authority_method"]),
             "prescribing_components": [
                 {
                     "prescribing_text_id": pt["prescribing_text_id"],
@@ -929,10 +960,14 @@ async def get_drug_restriction_full(
             ],
         })
 
+    full_counts = Counter(r["type"] for r in result)
+
     return {
         "data": {
             "pbs_code": pbs_code.upper(),
-            "restriction_count": len(result),
+            "restriction_count": full_counts.get(RESTRICTION_KIND_RESTRICTION, 0),
+            "note_count": full_counts.get(RESTRICTION_KIND_NOTE, 0),
+            "caution_count": full_counts.get(RESTRICTION_KIND_CAUTION, 0),
             "restrictions": result,
         },
         "meta": _meta(api_key_data, schedule_month, [
@@ -971,13 +1006,18 @@ async def get_drug_authority_workflow(
 
     restrictions = await db.fetch(
         """
-        SELECT r.restriction_code, r.restriction_type, r.authority_required,
+        SELECT r.restriction_code, r.restriction_type, r.restriction_kind, r.authority_required,
                r.authority_method, r.written_authority_required, r.complex_authority_required,
                r.streamlined_code, r.treatment_phase, r.continuation_only, r.prescriber_type,
                r.indication, r.clinical_criteria, r.li_html_text, r.restriction_text,
                r.treatment_of_code
         FROM restrictions r JOIN items i ON i.id = r.item_id
         WHERE i.pbs_code = $1 AND i.schedule_id = $2
+          -- Restrictions only. Notes and cautions carry no authority of their own, so
+          -- a workflow built over them emitted "No authority required" for advisory
+          -- text that was never a restriction. /drugs/{code}/restrictions returns all
+          -- three tagged; this endpoint is about authority, so it takes only the one.
+          AND r.restriction_kind = 'restriction'
         ORDER BY r.restriction_code
         """,
         pbs_code.upper(), schedule_id,

@@ -106,22 +106,103 @@ def formulary_label(code: str | None) -> str | None:
 
 
 # ── Authority method ──────────────────────────────────────────────────────────
-# Populated from the PBS restrictions feed. NOTE: this field is currently null for
-# every ingested restriction; the correct PBS source field is an open question for
-# domain review. See docs/AUDIT_FINDINGS.md [F3].
+# `/restrictions.authority_method` — no longer an open question. The data dictionary
+# defines it as "Determines if a benefit is restricted or not and if so the level of
+# authority required", with values R / A / S, and states that "authority_method and
+# benefit_type_code fields hold the same information in other endpoints". Measured on
+# 2026-06 that holds exactly: A↔AUTHORITY_REQUIRED (2,201 items), R↔RESTRICTED (1,414),
+# S↔STREAMLINED (2,111), with no item carrying a mismatched pair.
+#
+# The dictionary (v3.6.5) documents the single letters; the live API (v3.7.8) sends the
+# long form. Both are accepted on input and stored as the PBS letter, matching how
+# benefit_type is handled above.
 AUTHORITY_METHOD_LABELS: dict[str, str] = {
-    "S": "Streamlined (self-assess)",
-    "T": "Telephone approval",
-    "W": "Written application",
-    "O": "Online application",
+    "R": "Restricted Benefit",
+    "A": "Authority Required",
+    "S": "Authority Required (Streamlined)",
 }
+
+_AUTHORITY_METHOD_TO_CODE: dict[str, str] = {
+    "RESTRICTED": "R",
+    "AUTHORITY_REQUIRED": "A",
+    "STREAMLINED": "S",
+}
+
+# Methods that constitute an authority listing. A Restricted Benefit carries clinical
+# criteria but needs no authority approval, so it is deliberately excluded.
+AUTHORITY_REQUIRED_METHODS: frozenset[str] = frozenset({"A", "S"})
+
+
+def canonical_authority_method(raw: str | None) -> str | None:
+    """Return the PBS letter for an authority method in either published form.
+
+    Accepts a letter ("A"), the long form the live API sends ("AUTHORITY_REQUIRED"),
+    or None. Unknown values pass through uppercased rather than being mapped to a
+    guess, so a new PBS value surfaces as itself instead of silently becoming wrong.
+    """
+    if raw is None:
+        return None
+    value = str(raw).strip().upper()
+    if not value:
+        return None
+    return _AUTHORITY_METHOD_TO_CODE.get(value, value)
 
 
 def authority_method_label(code: str | None) -> str | None:
     """Human label for an authority method code. Unknown codes return themselves."""
     if code is None:
         return None
-    return AUTHORITY_METHOD_LABELS.get(code, code)
+    return AUTHORITY_METHOD_LABELS.get(canonical_authority_method(code), code)
+
+
+def is_authority_required(method: str | None) -> bool:
+    """Whether an authority method means the prescriber needs an authority."""
+    return canonical_authority_method(method) in AUTHORITY_REQUIRED_METHODS
+
+
+# ── Restriction kind ──────────────────────────────────────────────────────────
+# `/restrictions` returns three different things in one feed and PBS distinguishes
+# them three independent ways, all of which agree exactly (3,030 / 444 / 84 on
+# 2026-06): the res_code suffix, the note_indicator/caution_indicator flags, and
+# whether li_html_text is populated. The data dictionary ties the first two together
+# — note_indicator "Relates to N suffix in res_code" — and explains the third:
+# li_html_text "is Null for Notes and Cautions as they are not legal".
+#
+# Only the restrictions are true restrictions. Serving all three as restrictions
+# overstated /v1/drugs/{code}/restrictions by 2.3x. See docs/AUDIT_FINDINGS.md.
+RESTRICTION_KIND_RESTRICTION = "restriction"
+RESTRICTION_KIND_NOTE = "note"
+RESTRICTION_KIND_CAUTION = "caution"
+
+RESTRICTION_KINDS: frozenset[str] = frozenset({
+    RESTRICTION_KIND_RESTRICTION, RESTRICTION_KIND_NOTE, RESTRICTION_KIND_CAUTION,
+})
+
+_RES_CODE_SUFFIX_TO_KIND: dict[str, str] = {
+    "R": RESTRICTION_KIND_RESTRICTION,
+    "N": RESTRICTION_KIND_NOTE,
+    "C": RESTRICTION_KIND_CAUTION,
+}
+
+
+def restriction_kind(raw: dict) -> str:
+    """Classify a /restrictions row as a restriction, note or caution.
+
+    Prefers the explicit indicator flags and falls back to the res_code suffix, which
+    the data dictionary documents as carrying the same meaning. Anything unclassified
+    is treated as a restriction, matching the feed's own default (a row is a note or
+    caution only when it says so).
+    """
+    def flag(name: str) -> bool:
+        return str(raw.get(name) or "").strip().upper() == "Y"
+
+    if flag("note_indicator"):
+        return RESTRICTION_KIND_NOTE
+    if flag("caution_indicator"):
+        return RESTRICTION_KIND_CAUTION
+    code = str(raw.get("res_code") or "")
+    suffix = code.rsplit("_", 1)[-1].strip().upper() if "_" in code else ""
+    return _RES_CODE_SUFFIX_TO_KIND.get(suffix, RESTRICTION_KIND_RESTRICTION)
 
 
 # ── summary_of_changes.section ────────────────────────────────────────────────

@@ -58,18 +58,23 @@ EXPECTED_NON_EMPTY = [
 # the signature the audit kept finding.
 #
 # `blocking` distinguishes "this is definitely broken" from "this is a known open
-# question". authority_method and li_item_id are both 100% null in production, but
-# whether PBS supplies them at all is still with the domain reviewer
-# (docs/FIX_PLAN.md Phase 4) — so they warn loudly rather than block the ingest.
-# Promote them to blocking once the source field is confirmed.
+# question".
+#
+# li_item_id and authority_method were both non-blocking while it was unclear whether
+# PBS supplied them. Both are now confirmed and populated, so both block:
+#   - li_item_id measures 0.00% null (it is the PBS key for /items).
+#   - authority_method measures 55.98% null, but only because notes and cautions carry
+#     no authority — every restriction-kind row has one. The threshold sits above that
+#     legitimate share and well below the 100% that the dropped-column bug produced.
 NULL_RATE_LIMITS = [
     ("items", "benefit_type", 0.01, True),
     ("items", "program_code", 0.20, True),
     ("items", "formulary", 0.50, False),
     ("items", "government_price", 0.99, False),
-    ("items", "li_item_id", 0.99, False),
+    ("items", "li_item_id", 0.01, True),
     ("restrictions", "restriction_code", 0.05, True),
-    ("restrictions", "authority_method", 0.99, False),
+    ("restrictions", "restriction_kind", 0.01, True),
+    ("restrictions", "authority_method", 0.70, True),
     ("item_atc_relationships", "atc_priority_pct", 0.50, False),
 ]
 
