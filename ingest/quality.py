@@ -15,6 +15,7 @@ from typing import Callable, Optional
 
 import structlog
 
+from ingest.join_validation import load_overview, validate_month
 from ingest.raw_store import endpoint_sources
 
 log = structlog.get_logger()
@@ -201,6 +202,43 @@ async def check_raw_layer(conn, month: str, raw_source: Callable) -> tuple[list[
     return errors, warnings
 
 
+async def check_tier_a_joins(conn, month: str) -> tuple[list[str], list[str]]:
+    """Compare every Tier A join against PBS's own pre-joined /item-overview.
+
+    Every other check here is internal consistency — orphan counts, null rates, row
+    volumes — and none of them can catch a join that is coherently wrong. This one
+    can, because /item-overview is PBS's own answer to the same question.
+
+    Mismatches are errors: all 8 joins matched exactly on 2026-05 and 2026-06 when this
+    was wired in, so any disagreement is a regression rather than a known gap. A month
+    with no overview rows is a warning, not an error — check_raw_layer already owns
+    feed completeness, and duplicating it here would report one missing feed twice.
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    overview = await load_overview(conn, month)
+    if not overview:
+        warnings.append(
+            "tier A joins not validated: no /item-overview rows in the raw layer"
+        )
+        return errors, warnings
+
+    for res in await validate_month(conn, month, overview=overview):
+        if res.ok:
+            continue
+        detail = f"{res.name} disagrees with PBS: {res.missing} missing, {res.extra} extra"
+        if res.sample_missing:
+            detail += f"; missing e.g. {res.sample_missing}"
+        if res.sample_extra:
+            detail += f"; extra e.g. {res.sample_extra}"
+        errors.append(detail)
+
+    if not errors:
+        log.info("quality.tier_a_joins_match", month=month, items=len(overview))
+    return errors, warnings
+
+
 async def check_schedule(
     conn, month: str, schedule_id: str, raw_source: Optional[Callable] = None
 ) -> QualityReport:
@@ -215,6 +253,14 @@ async def check_schedule(
         raw_errors, raw_warnings = await check_raw_layer(conn, month, raw_source)
         report.errors.extend(raw_errors)
         report.warnings.extend(raw_warnings)
+
+    try:
+        join_errors, join_warnings = await check_tier_a_joins(conn, month)
+    except Exception as exc:  # never let the gate itself be the reason an ingest dies
+        report.warnings.append(f"tier A join validation failed to run ({exc})")
+    else:
+        report.errors.extend(join_errors)
+        report.warnings.extend(join_warnings)
 
     for table in REQUIRED_NON_EMPTY + EXPECTED_NON_EMPTY:
         try:

@@ -1070,3 +1070,135 @@ async def test_primary_manufacturer_falls_back_to_sponsor(
     manufacturer = r.json()["data"]["primary_manufacturer"]
     assert manufacturer is not None, "must fall back to items.sponsor, not return null"
     assert manufacturer["name"] == "Merck Serono Pty Ltd"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Tier A join validation runs inside the quality gate
+#
+# Every other check in ingest/quality.py is internal consistency — orphan counts,
+# null rates, row volumes — and none of them can catch a join that is coherently
+# wrong. This one compares against PBS's own pre-joined /item-overview, and running
+# it in the gate means join drift fails an ingest instead of waiting for someone to
+# run the script.
+# ══════════════════════════════════════════════════════════════════════════════
+
+@pytest_asyncio.fixture
+async def seeded_with_raw_overview(db_pool, seeded_audit):
+    """Seed the fixture schedule *and* the raw /item-overview rows it implies.
+
+    A real ingest writes both: normalised tables via the loader, and raw_feed_rows via
+    ingest/raw_store. seed_schedule only does the first, so the join validation would
+    find no overview and warn instead of comparing. The fixture mirrors exactly what
+    the other fixtures load, so a clean seed must validate clean.
+    """
+    import json
+    overviews = json.loads((FIXTURES / "pbs_sample_item_overviews.json").read_text())
+    async with db_pool.acquire() as conn:
+        await conn.execute("DELETE FROM raw_feed_rows WHERE month = $1", TEST_MONTH)
+        for i, row in enumerate(overviews):
+            await conn.execute(
+                "INSERT INTO raw_feed_rows (month, schedule_code, endpoint, row_index, payload) "
+                "VALUES ($1, $2, '/item-overview', $3, $4)",
+                TEST_MONTH, "9999", i, json.dumps(row),
+            )
+    yield
+    async with db_pool.acquire() as conn:
+        await conn.execute("DELETE FROM raw_feed_rows WHERE month = $1", TEST_MONTH)
+
+
+def test_quality_gate_runs_tier_a_join_validation():
+    """The gate must call the validator; a validator nobody runs is worth nothing."""
+    import inspect
+    from ingest import quality
+
+    source = inspect.getsource(quality.check_schedule)
+    assert "check_tier_a_joins" in source, (
+        "check_schedule no longer runs Tier A join validation"
+    )
+
+
+async def test_clean_seed_agrees_with_pbs_on_every_tier_a_join(
+    db_pool, seeded_with_raw_overview
+):
+    """The baseline: a correct load must report zero disagreement on all 8 joins."""
+    from ingest.quality import check_tier_a_joins
+
+    async with db_pool.acquire() as conn:
+        errors, warnings = await check_tier_a_joins(conn, TEST_MONTH)
+
+    assert not errors, f"a clean seed must match its own overview: {errors}"
+    assert not any("not validated" in w for w in warnings), (
+        f"the check must actually run, not skip: {warnings}"
+    )
+
+
+async def test_join_mismatch_is_a_blocking_error(db_pool, seeded_with_raw_overview):
+    """A join that disagrees with PBS must be an error, so a blocking gate refuses.
+
+    Mutation-verified end to end against real data too: dropping five
+    item_atc_relationships rows made run_ingest exit 1 and left the schedule 'failed'.
+    """
+    from ingest.quality import check_tier_a_joins
+
+    async with db_pool.acquire() as conn:
+        sid = await conn.fetchval("SELECT id FROM schedules WHERE month = $1", TEST_MONTH)
+
+        # Assert a link PBS's overview does not carry.
+        await conn.execute(
+            "INSERT INTO item_atc_relationships (schedule_id, pbs_code, atc_code, is_primary) "
+            "VALUES ($1, '2622M', 'Z99ZZ99', false)", sid,
+        )
+        extra_errors, _ = await check_tier_a_joins(conn, TEST_MONTH)
+
+        # And drop one PBS does carry.
+        await conn.execute(
+            "DELETE FROM item_atc_relationships WHERE schedule_id = $1 AND atc_code = 'Z99ZZ99'", sid)
+        await conn.execute(
+            "DELETE FROM item_restriction_relationships "
+            "WHERE schedule_id = $1 AND restriction_code = '8176_8176_R'", sid)
+        missing_errors, _ = await check_tier_a_joins(conn, TEST_MONTH)
+
+    assert any("item_atc_relationships" in e and "1 extra" in e for e in extra_errors), extra_errors
+    assert any("item_restriction_relationships" in e and "1 missing" in e
+               for e in missing_errors), missing_errors
+
+
+async def test_missing_overview_warns_rather_than_blocking(db_pool):
+    """No overview rows means the check could not run — report it, never pass silently.
+
+    It warns rather than errors because check_raw_layer already owns feed completeness;
+    erroring here would report a single missing feed twice.
+    """
+    from ingest.quality import check_tier_a_joins
+
+    async with db_pool.acquire() as conn:
+        errors, warnings = await check_tier_a_joins(conn, "1999-01")
+
+    assert not errors
+    assert any("not validated" in w for w in warnings), warnings
+
+
+async def test_join_mismatch_makes_the_whole_report_fail(db_pool, seeded_with_raw_overview):
+    """A join disagreement must reach report.errors, so a blocking gate refuses.
+
+    check_tier_a_joins returning errors is not enough on its own — check_schedule has
+    to propagate them into report.errors rather than report.warnings, because only
+    errors make report.ok False and only that stops assert_schedule_usable marking the
+    schedule complete.
+    """
+    from ingest.quality import check_schedule
+
+    async with db_pool.acquire() as conn:
+        sid = await conn.fetchval("SELECT id FROM schedules WHERE month = $1", TEST_MONTH)
+
+        clean = await check_schedule(conn, TEST_MONTH, str(sid))
+        assert clean.ok, f"a clean seed must pass the gate: {clean.errors}"
+
+        await conn.execute(
+            "INSERT INTO item_atc_relationships (schedule_id, pbs_code, atc_code, is_primary) "
+            "VALUES ($1, '2622M', 'Z99ZZ99', false)", sid,
+        )
+        broken = await check_schedule(conn, TEST_MONTH, str(sid))
+
+    assert not broken.ok, "a join that disagrees with PBS must fail the gate, not warn"
+    assert any("item_atc_relationships" in e for e in broken.errors), broken.errors
