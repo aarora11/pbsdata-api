@@ -56,11 +56,12 @@ async def insert_items(conn, items: list[dict], schedule_id: str, medicine_ids: 
                 section, program_code, general_charge, concessional_charge,
                 government_price, brand_premium, brand_premium_counts_to_safety_net,
                 sixty_day_eligible, max_quantity, max_repeats, dangerous_drug,
-                artg_id, sponsor, caution, biosimilar, li_item_id
+                artg_id, sponsor, caution, biosimilar, li_item_id,
+                maximum_amount, unit_of_measure
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
                 $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
-                $23, $24, $25, $26, $27
+                $23, $24, $25, $26, $27, $28, $29
             )
             ON CONFLICT (li_item_id, schedule_id) DO UPDATE SET
                 brand_name = EXCLUDED.brand_name,
@@ -75,7 +76,11 @@ async def insert_items(conn, items: list[dict], schedule_id: str, medicine_ids: 
                 sponsor = EXCLUDED.sponsor,
                 caution = EXCLUDED.caution,
                 biosimilar = EXCLUDED.biosimilar,
-                li_item_id = EXCLUDED.li_item_id
+                li_item_id = EXCLUDED.li_item_id,
+                max_quantity = EXCLUDED.max_quantity,
+                max_repeats = EXCLUDED.max_repeats,
+                maximum_amount = EXCLUDED.maximum_amount,
+                unit_of_measure = EXCLUDED.unit_of_measure
             RETURNING id
             """,
             item["pbs_code"],
@@ -105,6 +110,8 @@ async def insert_items(conn, items: list[dict], schedule_id: str, medicine_ids: 
             item.get("caution"),
             item.get("biosimilar", False),
             item.get("li_item_id") or None,
+            item.get("maximum_amount"),
+            item.get("unit_of_measure"),
         )
         # Lowest li_item_id is the canonical row for this PBS code, so the choice
         # is deterministic rather than insertion-order dependent.

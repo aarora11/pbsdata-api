@@ -1202,3 +1202,91 @@ async def test_join_mismatch_makes_the_whole_report_fail(db_pool, seeded_with_ra
 
     assert not broken.ok, "a join that disagrees with PBS must fail the gate, not warn"
     assert any("item_atc_relationships" in e for e in broken.errors), broken.errors
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Item quantity fields — spot-checked against pbs.gov.au 2026-08-10
+#
+# Neither of these is a join, which is why the Tier A gate is green and still missed
+# them. Both were found by comparing individual medicine pages field by field.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def test_first_present_keeps_a_legitimate_zero():
+    """`a or b` treats 0 as absent. For PBS numerics, 0 is an answer."""
+    from ingest.normaliser import first_present
+
+    assert first_present(0, 5) == 0
+    assert first_present(None, 5) == 5
+    assert first_present(None, None) is None
+    assert first_present(0) == 0
+    # Falsy-but-present values must survive too.
+    assert first_present("", "fallback") == ""
+
+
+def test_zero_repeats_is_stored_as_zero_not_null():
+    """PBS sends number_of_repeats 0 for 2,608 of 14,782 items on 2026-06.
+
+    Every null in max_repeats came from `or` falling through to a legacy field PBS
+    does not send. pbs.gov.au shows "Number of Repeats: 0" for 10017F and 10091D,
+    where this API returned null — "no repeats allowed" is not "unknown".
+    """
+    from ingest.normaliser import normalise_schedule
+
+    raw = [
+        {"pbs_code": "0001T", "drug_name": "Zero Repeats", "brand_name": "ZeroBrand",
+         "benefit_type_code": "U", "number_of_repeats": 0, "maximum_quantity_units": 1,
+         "li_item_id": "0001T_1_2_3_4", "program_code": "GE"},
+        {"pbs_code": "0002W", "drug_name": "Five Repeats", "brand_name": "FiveBrand",
+         "benefit_type_code": "U", "number_of_repeats": 5, "maximum_quantity_units": 120,
+         "li_item_id": "0002W_1_2_3_4", "program_code": "GE"},
+    ]
+    items = {i["pbs_code"]: i for i in normalise_schedule("2026-04", raw, [])["items"]}
+
+    assert items["0001T"]["max_repeats"] == 0, "zero repeats must survive as 0"
+    assert items["0001T"]["max_repeats"] is not None
+    assert items["0002W"]["max_repeats"] == 5
+
+
+def test_infusible_items_carry_maximum_amount_not_max_quantity():
+    """Infusibles are prescribed by amount in unit_of_measure, not by units.
+
+    The dictionary: maximum_amount is "based on the maximum amount in terms of the
+    unit_of_measure. Defined only for infusible items, i.e. program_code = IN, IP, TY,
+    TZ". Measured on 2026-06 the two fields partition exactly — 730 infusible rows have
+    an amount and no units, every other program the reverse — so they are kept in
+    separate columns rather than conflated. pbs.gov.au shows "3000 mcg" for bortezomib,
+    where this API returned null.
+    """
+    from ingest.normaliser import normalise_schedule
+    from decimal import Decimal
+
+    raw = [
+        {"pbs_code": "0003X", "drug_name": "Infusible", "brand_name": "InfBrand",
+         "benefit_type_code": "R", "number_of_repeats": 15, "maximum_amount": 3000,
+         "unit_of_measure": "mcg", "li_item_id": "0003X_1_2_3_4", "program_code": "IN"},
+        {"pbs_code": "0004Y", "drug_name": "Tablet", "brand_name": "TabBrand",
+         "benefit_type_code": "U", "number_of_repeats": 5, "maximum_quantity_units": 120,
+         "li_item_id": "0004Y_1_2_3_4", "program_code": "GE"},
+    ]
+    items = {i["pbs_code"]: i for i in normalise_schedule("2026-04", raw, [])["items"]}
+
+    inf = items["0003X"]
+    assert inf["maximum_amount"] == Decimal("3000")
+    assert inf["unit_of_measure"] == "mcg"
+    assert inf["max_quantity"] is None, "an amount must not be written into max_quantity"
+
+    tab = items["0004Y"]
+    assert tab["max_quantity"] == 120
+    assert tab["maximum_amount"] is None
+    assert tab["unit_of_measure"] is None
+
+
+async def test_drug_endpoint_exposes_maximum_amount(app_client, seeded_audit, ent_key):
+    """An amount is unusable without its unit, so both are surfaced together."""
+    r = await app_client.get(
+        f"/v1/drugs/2622M?schedule={TEST_MONTH}", headers={"X-API-Key": ent_key})
+    assert r.status_code == 200, r.text
+    dispensing = r.json()["data"]["dispensing"]
+    assert "maximum_amount" in dispensing
+    assert "unit_of_measure" in dispensing
+    assert "number_of_repeats" in dispensing

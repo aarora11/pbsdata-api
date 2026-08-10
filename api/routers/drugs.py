@@ -181,6 +181,7 @@ async def get_drug(
                i.general_charge, i.concessional_charge, i.government_price,
                i.brand_premium, i.brand_premium_counts_to_safety_net,
                i.sixty_day_eligible, i.max_quantity, i.max_repeats,
+               i.maximum_amount, i.unit_of_measure,
                i.dangerous_drug, i.artg_id, i.sponsor, i.caution, i.biosimilar,
                m.ingredient, m.atc_code AS medicine_atc_code
         FROM items_listing i
@@ -285,6 +286,11 @@ async def get_drug(
             "dispensing": {
                 "maximum_quantity": item["max_quantity"],
                 "number_of_repeats": item["max_repeats"],
+                # Infusible items (program IN/IP/TY/TZ) are prescribed by amount in
+                # unit_of_measure rather than by units, so maximum_quantity is null
+                # for them and this carries the limit instead. The two never overlap.
+                "maximum_amount": float(item["maximum_amount"]) if item["maximum_amount"] is not None else None,
+                "unit_of_measure": item["unit_of_measure"],
             },
             "program": {
                 "program_code": item["program_code"],
@@ -733,6 +739,7 @@ async def get_drug_full_profile(
                i.general_charge, i.concessional_charge, i.government_price,
                i.brand_premium, i.brand_premium_counts_to_safety_net,
                i.sixty_day_eligible, i.max_quantity, i.max_repeats,
+               i.maximum_amount, i.unit_of_measure,
                i.dangerous_drug, i.artg_id, i.sponsor, i.caution, i.biosimilar,
                m.ingredient, m.atc_code AS medicine_atc_code
         FROM items_listing i JOIN medicines m ON m.id = i.medicine_id
@@ -799,6 +806,8 @@ async def get_drug_full_profile(
             "dispensing": {
                 "max_quantity": item["max_quantity"],
                 "max_repeats": item["max_repeats"],
+                "maximum_amount": _f(item["maximum_amount"]),
+                "unit_of_measure": item["unit_of_measure"],
                 "sixty_day_eligible": item["sixty_day_eligible"],
                 "formulary": item["formulary"],
                 "section": item["section"],

@@ -54,6 +54,20 @@ def parse_date(value) -> Optional[datetime.date]:
 _TRUTHY = frozenset({"Y", "YES", "TRUE", "T", "1"})
 
 
+def first_present(*values):
+    """First value that is not None — unlike `or`, which discards a legitimate zero.
+
+    `raw.get("number_of_repeats") or raw.get("max_repeats")` read 0 as absent and fell
+    through to a legacy field PBS does not send, so 2,608 of 14,782 items reported a
+    null number of repeats when PBS had said zero. "No repeats allowed" is not the same
+    answer as "unknown". Use this for any numeric PBS field where 0 is meaningful.
+    """
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
 def yn(value) -> bool:
     """Convert a PBS boolean — Y/N or true/false, in either case — to a bool."""
     if isinstance(value, bool):
@@ -353,8 +367,14 @@ def normalise_schedule(
             "brand_premium": brand_premium,
             "brand_premium_counts_to_safety_net": False,  # PBS rule: never counts
             "sixty_day_eligible": sixty_day,
-            "max_quantity": raw.get("maximum_quantity_units") or raw.get("max_quantity"),
-            "max_repeats": raw.get("number_of_repeats") or raw.get("max_repeats"),
+            # max_quantity is units of the drug; maximum_amount is an amount in
+            # unit_of_measure and is sent only for infusibles (program IN/IP/TY/TZ).
+            # They partition exactly and are deliberately kept in separate columns —
+            # "120 capsules" and "3000 mcg" are not the same measure.
+            "max_quantity": first_present(raw.get("maximum_quantity_units"), raw.get("max_quantity")),
+            "max_repeats": first_present(raw.get("number_of_repeats"), raw.get("max_repeats")),
+            "maximum_amount": parse_decimal(raw.get("maximum_amount")),
+            "unit_of_measure": raw.get("unit_of_measure"),
             "dangerous_drug": bool(raw.get("dangerous_drug", False)),
             "caution_indicator": yn(raw.get("caution_indicator")),
             "note_indicator": yn(raw.get("note_indicator")),
