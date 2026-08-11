@@ -64,35 +64,67 @@ def patient_charge(dpmq: Optional[float], cap: Optional[float]) -> Optional[floa
     return _r(min(dpmq, cap))
 
 
+def patient_charge_formula(
+    base_dispensed_price: Optional[float],
+    copayment: Optional[float],
+    allowable_fees: Optional[float] = None,
+    premiums: Optional[float] = None,
+) -> Optional[float]:
+    """PBS's own construction of a patient charge, with the copayment left open.
+
+        min(dispensed price + allowable fees, copayment) + premiums
+
+    Sourced rather than inferred: the data dictionary defines fee_extra as "Allowable
+    Extra fee" and fee_safety_net_recording as the fee for recording against the Safety
+    Net. Applying this with the *general* copayment reproduces PBS's published
+    max_general_patient_charge exactly on 36,164 of 38,159 rows on 2026-06, and on
+    ~99.5% of the mainstream community-pharmacy and hospital rules.
+
+    That reproduction is what makes the concessional figure defensible. PBS publishes no
+    concessional charge, so it cannot be checked directly; but a formula that
+    reconstructs the published general charge, applied with the concessional copayment,
+    is a sourced substitution rather than an invention.
+
+    Residuals are the rp-np-* and rp-np-nc-* families — reduced- and no-charge settings
+    such as the Prescriber Bag — where the real charge is always LOWER than this
+    predicts. concessional_charge caps at the published general charge, which covers them.
+    """
+    if base_dispensed_price is None:
+        return None
+    subtotal = base_dispensed_price + (allowable_fees or 0.0)
+    capped = subtotal if copayment is None else min(subtotal, copayment)
+    return _r(capped + (premiums or 0.0))
+
+
 def concessional_charge(
     base_dispensed_price: Optional[float],
     concessional_copayment: Optional[float],
     brand_premium: Optional[float] = None,
     special_patient_contribution: Optional[float] = None,
     general_patient_charge: Optional[float] = None,
+    allowable_fees: Optional[float] = None,
 ) -> Optional[float]:
     """DERIVED — PBS publishes no concessional charge, so this is our calculation.
 
-    A concessional patient pays the concessional copayment, or the dispensed price if
-    that is lower, plus any brand premium and special patient contribution. Both
-    premiums are payable on top of the copayment rather than absorbed by it.
+    It is PBS's own formula (see patient_charge_formula) with the concessional
+    copayment substituted for the general one. Premiums sit on top of the copayment
+    rather than being absorbed by it: the explanatory notes state that "any applicable
+    special patient contributions, brand premiums or therapeutic group premiums must
+    still be met by the patient".
 
-    It is additionally capped at the published general charge, since a concessional
-    patient never pays more than a general one.
-
-    Caveat carried into every response that uses this: for items priced below the
-    copayment, pharmacists may add allowable additional fees, exactly as they do for
-    general patients. PBS publishes that adjustment for general patients and not for
-    concessional, so this figure is a floor rather than a guaranteed final price.
+    Capped at the published general charge, because a concession card can never leave a
+    patient worse off. That also covers the rule families where the formula overshoots:
+    a Prescriber Bag item is free to the patient, and an uncapped derivation billed a
+    concessional patient the 7.70 copayment for one.
     """
     if base_dispensed_price is None:
         return None
-    capped = patient_charge(base_dispensed_price, concessional_copayment)
-    charge = capped + (brand_premium or 0.0) + (special_patient_contribution or 0.0)
-    # A concession card can never leave a patient worse off than a general patient, so
-    # the published general charge is an upper bound. This matters for whole programs:
-    # a Prescriber Bag item is free to the patient (general charge 0.00) and the naive
-    # derivation billed a concessional patient the 7.70 copayment for it.
+    charge = patient_charge_formula(
+        base_dispensed_price,
+        concessional_copayment,
+        allowable_fees=allowable_fees,
+        premiums=(brand_premium or 0.0) + (special_patient_contribution or 0.0),
+    )
     if general_patient_charge is not None:
         charge = min(charge, general_patient_charge)
     return _r(charge)

@@ -122,7 +122,9 @@ def test_normaliser_produces_copayments():
     cp = result["copayments"]
     assert cp is not None
     from decimal import Decimal
-    assert cp["general"] == Decimal("31.60")
+    # Real 2026-06 general copayment. The pricing fixture reproduces PBS's
+    # published charges against this value, so the two must stay in step.
+    assert cp["general"] == Decimal("25.00")
     assert cp["concessional"] == Decimal("7.70")
 
 
@@ -291,7 +293,7 @@ async def test_copayments_200(client_ref, headers):
 async def test_copayments_values(client_ref, headers):
     r = await client_ref.get("/v1/copayments", headers=headers)
     body = r.json()
-    assert float(body["general"]) == 31.60
+    assert float(body["general"]) == 25.00
     assert float(body["concessional"]) == 7.70
 
 

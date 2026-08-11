@@ -371,6 +371,56 @@ async def check_tier_b_derivations(conn, month: str) -> tuple[list[str], list[st
     if row["negative"]:
         errors.append(f"{row['negative']} pricing rows carry a negative amount")
 
+    # Reversibility: our own patient-charge formula, applied with the GENERAL copayment,
+    # must reproduce PBS's published max_general_patient_charge. That is the closest
+    # thing Tier B has to the /item-overview comparison — PBS publishes no concessional
+    # charge, so the concessional figure can only be trusted insofar as the same formula
+    # reconstructs the one PBS does publish.
+    #
+    # Restricted to the mainstream rules. The rp-np-* and rp-np-nc- families are
+    # reduced- and no-charge settings where the real charge is always lower than the
+    # formula predicts, and the API caps the concessional figure at the published
+    # general charge to cover them.
+    recompose = await conn.fetchrow(
+        """
+        WITH copay AS (
+            SELECT c.general FROM copayments c
+            JOIN schedules s ON s.id = c.schedule_id WHERE s.month = $1
+        ),
+        p AS (
+            SELECT ip.max_general_patient_charge AS actual,
+                   ROUND(
+                       LEAST(ip.dispensed_price_max_qty
+                             + COALESCE(ip.fee_extra, 0)
+                             + COALESCE(ip.fee_safety_net_recording, 0),
+                             (SELECT general FROM copay))
+                       + COALESCE(ip.brand_premium, 0)
+                       + COALESCE(ip.special_patient_contribution, 0)
+                       + COALESCE(ip.therapeutic_group_premium, 0), 2) AS predicted
+            FROM item_pricing ip
+            JOIN schedules s ON s.id = ip.schedule_id AND s.month = $1
+            WHERE ip.dispensed_price_max_qty IS NOT NULL
+              AND ip.max_general_patient_charge IS NOT NULL
+              AND ip.dispensing_rule_reference NOT LIKE 'rp-np-%'
+        )
+        SELECT count(*) AS rows, count(*) FILTER (WHERE predicted = actual) AS matched
+        FROM p
+        """,
+        month,
+    )
+    if recompose and recompose["rows"]:
+        matched, total = recompose["matched"], recompose["rows"]
+        pct = 100.0 * matched / total
+        if pct < 98.0:
+            errors.append(
+                f"patient charge formula reproduces only {pct:.1f}% of the published "
+                f"max_general_patient_charge ({matched}/{total}) — the concessional "
+                f"figure is derived from this formula and can no longer be trusted"
+            )
+        else:
+            log.info("quality.patient_charge_recomposes", month=month,
+                     matched=matched, rows=total, pct=round(pct, 2))
+
     if not errors:
         log.info("quality.tier_b_pricing_ok", month=month, rows=row["rows"])
     return errors, warnings

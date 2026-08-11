@@ -1673,3 +1673,67 @@ async def test_safety_net_general_charge_is_the_published_value(
     assert r.status_code == 200, r.text
     charge = r.json()["data"]["patient_cost"]["general_patient_charge"]
     assert charge == float(published), "safety-net must use the published charge"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# The patient charge formula — sourced from the PBS data dictionary and the
+# explanatory notes, and validated by reproducing PBS's own published figure.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def test_formula_reproduces_published_general_charges():
+    """min(dispensed + allowable fees, copayment) + premiums.
+
+    fee_extra is "Allowable Extra fee" and fee_safety_net_recording the fee for
+    recording against the Safety Net, both per the data dictionary. Values below are
+    real 2026-06 rows with the charge PBS publishes.
+    """
+    from api.services.pricing import patient_charge_formula
+
+    FEES = 2.79 + 1.48   # fee_extra + fee_safety_net_recording
+    GENERAL_COPAY = 25.00
+
+    # 10005N — priced under the copayment, so the fees land on top of the price.
+    assert patient_charge_formula(19.78, GENERAL_COPAY, FEES, 0.0) == 24.05
+    # Its premium brand: the premium sits above the capped subtotal.
+    assert patient_charge_formula(19.78, GENERAL_COPAY, FEES, 4.00) == 28.05
+    # 13842M Lamictal — price plus fees exceeds the copayment, so the cap binds.
+    assert patient_charge_formula(22.40, GENERAL_COPAY, FEES, 8.56) == 33.56
+    # 10001J — far above the copayment.
+    assert patient_charge_formula(453.76, GENERAL_COPAY, FEES, 0.0) == 25.00
+
+
+def test_concessional_is_the_same_formula_with_the_concessional_copayment():
+    """PBS publishes no concessional charge; this is the published formula, resubstituted."""
+    from api.services.pricing import patient_charge_formula, concessional_charge
+
+    FEES = 2.79 + 1.48
+    # 13842M: capped at 7.70, premium on top — the same shape as the general figure.
+    assert concessional_charge(22.40, 7.70, 8.56, None, 33.56, FEES) == 16.26
+    assert patient_charge_formula(22.40, 7.70, FEES, 8.56) == 16.26
+
+    # An item cheaper than the concessional copayment keeps its fees, which the
+    # earlier derivation dropped by capping the bare price instead of price + fees.
+    assert concessional_charge(3.00, 7.70, 0.0, None, 25.00, FEES) == 7.27
+
+    # Still capped at the published general charge — Prescriber Bag items are free.
+    assert concessional_charge(40.18, 7.70, 0.0, None, 0.0, FEES) == 0.0
+
+
+async def test_gate_blocks_when_the_charge_formula_stops_reproducing(db_pool, seeded_audit):
+    """The formula reconstructing PBS's published charge is what validates the
+    concessional figure. If it stops reconstructing, the derivation is unfounded."""
+    from ingest.quality import check_tier_b_derivations
+
+    async with db_pool.acquire() as conn:
+        sid = await conn.fetchval("SELECT id FROM schedules WHERE month = $1", TEST_MONTH)
+        clean, _ = await check_tier_b_derivations(conn, TEST_MONTH)
+        assert not clean, f"seeded pricing should reproduce cleanly: {clean}"
+
+        # Shift the published charge so the formula no longer reconstructs it.
+        await conn.execute(
+            "UPDATE item_pricing SET max_general_patient_charge = "
+            "max_general_patient_charge + 5 WHERE schedule_id = $1", sid)
+        broken, _ = await check_tier_b_derivations(conn, TEST_MONTH)
+
+    assert broken, "a formula that no longer reproduces the published charge must be reported"
+    assert any("reproduces only" in e for e in broken), broken

@@ -15,7 +15,8 @@
     "fee_dispensing_dd": "4.05",
     "fee_container_other": "1.02",
     "fee_container_injectable": "2.10",
-    "schedule_code": 4664
+    "schedule_code": 4664,
+    "fee_extra": "2.79"
   },
   {
     "li_item_id": "2622M_1001_2001_3001_4001",
@@ -33,7 +34,8 @@
     "fee_dispensing_dd": null,
     "fee_container_other": null,
     "fee_container_injectable": null,
-    "schedule_code": 4664
+    "schedule_code": 4664,
+    "fee_extra": "0.00"
   },
   {
     "li_item_id": "2623N_1002_2002_3002_4002",
@@ -51,7 +53,8 @@
     "fee_dispensing_dd": null,
     "fee_container_other": null,
     "fee_container_injectable": null,
-    "schedule_code": 4664
+    "schedule_code": 4664,
+    "fee_extra": "2.79"
   },
   {
     "li_item_id": "8591B_1003_2003_3003_4003",
@@ -69,7 +72,8 @@
     "fee_dispensing_dd": null,
     "fee_container_other": null,
     "fee_container_injectable": null,
-    "schedule_code": 4664
+    "schedule_code": 4664,
+    "fee_extra": "2.79"
   },
   {
     "li_item_id": "1234A_1004_2004_3004_4004",
@@ -87,6 +91,7 @@
     "fee_dispensing_dd": null,
     "fee_container_other": null,
     "fee_container_injectable": null,
-    "schedule_code": 4664
+    "schedule_code": 4664,
+    "fee_extra": "0.00"
   }
 ]

@@ -230,8 +230,9 @@ async def get_item_price(
     pricing_rows = await db.fetch(
         """
         SELECT li_item_id, dispensing_rule_mnem, dispensing_rule_reference,
-               commonwealth_price, dispensed_price_max_qty,
+               commonwealth_price, dispensed_price_max_qty, fee_extra,
                max_general_patient_charge, max_record_val_for_safety_net, brand_premium,
+               fee_safety_net_recording,
                fee_dispensing, fee_dispensing_dangerous_drug,
                fee_container_other, fee_container_injectable,
                special_patient_contribution
@@ -262,7 +263,9 @@ async def get_item_price(
         dispensed = brand_dispensed_price(base_dpmq, premium)
         gen_patient = max_charge          # published by PBS
         gov_pays = government_contribution(dispensed, gen_patient)
-        con_patient = concessional_charge(base_dpmq, con_cp, premium, spc, max_charge)  # derived
+        fees_allowed = (_f(r["fee_extra"]) or 0.0) + (_f(r["fee_safety_net_recording"]) or 0.0)
+        con_patient = concessional_charge(
+            base_dpmq, con_cp, premium, spc, max_charge, fees_allowed)  # derived
         con_gov_pays = government_contribution(dispensed, con_patient)
 
         contexts.append({
@@ -362,6 +365,7 @@ async def get_item_patient_cost(
         SELECT ip.dispensed_price_max_qty, ip.max_general_patient_charge, ip.brand_premium,
                ip.special_patient_contribution, ip.max_record_val_for_safety_net,
                ip.dispensing_rule_reference, pdr.dispensing_rule_title,
+               ip.fee_extra, ip.fee_safety_net_recording,
                COALESCE(pdr.community_pharmacy_indicator, FALSE) AS is_community_pharmacy
         FROM item_pricing ip
         LEFT JOIN program_dispensing_rules pdr
@@ -410,7 +414,10 @@ async def get_item_patient_cost(
     # api/services/pricing for why that formula gives the wrong answer.
     you_pay_gen = max_charge
     # Concessional: PBS publishes no figure, so this is ours and is labelled as such.
-    you_pay_con = concessional_charge(base_dpmq, con_cp, brand_premium, spc, max_charge)
+    allowable_fees = ((_f(pricing["fee_extra"]) or 0.0)
+                      + (_f(pricing["fee_safety_net_recording"]) or 0.0)) if pricing else 0.0
+    you_pay_con = concessional_charge(
+        base_dpmq, con_cp, brand_premium, spc, max_charge, allowable_fees)
 
     gov_pays_gen = government_contribution(dispensed_price, you_pay_gen)
     gov_pays_con = government_contribution(dispensed_price, you_pay_con)

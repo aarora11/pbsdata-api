@@ -482,6 +482,7 @@ def normalise_schedule(
             "fee_dispensing": parse_decimal(p.get("fee_dispensing")),
             "fee_dispensing_dangerous_drug": parse_decimal(p.get("fee_dispensing_dd")),
             "fee_safety_net_recording": parse_decimal(p.get("fee_safety_net_recording")),
+            "fee_extra": parse_decimal(p.get("fee_extra")),
             "fee_container_other": parse_decimal(p.get("fee_container_other")),
             "fee_container_injectable": parse_decimal(p.get("fee_container_injectable")),
         })

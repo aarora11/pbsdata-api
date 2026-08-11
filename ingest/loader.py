@@ -687,10 +687,10 @@ async def insert_item_pricing(conn, item_pricing: list[dict], schedule_id: str):
                 fee_container_other, fee_container_injectable,
                 dispensed_price_max_qty, max_record_val_for_safety_net,
                 fee_safety_net_recording, therapeutic_group_premium,
-                dispensing_rule_reference
+                dispensing_rule_reference, fee_extra
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-                    $13, $14, $15, $16, $17)
+                    $13, $14, $15, $16, $17, $18)
             ON CONFLICT (li_item_id, dispensing_rule_reference, schedule_id) DO UPDATE SET
                 pbs_code = EXCLUDED.pbs_code,
                 dispensing_rule_mnem = EXCLUDED.dispensing_rule_mnem,
@@ -705,7 +705,8 @@ async def insert_item_pricing(conn, item_pricing: list[dict], schedule_id: str):
                 dispensed_price_max_qty = EXCLUDED.dispensed_price_max_qty,
                 max_record_val_for_safety_net = EXCLUDED.max_record_val_for_safety_net,
                 fee_safety_net_recording = EXCLUDED.fee_safety_net_recording,
-                therapeutic_group_premium = EXCLUDED.therapeutic_group_premium
+                therapeutic_group_premium = EXCLUDED.therapeutic_group_premium,
+                fee_extra = EXCLUDED.fee_extra
             """,
             schedule_id,
             p.get("li_item_id", ""),
@@ -724,6 +725,7 @@ async def insert_item_pricing(conn, item_pricing: list[dict], schedule_id: str):
             p.get("fee_safety_net_recording"),
             p.get("therapeutic_group_premium"),
             p.get("dispensing_rule_reference"),
+            p.get("fee_extra"),
         )
 
 
