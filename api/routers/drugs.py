@@ -5,6 +5,7 @@ from api.routers.shared import _rl
 from api.database import get_db
 from typing import Optional
 from collections import Counter
+from api.services.pricing import brand_dispensed_price
 from ingest.reference import (
     benefit_type_label,
     formulary_label,
@@ -239,6 +240,7 @@ async def get_drug(
             """
             SELECT p.li_item_id, i.brand_name, i.sponsor,
                    MAX(p.commonwealth_price)          AS commonwealth_price,
+                   MAX(p.dispensed_price_max_qty)     AS dispensed_price_max_qty,
                    MAX(p.max_general_patient_charge)  AS max_general_patient_charge,
                    MAX(p.brand_premium)               AS brand_premium,
                    MAX(p.fee_dispensing)              AS fee_dispensing
@@ -258,7 +260,10 @@ async def get_drug(
                 "manufacturer": r["sponsor"],
                 "formulary": item["formulary"],
                 "pricing": {
-                    "commonwealth_price": float(r["commonwealth_price"]) if r["commonwealth_price"] else None,
+                    "dispensed_price": brand_dispensed_price(
+                        float(r["dispensed_price_max_qty"]) if r["dispensed_price_max_qty"] else None,
+                        float(r["brand_premium"]) if r["brand_premium"] else None),
+                    "price_to_pharmacist": float(r["commonwealth_price"]) if r["commonwealth_price"] else None,
                     "max_general_patient_charge": float(r["max_general_patient_charge"]) if r["max_general_patient_charge"] else None,
                     "brand_premium": float(r["brand_premium"]) if r["brand_premium"] else None,
                     "dispensing_fee": float(r["fee_dispensing"]) if r["fee_dispensing"] else None,
@@ -376,6 +381,7 @@ async def get_drug_brands(
         """
         SELECT p.li_item_id, i.brand_name, i.sponsor,
                MAX(p.commonwealth_price)         AS commonwealth_price,
+               MAX(p.dispensed_price_max_qty)    AS dispensed_price_max_qty,
                MAX(p.max_general_patient_charge) AS max_general_patient_charge,
                MAX(p.brand_premium)              AS brand_premium,
                MAX(p.fee_dispensing)             AS fee_dispensing
@@ -400,7 +406,8 @@ async def get_drug_brands(
             "manufacturer": r["sponsor"],
             "formulary": item["formulary"],
             "pricing": {
-                "commonwealth_price": _f(r["commonwealth_price"]),
+                "dispensed_price": brand_dispensed_price(_f(r["dispensed_price_max_qty"]), _f(r["brand_premium"])),
+                "price_to_pharmacist": _f(r["commonwealth_price"]),
                 "max_general_patient_charge": _f(r["max_general_patient_charge"]),
                 "brand_premium": _f(r["brand_premium"]),
                 "dispensing_fee": _f(r["fee_dispensing"]),
@@ -766,7 +773,8 @@ async def get_drug_full_profile(
             "brand_name": r["brand_name"] or item["brand_name"],
             "manufacturer": r["sponsor"],
             "pricing": {
-                "commonwealth_price": _f(r["commonwealth_price"]),
+                "dispensed_price": brand_dispensed_price(_f(r["dispensed_price_max_qty"]), _f(r["brand_premium"])),
+                "price_to_pharmacist": _f(r["commonwealth_price"]),
                 "max_general_patient_charge": _f(r["max_general_patient_charge"]),
                 "brand_premium": _f(r["brand_premium"]),
                 "dispensing_fee": _f(r["fee_dispensing"]),
@@ -914,6 +922,7 @@ async def _gather_drug_data(db, pbs_code: str, schedule_id: str):
         """
         SELECT p.li_item_id, i.brand_name, i.sponsor,
                MAX(p.commonwealth_price) AS commonwealth_price,
+               MAX(p.dispensed_price_max_qty) AS dispensed_price_max_qty,
                MAX(p.max_general_patient_charge) AS max_general_patient_charge,
                MAX(p.brand_premium) AS brand_premium,
                MAX(p.fee_dispensing) AS fee_dispensing

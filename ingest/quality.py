@@ -298,6 +298,84 @@ async def check_internal_consistency(conn, month: str) -> tuple[list[str], list[
     return errors, warnings
 
 
+async def check_tier_b_derivations(conn, month: str) -> tuple[list[str], list[str]]:
+    """Check the pricing fields every patient-facing derivation is built on.
+
+    Tier B is validated by reversibility rather than against an external answer, but
+    reversibility is worthless if the inputs are wrong: the patient/government split
+    recomposed perfectly for months while being computed from
+    cmnwlth_price_to_pharmacist, which is not the dispensed price. These checks guard
+    the inputs.
+
+    Each condition is either universal on real data or documented by PBS, measured
+    across all 38,318 pricing rows on 2026-06:
+      - dispensed_price_max_qty and max_general_patient_charge are populated for every
+        non-extemporaneous row (PBS documents both as null for extemporaneous items)
+      - max_record_val_for_safety_net never exceeds the general copayment, which the
+        data dictionary states as a cap
+      - no monetary field is negative
+
+    Deliberately not checked: mn_pharmacy_price + fee_dispensing == dispensed price.
+    That recomposes on only 21,399 of 38,159 rows because markups and chemotherapy and
+    container fees vary by rule, so enforcing it would raise 16,760 false alarms.
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    row = await conn.fetchrow(
+        """
+        WITH copay AS (
+            SELECT c.general FROM copayments c
+            JOIN schedules s ON s.id = c.schedule_id WHERE s.month = $1
+        ),
+        p AS (
+            SELECT ip.dispensed_price_max_qty, ip.max_general_patient_charge,
+                   ip.max_record_val_for_safety_net, i.program_code
+            FROM item_pricing ip
+            JOIN schedules s ON s.id = ip.schedule_id AND s.month = $1
+            JOIN items i ON i.li_item_id = ip.li_item_id AND i.schedule_id = ip.schedule_id
+        )
+        SELECT count(*) AS rows,
+               count(*) FILTER (WHERE dispensed_price_max_qty IS NULL
+                                  AND program_code <> 'EP') AS dpmq_missing,
+               count(*) FILTER (WHERE max_general_patient_charge IS NULL
+                                  AND program_code <> 'EP') AS charge_missing,
+               count(*) FILTER (WHERE max_record_val_for_safety_net
+                                      > (SELECT general FROM copay)) AS sn_above_copay,
+               count(*) FILTER (WHERE dispensed_price_max_qty < 0
+                                   OR max_general_patient_charge < 0) AS negative
+        FROM p
+        """,
+        month,
+    )
+
+    if not row or not row["rows"]:
+        warnings.append("tier B pricing not validated: no item_pricing rows for this schedule")
+        return errors, warnings
+
+    if row["dpmq_missing"]:
+        errors.append(
+            f"{row['dpmq_missing']} pricing rows have no dispensed_price_max_qty — "
+            f"every patient-facing figure is derived from it"
+        )
+    if row["charge_missing"]:
+        errors.append(
+            f"{row['charge_missing']} pricing rows have no max_general_patient_charge — "
+            f"the general patient charge is published, not computed, so it cannot be recovered"
+        )
+    if row["sn_above_copay"]:
+        errors.append(
+            f"{row['sn_above_copay']} rows record more to safety net than the general "
+            f"copayment, which PBS documents as a cap"
+        )
+    if row["negative"]:
+        errors.append(f"{row['negative']} pricing rows carry a negative amount")
+
+    if not errors:
+        log.info("quality.tier_b_pricing_ok", month=month, rows=row["rows"])
+    return errors, warnings
+
+
 async def check_schedule(
     conn, month: str, schedule_id: str, raw_source: Optional[Callable] = None
 ) -> QualityReport:
@@ -320,6 +398,14 @@ async def check_schedule(
     else:
         report.errors.extend(consistency_errors)
         report.warnings.extend(consistency_warnings)
+
+    try:
+        tier_b_errors, tier_b_warnings = await check_tier_b_derivations(conn, month)
+    except Exception as exc:
+        report.warnings.append(f"tier B pricing checks failed to run ({exc})")
+    else:
+        report.errors.extend(tier_b_errors)
+        report.warnings.extend(tier_b_warnings)
 
     try:
         join_errors, join_warnings = await check_tier_a_joins(conn, month)

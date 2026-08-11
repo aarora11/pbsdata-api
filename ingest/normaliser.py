@@ -468,11 +468,20 @@ def normalise_schedule(
             "pbs_code": pbs_code,
             "dispensing_rule_mnem": p.get("dispensing_rule_mnem"),
             "brand_premium": parse_decimal(p.get("brand_premium")) or Decimal("0.00"),
+            # What the pharmacist pays for the pack — NOT the dispensed price. Kept
+            # under its original name for compatibility; anything patient-facing must
+            # read dispensed_price_max_qty.
             "commonwealth_price": parse_decimal(p.get("cmnwlth_price_to_pharmacist")),
+            # The DPMQ pbs.gov.au publishes. Add brand_premium for the brand price.
+            "dispensed_price_max_qty": parse_decimal(p.get("cmnwlth_dsp_price_max_qty")),
             "max_general_patient_charge": parse_decimal(p.get("max_general_patient_charge")),
+            "max_record_val_for_safety_net": parse_decimal(p.get("max_record_val_for_safety_net")),
             "special_patient_contribution": parse_decimal(p.get("special_patient_contribution")),
+            "therapeutic_group_premium": parse_decimal(p.get("therapeutic_group_premium")),
+            "dispensing_rule_reference": p.get("dispensing_rule_reference"),
             "fee_dispensing": parse_decimal(p.get("fee_dispensing")),
             "fee_dispensing_dangerous_drug": parse_decimal(p.get("fee_dispensing_dd")),
+            "fee_safety_net_recording": parse_decimal(p.get("fee_safety_net_recording")),
             "fee_container_other": parse_decimal(p.get("fee_container_other")),
             "fee_container_injectable": parse_decimal(p.get("fee_container_injectable")),
         })

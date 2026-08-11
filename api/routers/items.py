@@ -10,25 +10,17 @@ import datetime
 router = APIRouter(tags=["items"])
 
 
-def patient_charge(dpmq: Optional[float], cap: Optional[float]) -> Optional[float]:
-    """Patient out-of-pocket for one script: the lower of dispensed price and cap.
-
-    `cap` of 0.00 is a real PBS value (fully subsidised / CTG items) and must be
-    honoured. The previous `cap or dpmq` idiom treated it as absent and charged the
-    patient the full dispensed price. See docs/AUDIT_FINDINGS.md [C5].
-    """
-    if dpmq is None:
-        return None
-    if cap is None:
-        return round(dpmq, 2)
-    return round(min(dpmq, cap), 2)
-
-
-def government_contribution(dpmq: Optional[float], patient: Optional[float]) -> Optional[float]:
-    """Subsidy for one script. Always recomposes: patient + government == dpmq."""
-    if dpmq is None or patient is None:
-        return None
-    return round(dpmq - patient, 2)
+# The patient cost model lives in api/services/pricing so every router shares one
+# implementation — the same quantity was previously computed three different ways.
+# Re-exported here because existing callers and tests import them from this module.
+from api.services.pricing import (  # noqa: E402
+    patient_charge,
+    government_contribution,
+    additional_patient_fees,
+    brand_dispensed_price,
+    concessional_charge,
+    scripts_to_safety_net,
+)
 
 
 
@@ -237,14 +229,15 @@ async def get_item_price(
 
     pricing_rows = await db.fetch(
         """
-        SELECT li_item_id, dispensing_rule_mnem, commonwealth_price,
-               max_general_patient_charge, brand_premium,
+        SELECT li_item_id, dispensing_rule_mnem, dispensing_rule_reference,
+               commonwealth_price, dispensed_price_max_qty,
+               max_general_patient_charge, max_record_val_for_safety_net, brand_premium,
                fee_dispensing, fee_dispensing_dangerous_drug,
                fee_container_other, fee_container_injectable,
                special_patient_contribution
         FROM item_pricing
         WHERE pbs_code = $1 AND schedule_id = $2
-        ORDER BY li_item_id, dispensing_rule_mnem
+        ORDER BY li_item_id, dispensing_rule_reference
         """,
         pbs_code.upper(), schedule_id,
     )
@@ -258,23 +251,29 @@ async def get_item_price(
 
     contexts = []
     for r in pricing_rows:
-        dpmq = _f(r["commonwealth_price"])
+        base_dpmq = _f(r["dispensed_price_max_qty"])
+        premium = _f(r["brand_premium"])
+        spc = _f(r["special_patient_contribution"])
         con_cp = _f(copayment["concessional"]) if copayment else None
         max_charge = _f(r["max_general_patient_charge"])
-        gen_patient = patient_charge(dpmq, max_charge)
-        gov_pays = government_contribution(dpmq, gen_patient)
-        # Concessional charge is capped by the dispensed price in exactly the same way
-        # as the general charge. This endpoint previously returned the raw copayment,
-        # overstating the cost of any drug cheaper than the copayment and disagreeing
-        # with /patient-cost for the same item. See docs/AUDIT_FINDINGS.md [C6].
-        con_patient = patient_charge(dpmq, con_cp)
-        con_gov_pays = government_contribution(dpmq, con_patient)
+        # The dispensed price is dispensed_price_max_qty plus the brand's premium.
+        # commonwealth_price is what the pharmacist pays for the pack and understates
+        # this materially — using it made every derived figure wrong.
+        dispensed = brand_dispensed_price(base_dpmq, premium)
+        gen_patient = max_charge          # published by PBS
+        gov_pays = government_contribution(dispensed, gen_patient)
+        con_patient = concessional_charge(base_dpmq, con_cp, premium, spc, max_charge)  # derived
+        con_gov_pays = government_contribution(dispensed, con_patient)
 
         contexts.append({
             "li_item_id": r["li_item_id"],
+            "dispensing_rule_reference": r["dispensing_rule_reference"],
             "dispensing_rule_mnem": r["dispensing_rule_mnem"],
-            "commonwealth_price": dpmq,
+            "dispensed_price": dispensed,
+            "base_dispensed_price": base_dpmq,
+            "price_to_pharmacist": _f(r["commonwealth_price"]),
             "max_general_patient_charge": max_charge,
+            "max_record_val_for_safety_net": _f(r["max_record_val_for_safety_net"]),
             "brand_premium": _f(r["brand_premium"]),
             "fees": {
                 "dispensing_fee": _f(r["fee_dispensing"]),
@@ -353,8 +352,35 @@ async def get_item_patient_cost(
     if not item:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Item not found."})
 
+    # The community-pharmacy rule is the one whose dispensed price pbs.gov.au publishes;
+    # the same item also carries private- and public-hospital rules at different prices.
+    # This previously took the highest row by price-to-pharmacist, an arbitrary pick that
+    # could land on a hospital rule. Among brands, the lowest premium is the cheapest
+    # option a patient can actually choose, so it is the representative one.
     pricing = await db.fetchrow(
-        "SELECT commonwealth_price, max_general_patient_charge, brand_premium FROM item_pricing WHERE pbs_code = $1 AND schedule_id = $2 ORDER BY commonwealth_price DESC NULLS LAST LIMIT 1",
+        """
+        SELECT ip.dispensed_price_max_qty, ip.max_general_patient_charge, ip.brand_premium,
+               ip.special_patient_contribution, ip.max_record_val_for_safety_net,
+               ip.dispensing_rule_reference
+        FROM item_pricing ip
+        LEFT JOIN program_dispensing_rules pdr
+               ON pdr.rule_code = ip.dispensing_rule_reference
+              AND pdr.schedule_id = ip.schedule_id
+        WHERE ip.pbs_code = $1 AND ip.schedule_id = $2
+          AND ip.dispensed_price_max_qty IS NOT NULL
+        ORDER BY COALESCE(pdr.community_pharmacy_indicator, FALSE) DESC,
+                 ip.brand_premium ASC NULLS LAST,
+                 ip.dispensed_price_max_qty ASC
+        LIMIT 1
+        """,
+        pbs_code.upper(), schedule_id,
+    )
+    premium_spread = await db.fetchrow(
+        """
+        SELECT MIN(brand_premium) AS min_premium, MAX(brand_premium) AS max_premium,
+               COUNT(DISTINCT li_item_id) AS brands
+        FROM item_pricing WHERE pbs_code = $1 AND schedule_id = $2
+        """,
         pbs_code.upper(), schedule_id,
     )
     copayment = await db.fetchrow(
@@ -365,37 +391,53 @@ async def get_item_patient_cost(
     def _f(v):
         return float(v) if v is not None else None
 
-    dpmq = _f(pricing["commonwealth_price"]) if pricing else _f(item.get("government_price"))
+    base_dpmq = _f(pricing["dispensed_price_max_qty"]) if pricing else None
     gen_cp = _f(copayment["general"]) if copayment else None
     con_cp = _f(copayment["concessional"]) if copayment else None
     sn_gen = _f(copayment["safety_net_general"]) if copayment else None
     sn_con = _f(copayment["safety_net_concessional"]) if copayment else None
     idl = _f(copayment["increased_discount_limit"]) if copayment else None
     brand_premium = _f(pricing["brand_premium"]) if pricing else _f(item["brand_premium"])
+    spc = _f(pricing["special_patient_contribution"]) if pricing else None
     max_charge = _f(pricing["max_general_patient_charge"]) if pricing else None
+    sn_record = _f(pricing["max_record_val_for_safety_net"]) if pricing else None
 
-    you_pay_gen = patient_charge(dpmq, max_charge)
-    you_pay_con = patient_charge(dpmq, con_cp)
-    gov_pays_gen = government_contribution(dpmq, you_pay_gen)
-    gov_pays_con = government_contribution(dpmq, you_pay_con)
-    scripts_gen = round(sn_gen / you_pay_gen) if (sn_gen and you_pay_gen) else None
-    scripts_con = round(sn_con / you_pay_con) if (sn_con and you_pay_con) else None
+    # What this brand is dispensed at — the item's DPMQ plus its premium.
+    dispensed_price = brand_dispensed_price(base_dpmq, brand_premium)
 
-    # Which price basis actually produced this answer. item_pricing holds one row per
-    # (brand, dispensing rule); we take the highest as a conservative representative
-    # and fall back to the item-level snapshot when pricing is unavailable. Callers
-    # need to know which was used. See docs/AUDIT_FINDINGS.md [C2], [H1].
+    # General: published by PBS, passed through. Not min(price, copayment) — see
+    # api/services/pricing for why that formula gives the wrong answer.
+    you_pay_gen = max_charge
+    # Concessional: PBS publishes no figure, so this is ours and is labelled as such.
+    you_pay_con = concessional_charge(base_dpmq, con_cp, brand_premium, spc, max_charge)
+
+    gov_pays_gen = government_contribution(dispensed_price, you_pay_gen)
+    gov_pays_con = government_contribution(dispensed_price, you_pay_con)
+    # Safety net accrues max_record_val_for_safety_net, which excludes brand premiums
+    # and is not what the patient pays.
+    scripts_gen = scripts_to_safety_net(sn_gen, sn_record)
+    # A concessional patient records what they pay; sn_record is capped at the general
+    # copayment and would understate the number of scripts by roughly threefold.
+    scripts_con = scripts_to_safety_net(sn_con, you_pay_con)
+    extra_gen = additional_patient_fees(dispensed_price, you_pay_gen)
+    extra_con = additional_patient_fees(dispensed_price, you_pay_con)
+
     price_basis = (
-        "item_pricing.commonwealth_price (highest of the item's brand/dispensing-rule rows)"
-        if pricing else "items.government_price (item-level snapshot)"
+        "item_pricing.dispensed_price_max_qty on the community-pharmacy dispensing rule, "
+        "plus brand_premium — the figure pbs.gov.au publishes as DPMQ"
+        if pricing else "unavailable — no dispensed price held for this item"
     )
+    brands = premium_spread["brands"] if premium_spread else 0
+    min_prem = _f(premium_spread["min_premium"]) if premium_spread else None
+    max_prem = _f(premium_spread["max_premium"]) if premium_spread else None
 
     return {
         "data": {
             "pbs_code": item["pbs_code"],
             "drug_name": item["ingredient"],
             "brand_name": item["brand_name"],
-            "dispensed_price": dpmq,
+            "dispensed_price": dispensed_price,
+            "base_dispensed_price": base_dpmq,
             "general_patient": {
                 "copayment": gen_cp,
                 "you_pay": you_pay_gen,
@@ -403,7 +445,10 @@ async def get_item_patient_cost(
                 "total_out_of_pocket": you_pay_gen,
                 "government_pays": gov_pays_gen,
                 "safety_net_threshold": sn_gen,
+                "records_to_safety_net_per_script": sn_record,
                 "estimated_scripts_to_safety_net": scripts_gen,
+                "additional_patient_fees": extra_gen,
+                "source": "published",
             },
             "concessional_patient": {
                 "copayment": con_cp,
@@ -412,7 +457,19 @@ async def get_item_patient_cost(
                 "total_out_of_pocket": you_pay_con,
                 "government_pays": gov_pays_con,
                 "safety_net_threshold": sn_con,
+                "records_to_safety_net_per_script": you_pay_con,
                 "estimated_scripts_to_safety_net": scripts_con,
+                "additional_patient_fees": extra_con,
+                "source": "derived",
+            },
+            "brand_choice": {
+                "brands_available": brands,
+                "lowest_brand_premium": min_prem,
+                "highest_brand_premium": max_prem,
+                "note": (
+                    "Figures are for the lowest-premium brand — the cheapest option a "
+                    "patient can choose. A brand carrying a premium costs that much more."
+                ) if (max_prem or 0) > (min_prem or 0) else None,
             },
             "discount_zone": {
                 "increased_discount_limit": idl,
@@ -423,13 +480,17 @@ async def get_item_patient_cost(
             "tier": tier_label(api_key_data),
             "join_sources": ["/items", "/item-dispensing-rule-relationships", "/copayments"],
             "price_basis": price_basis,
-            "derivation": "estimated_scripts_to_safety_net=heuristic",
+            "derivation": "concessional=derived; estimated_scripts_to_safety_net=estimate",
             "caveat": (
-                "Patient charges are computed as min(dispensed price, applicable cap) from "
-                "PBS fields. estimated_scripts_to_safety_net is an approximation for a single "
-                "patient taking this item repeatedly — it does not account for family "
-                "aggregation, concurrent medicines, or mid-year concession changes. Not a "
-                "PBS-published figure."
+                "general_patient.you_pay is max_general_patient_charge exactly as PBS "
+                "publishes it — the figure shown as General Patient Charge on pbs.gov.au. "
+                "concessional_patient.you_pay is derived: PBS publishes no concessional "
+                "figure, so it is the concessional copayment (or the dispensed price if "
+                "lower) plus any brand premium and special patient contribution. For items "
+                "priced below the copayment a pharmacist may add allowable additional fees, "
+                "so treat the concessional figure as a floor. Scripts-to-safety-net counts "
+                "this item alone and ignores family aggregation, other medicines and "
+                "mid-year concession changes."
             ),
         },
     }
@@ -512,7 +573,8 @@ async def get_item_dispensing_context(
     pricing_rows = await db.fetch(
         """
         SELECT ip.li_item_id, ip.pbs_code, ip.dispensing_rule_mnem,
-               ip.commonwealth_price, ip.max_general_patient_charge,
+               ip.commonwealth_price, ip.dispensed_price_max_qty,
+               ip.max_general_patient_charge,
                ip.brand_premium, ip.special_patient_contribution,
                ip.fee_dispensing, ip.fee_dispensing_dangerous_drug,
                ip.fee_container_other, ip.fee_container_injectable,
@@ -542,7 +604,7 @@ async def get_item_dispensing_context(
             """,
             schedule_id, program_code, pr["dispensing_rule_mnem"],
         )
-        dpmq = _f(pr["commonwealth_price"])
+        dispensed = brand_dispensed_price(_f(pr["dispensed_price_max_qty"]), _f(pr["brand_premium"]))
         fee_disp = _f(pr["fee_dispensing"])
         fee_dd = _f(pr["fee_dispensing_dangerous_drug"])
         fee_container = _f(pr["fee_container_other"])
@@ -550,7 +612,8 @@ async def get_item_dispensing_context(
 
         contexts.append({
             "dispensing_rule_mnem": pr["dispensing_rule_mnem"],
-            "commonwealth_price": dpmq,
+            "dispensed_price": dispensed,
+            "price_to_pharmacist": _f(pr["commonwealth_price"]),
             "max_general_patient_charge": _f(pr["max_general_patient_charge"]),
             "brand_premium": _f(pr["brand_premium"]),
             "special_patient_contribution": _f(pr["special_patient_contribution"]),

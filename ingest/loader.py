@@ -684,11 +684,16 @@ async def insert_item_pricing(conn, item_pricing: list[dict], schedule_id: str):
                 schedule_id, li_item_id, pbs_code, dispensing_rule_mnem,
                 brand_premium, commonwealth_price, max_general_patient_charge,
                 special_patient_contribution, fee_dispensing, fee_dispensing_dangerous_drug,
-                fee_container_other, fee_container_injectable
+                fee_container_other, fee_container_injectable,
+                dispensed_price_max_qty, max_record_val_for_safety_net,
+                fee_safety_net_recording, therapeutic_group_premium,
+                dispensing_rule_reference
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-            ON CONFLICT (li_item_id, dispensing_rule_mnem, schedule_id) DO UPDATE SET
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+                    $13, $14, $15, $16, $17)
+            ON CONFLICT (li_item_id, dispensing_rule_reference, schedule_id) DO UPDATE SET
                 pbs_code = EXCLUDED.pbs_code,
+                dispensing_rule_mnem = EXCLUDED.dispensing_rule_mnem,
                 brand_premium = EXCLUDED.brand_premium,
                 commonwealth_price = EXCLUDED.commonwealth_price,
                 max_general_patient_charge = EXCLUDED.max_general_patient_charge,
@@ -696,7 +701,11 @@ async def insert_item_pricing(conn, item_pricing: list[dict], schedule_id: str):
                 fee_dispensing = EXCLUDED.fee_dispensing,
                 fee_dispensing_dangerous_drug = EXCLUDED.fee_dispensing_dangerous_drug,
                 fee_container_other = EXCLUDED.fee_container_other,
-                fee_container_injectable = EXCLUDED.fee_container_injectable
+                fee_container_injectable = EXCLUDED.fee_container_injectable,
+                dispensed_price_max_qty = EXCLUDED.dispensed_price_max_qty,
+                max_record_val_for_safety_net = EXCLUDED.max_record_val_for_safety_net,
+                fee_safety_net_recording = EXCLUDED.fee_safety_net_recording,
+                therapeutic_group_premium = EXCLUDED.therapeutic_group_premium
             """,
             schedule_id,
             p.get("li_item_id", ""),
@@ -710,6 +719,11 @@ async def insert_item_pricing(conn, item_pricing: list[dict], schedule_id: str):
             p.get("fee_dispensing_dangerous_drug"),
             p.get("fee_container_other"),
             p.get("fee_container_injectable"),
+            p.get("dispensed_price_max_qty"),
+            p.get("max_record_val_for_safety_net"),
+            p.get("fee_safety_net_recording"),
+            p.get("therapeutic_group_premium"),
+            p.get("dispensing_rule_reference"),
         )
 
 

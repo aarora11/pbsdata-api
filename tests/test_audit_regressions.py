@@ -291,14 +291,22 @@ async def test_price_and_patient_cost_agree_on_concessional(app_client, seeded_a
         if not contexts:
             pytest.skip("no pricing rows for 8591B")
 
-        con_from_price = contexts[0]["patient_outcome"]["concessional_patient_charge"]
-        con_from_cost = cost.json()["data"]["concessional_patient"]["you_pay"]
-        dpmq = contexts[0]["commonwealth_price"]
+        cost_data = cost.json()["data"]
+        con_from_cost = cost_data["concessional_patient"]["you_pay"]
+        base = cost_data["base_dispensed_price"]
 
-        # Both must be capped by the dispensed price.
-        if dpmq is not None:
-            assert con_from_price <= dpmq + 0.001
-            assert con_from_cost <= dpmq + 0.001
+        # The same brand and rule must give the same answer in both endpoints, since
+        # they now share one implementation rather than each computing it.
+        matching = [c for c in contexts
+                    if c["base_dispensed_price"] == base] or contexts
+        con_from_price = matching[0]["patient_outcome"]["concessional_patient_charge"]
+        assert con_from_price == con_from_cost, (
+            f"/price says {con_from_price}, /patient-cost says {con_from_cost}"
+        )
+
+        # Concessional is capped by the dispensed price, before premiums are added.
+        if base is not None:
+            assert con_from_cost <= base + (cost_data["concessional_patient"]["brand_premium"] or 0) + 0.001
     finally:
         await _delete_key(db_pool, h)
 
@@ -1364,3 +1372,165 @@ def test_quality_gate_runs_internal_consistency_checks():
 
     source = inspect.getsource(quality.check_schedule)
     assert "check_internal_consistency" in source
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Tier B — the patient cost model, validated against pbs.gov.au 2026-08-11
+#
+# A medicine page publishes exactly three monetary figures per brand, and each maps to
+# a PBS field: DPMQ, General Patient Charge, Max safety net. The general charge is a
+# passthrough; only the concessional figure is ours to derive.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def test_dispensed_price_is_base_plus_brand_premium():
+    """pbs.gov.au shows 13842M at 22.84 base and 31.00 for Lamictal (premium 8.16)."""
+    from api.services.pricing import brand_dispensed_price
+
+    assert brand_dispensed_price(22.84, 8.16) == 31.00
+    assert brand_dispensed_price(22.84, 0.0) == 22.84
+    assert brand_dispensed_price(22.84, None) == 22.84
+    assert brand_dispensed_price(None, 8.16) is None
+
+
+def test_government_contribution_never_goes_negative():
+    """Items under the copayment are charged above their dispensed price.
+
+    13842M is dispensed at 22.40 against a published charge of 25.00 — allowable
+    additional fees. The government subsidises nothing there; plain subtraction
+    reported a subsidy of −2.60.
+    """
+    from api.services.pricing import government_contribution, additional_patient_fees
+
+    assert government_contribution(22.40, 25.00) == 0.0
+    assert additional_patient_fees(22.40, 25.00) == 2.60
+    # Above the copayment the split recomposes exactly.
+    assert government_contribution(453.76, 25.00) == 428.76
+    assert additional_patient_fees(453.76, 25.00) == 0.0
+    assert round(government_contribution(453.76, 25.00) + 25.00, 2) == 453.76
+
+
+def test_concessional_never_exceeds_the_general_charge():
+    """A concession card cannot leave a patient worse off.
+
+    Prescriber Bag items are free to the patient (published general charge 0.00); the
+    uncapped derivation billed a concessional patient the 7.70 copayment for one.
+    """
+    from api.services.pricing import concessional_charge
+
+    assert concessional_charge(40.18, 7.70, 0.0, None, 0.0) == 0.0      # Prescriber Bag
+    assert concessional_charge(22.40, 7.70, 0.0, None, 25.00) == 7.70   # ordinary item
+    assert concessional_charge(22.40, 7.70, 8.56, None, 33.56) == 16.26  # premium brand
+    # Cheaper than the copayment: the patient pays the price, not the copayment.
+    assert concessional_charge(3.00, 7.70, 0.0, None, 7.70) == 3.00
+
+
+def test_safety_net_estimate_uses_the_recorded_value_not_the_amount_paid():
+    """Brand premiums do not accrue to safety net.
+
+    pbs.gov.au shows "Max safety net: $24.38" identically for every brand of 13842M,
+    while Lamictal charges the patient 33.16.
+    """
+    from api.services.pricing import scripts_to_safety_net
+
+    assert scripts_to_safety_net(1748.20, 23.88) == 74
+    assert scripts_to_safety_net(1748.20, None) is None
+    assert scripts_to_safety_net(None, 23.88) is None
+    # Zero recorded per script must not divide by zero.
+    assert scripts_to_safety_net(1748.20, 0.0) is None
+
+
+async def test_patient_cost_uses_the_dispensed_price_not_price_to_pharmacist(
+    app_client, seeded_audit, ent_key
+):
+    """commonwealth_price is what the pharmacist pays for the pack, not the DPMQ.
+
+    Building the breakdown on it understated everything — on 10005N, 5.99 against a
+    true dispensed price of 19.78.
+    """
+    r = await app_client.get(
+        f"/v1/items/2622M/patient-cost?schedule={TEST_MONTH}", headers={"X-API-Key": ent_key})
+    assert r.status_code == 200, r.text
+    data = r.json()["data"]
+
+    assert "base_dispensed_price" in data
+    assert data["general_patient"]["source"] == "published"
+    assert data["concessional_patient"]["source"] == "derived"
+    # The general charge is passed through from PBS, never recomputed.
+    async_note = r.json()["meta"]["caveat"]
+    assert "max_general_patient_charge" in async_note
+    assert "derived" in async_note
+
+    base = data["base_dispensed_price"]
+    if base is not None:
+        gen = data["general_patient"]
+        assert gen["government_pays"] >= 0, "subsidy must never be negative"
+        # Reconciles either as a split of the dispensed price, or as fees above it.
+        assert round(gen["government_pays"] + gen["you_pay"]
+                     - gen["additional_patient_fees"], 2) == round(data["dispensed_price"], 2)
+
+
+async def test_tier_b_gate_blocks_a_missing_dispensed_price(db_pool, seeded_audit):
+    """Every patient-facing figure derives from dispensed_price_max_qty."""
+    from ingest.quality import check_tier_b_derivations
+
+    async with db_pool.acquire() as conn:
+        sid = await conn.fetchval("SELECT id FROM schedules WHERE month = $1", TEST_MONTH)
+        clean, _ = await check_tier_b_derivations(conn, TEST_MONTH)
+        assert not clean, f"seeded pricing should pass: {clean}"
+
+        await conn.execute(
+            "UPDATE item_pricing SET dispensed_price_max_qty = NULL WHERE schedule_id = $1", sid)
+        broken, _ = await check_tier_b_derivations(conn, TEST_MONTH)
+
+    assert broken, "a null dispensed price must be reported"
+    assert any("dispensed_price_max_qty" in e for e in broken)
+
+
+def test_quality_gate_runs_tier_b_checks():
+    import inspect
+    from ingest import quality
+
+    assert "check_tier_b_derivations" in inspect.getsource(quality.check_schedule)
+
+
+async def test_general_charge_is_passed_through_verbatim(app_client, seeded_audit, ent_key, db_pool):
+    """The general patient charge must be PBS's published field, byte for byte.
+
+    It is not min(dispensed price, copayment). 13842M is dispensed at 22.40 under a
+    25.00 copayment, yet PBS publishes 33.56 — the copayment plus the brand premium,
+    because allowable additional fees apply below the copayment. The field also encodes
+    whole-program rules: RPBS patients pay the concessional rate, and Prescriber Bag
+    items are free. Any formula we invent is wrong for some program.
+    """
+    async with db_pool.acquire() as conn:
+        published = await conn.fetchrow(
+            """
+            SELECT ip.max_general_patient_charge, ip.dispensed_price_max_qty
+            FROM item_pricing ip
+            JOIN schedules s ON s.id = ip.schedule_id
+            LEFT JOIN program_dispensing_rules pdr
+                   ON pdr.rule_code = ip.dispensing_rule_reference
+                  AND pdr.schedule_id = ip.schedule_id
+            WHERE s.month = $1 AND ip.pbs_code = '2622M'
+              AND ip.dispensed_price_max_qty IS NOT NULL
+            ORDER BY COALESCE(pdr.community_pharmacy_indicator, FALSE) DESC,
+                     ip.brand_premium ASC NULLS LAST
+            LIMIT 1
+            """,
+            TEST_MONTH,
+        )
+    assert published, "fixture must carry pricing for 2622M"
+
+    r = await app_client.get(
+        f"/v1/items/2622M/patient-cost?schedule={TEST_MONTH}", headers={"X-API-Key": ent_key})
+    assert r.status_code == 200, r.text
+    you_pay = r.json()["data"]["general_patient"]["you_pay"]
+
+    assert you_pay == float(published["max_general_patient_charge"]), (
+        "general charge must be the published value, not a recomputation"
+    )
+    # And specifically not the formula it used to be: the fixture is chosen so the two
+    # differ (published 24.05 against a dispensed price of 19.78).
+    assert you_pay != float(published["dispensed_price_max_qty"]), (
+        "the fixture no longer distinguishes passthrough from min(price, copayment)"
+    )
