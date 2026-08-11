@@ -580,7 +580,10 @@ async def get_item_dispensing_context(
                ip.fee_container_other, ip.fee_container_injectable,
                i.program_code, i.dangerous_drug
         FROM item_pricing ip
-        JOIN items i ON i.pbs_code = ip.pbs_code AND i.schedule_id = ip.schedule_id
+        -- Join on li_item_id, the brand key both tables share. Joining on pbs_code
+        -- pulled in every brand of the code, multiplying this item's dispensing-rule
+        -- rows by the brand count.
+        JOIN items i ON i.li_item_id = ip.li_item_id AND i.schedule_id = ip.schedule_id
         WHERE ip.li_item_id = $1 AND ip.schedule_id = $2
         ORDER BY ip.dispensing_rule_mnem
         """,

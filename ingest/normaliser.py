@@ -787,11 +787,10 @@ def normalise_schedule(
             "li_item_id": e.get("li_item_id"),
             "pbs_code": e.get("pbs_code") or pbs_code_from_li_item_id(e.get("li_item_id")),
             "event_type": e.get("event_type_code") or e.get("event_type"),
+            # percentage_applied is the only magnitude PBS publishes for an event.
+            # effective_date, previous_price and new_price were carried here and were
+            # null on every row; migration 017 drops them.
             "percentage_applied": parse_decimal(e.get("percentage_applied")),
-            # Not published by PBS; retained until callers stop selecting them.
-            "effective_date": parse_date(e.get("effective_date")),
-            "previous_price": parse_decimal(e.get("previous_price")),
-            "new_price": parse_decimal(e.get("new_price")),
         }
         for e in (raw_item_pricing_events or [])
     ]

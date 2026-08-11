@@ -5,7 +5,11 @@ from api.routers.shared import _rl
 from api.database import get_db
 from typing import Optional
 from collections import Counter
-from api.services.pricing import brand_dispensed_price
+from api.services.pricing import (
+    brand_dispensed_price,
+    concessional_charge,
+    scripts_to_safety_net,
+)
 from ingest.reference import (
     benefit_type_label,
     formulary_label,
@@ -1339,10 +1343,10 @@ async def get_drug_pricing_events(
 
     rows = await db.fetch(
         """
-        SELECT event_type, effective_date, previous_price, new_price
+        SELECT event_type, li_item_id, percentage_applied
         FROM item_pricing_events
         WHERE pbs_code = $1 AND schedule_id = $2
-        ORDER BY effective_date DESC NULLS LAST
+        ORDER BY event_type
         """,
         pbs_code.upper(), schedule_id,
     )
@@ -1350,13 +1354,14 @@ async def get_drug_pricing_events(
     def _f(v):
         return float(v) if v is not None else None
 
+    # PBS publishes the magnitude of a price event as a percentage, not as a
+    # before/after pair — previous_price, new_price and effective_date are not fields
+    # on this feed and were null on every row.
     events = [
         {
             "event_type": r["event_type"],
-            "effective_date": r["effective_date"].isoformat() if r["effective_date"] else None,
-            "previous_price": _f(r["previous_price"]),
-            "new_price": _f(r["new_price"]),
-            "price_change": _f(r["new_price"] - r["previous_price"]) if r["new_price"] is not None and r["previous_price"] is not None else None,
+            "li_item_id": r["li_item_id"],
+            "percentage_applied": _f(r["percentage_applied"]),
         }
         for r in rows
     ]
@@ -1393,16 +1398,32 @@ async def get_drug_safety_net(
     schedule_id, schedule_month = await _resolve_schedule(db, schedule)
 
     item = await db.fetchrow(
-        """
-        SELECT i.pbs_code, i.general_charge, i.concessional_charge, i.government_price,
-               i.brand_premium, i.brand_premium_counts_to_safety_net
-        FROM items_listing i
-        WHERE i.pbs_code = $1 AND i.schedule_id = $2
-        """,
+        "SELECT pbs_code, brand_premium_counts_to_safety_net FROM items_listing "
+        "WHERE pbs_code = $1 AND schedule_id = $2",
         pbs_code.upper(), schedule_id,
     )
     if not item:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Drug not found."})
+
+    # The community-pharmacy rule carries the figures pbs.gov.au publishes; among
+    # brands the lowest premium is the cheapest option a patient can choose.
+    pricing = await db.fetchrow(
+        """
+        SELECT ip.dispensed_price_max_qty, ip.max_general_patient_charge,
+               ip.max_record_val_for_safety_net, ip.brand_premium,
+               ip.special_patient_contribution
+        FROM item_pricing ip
+        LEFT JOIN program_dispensing_rules pdr
+               ON pdr.rule_code = ip.dispensing_rule_reference
+              AND pdr.schedule_id = ip.schedule_id
+        WHERE ip.pbs_code = $1 AND ip.schedule_id = $2
+          AND ip.dispensed_price_max_qty IS NOT NULL
+        ORDER BY COALESCE(pdr.community_pharmacy_indicator, FALSE) DESC,
+                 ip.brand_premium ASC NULLS LAST
+        LIMIT 1
+        """,
+        pbs_code.upper(), schedule_id,
+    )
 
     copayments = await db.fetchrow(
         "SELECT general, concessional, safety_net_general, safety_net_concessional, safety_net_card_issue FROM copayments WHERE schedule_id = $1",
@@ -1412,49 +1433,46 @@ async def get_drug_safety_net(
     def _f(v):
         return float(v) if v is not None else None
 
-    general_charge = _f(item["general_charge"])
-    concessional_charge = _f(item["concessional_charge"])
-    brand_premium = _f(item["brand_premium"])
     copay_general = _f(copayments["general"]) if copayments else None
     copay_conc = _f(copayments["concessional"]) if copayments else None
     sn_general = _f(copayments["safety_net_general"]) if copayments else None
     sn_conc = _f(copayments["safety_net_concessional"]) if copayments else None
 
-    # Patient cost = standard copayment (or lower if the item's own charge is
-    # lower), plus any brand premium.
-    #
-    # items.general_charge / concessional_charge are per-item overrides that PBS
-    # does not publish on /items — they are null for every row. Falling back to
-    # `general_charge` when it is None made this endpoint return null for every
-    # headline figure; the schedule-level copayment is the correct default, and
-    # is what /items/{code}/patient-cost already uses.
-    def _lower_of(item_charge, copayment):
-        if item_charge is None:
-            return copayment
-        if copayment is None:
-            return item_charge
-        return min(item_charge, copayment)
+    base_dpmq = _f(pricing["dispensed_price_max_qty"]) if pricing else None
+    brand_premium = _f(pricing["brand_premium"]) if pricing else None
+    spc = _f(pricing["special_patient_contribution"]) if pricing else None
+    sn_record = _f(pricing["max_record_val_for_safety_net"]) if pricing else None
 
-    actual_general = _lower_of(general_charge, copay_general)
-    actual_conc = _lower_of(concessional_charge, copay_conc)
+    # What a patient actually pays. The general figure is PBS's published charge —
+    # this endpoint previously read items.general_charge, which PBS does not populate
+    # on /items and is null for every row, then fell back to the bare copayment. That
+    # ignored brand premiums and every program with its own rate.
+    actual_general = _f(pricing["max_general_patient_charge"]) if pricing else None
+    actual_conc = concessional_charge(base_dpmq, copay_conc, brand_premium, spc, actual_general)
 
-    # Prescriptions needed to reach safety net (approximate)
-    scripts_general = round(sn_general / actual_general) if sn_general and actual_general else None
-    scripts_conc = round(sn_conc / actual_conc) if sn_conc and actual_conc else None
+    # Scripts to threshold accrue max_record_val_for_safety_net, not the amount paid:
+    # brand premiums do not count toward the safety net. Dividing by the copayment
+    # ignored both that and the item's own recorded value.
+    scripts_general = scripts_to_safety_net(sn_general, sn_record)
+    scripts_conc = scripts_to_safety_net(sn_conc, actual_conc)
 
     return {
         "data": {
             "pbs_code": pbs_code.upper(),
+            "dispensed_price": brand_dispensed_price(base_dpmq, brand_premium),
             "patient_cost": {
-                "general_copayment": actual_general,
-                "concessional_copayment": actual_conc,
+                "general_copayment": copay_general,
+                "concessional_copayment": copay_conc,
+                "general_patient_charge": actual_general,
+                "concessional_patient_charge": actual_conc,
                 "brand_premium": brand_premium,
                 "brand_premium_counts_to_safety_net": item["brand_premium_counts_to_safety_net"],
-                "general_total_with_premium": round(actual_general + brand_premium, 2) if actual_general is not None and brand_premium else actual_general,
+                "general_total_with_premium": actual_general,
             },
             "safety_net": {
                 "general_threshold": sn_general,
                 "concessional_threshold": sn_conc,
+                "records_per_script": sn_record,
                 "card_issue_fee": _f(copayments["safety_net_card_issue"]) if copayments else None,
             },
             "estimated_scripts_to_safety_net": {
@@ -1462,7 +1480,17 @@ async def get_drug_safety_net(
                 "concessional": scripts_conc,
             },
         },
-        "meta": _meta(api_key_data, schedule_month, ["/items", "/copayments"]),
+        "meta": {
+            **_meta(api_key_data, schedule_month,
+                    ["/items", "/item-dispensing-rule-relationships", "/copayments"]),
+            "derivation": "concessional_patient_charge=derived; estimated_scripts=estimate",
+            "caveat": (
+                "general_patient_charge is max_general_patient_charge as PBS publishes it. "
+                "The concessional figure is derived — PBS publishes none — and is capped at "
+                "the general charge. Script counts accrue max_record_val_for_safety_net, "
+                "which excludes brand premiums, and cover this item alone."
+            ),
+        },
     }
 
 
@@ -1577,10 +1605,10 @@ async def get_drug_formulary_status(
 
     pricing_events = await db.fetch(
         """
-        SELECT event_type, effective_date, previous_price, new_price
+        SELECT event_type, li_item_id, percentage_applied
         FROM item_pricing_events
         WHERE pbs_code = $1 AND schedule_id = $2
-        ORDER BY effective_date DESC NULLS LAST
+        ORDER BY event_type
         LIMIT 5
         """,
         pbs_code.upper(), schedule_id,
@@ -1613,9 +1641,8 @@ async def get_drug_formulary_status(
             "recent_pricing_events": [
                 {
                     "event_type": r["event_type"],
-                    "effective_date": r["effective_date"].isoformat() if r["effective_date"] else None,
-                    "previous_price": _f(r["previous_price"]),
-                    "new_price": _f(r["new_price"]),
+                    "li_item_id": r["li_item_id"],
+                    "percentage_applied": _f(r["percentage_applied"]),
                 }
                 for r in pricing_events
             ],

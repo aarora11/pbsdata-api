@@ -33,9 +33,8 @@ COMMENT ON COLUMN item_pricing_events.percentage_applied IS
     'by a lower percentage than would otherwise apply.';
 COMMENT ON COLUMN item_pricing_events.event_type IS
     'PBS event_type_code: code describing the event that triggers a price change.';
-COMMENT ON COLUMN item_pricing_events.effective_date IS
-    'NOT PUBLISHED BY PBS — always NULL. Remove once callers stop selecting it.';
-COMMENT ON COLUMN item_pricing_events.previous_price IS
-    'NOT PUBLISHED BY PBS — always NULL. Remove once callers stop selecting it.';
-COMMENT ON COLUMN item_pricing_events.new_price IS
-    'NOT PUBLISHED BY PBS — always NULL. Remove once callers stop selecting it.';
+-- effective_date, previous_price and new_price were commented here as
+-- "NOT PUBLISHED BY PBS — always NULL. Remove once callers stop selecting it."
+-- Migration 017 removed them once the last caller was fixed. The COMMENT statements
+-- are gone with them: migrate.py re-runs every file on startup, so a comment on a
+-- dropped column would fail the whole run from here on.

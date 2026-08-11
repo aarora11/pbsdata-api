@@ -550,6 +550,9 @@ async def get_schedule_price_changes(
             delta = round(curr - prev, 4)
             delta_pct = round((curr - prev) / prev * 100, 4)
         data.append(_enrich_row(r, drug_names, {
+            # items.government_price — the approved price PBS determines, not the
+            # dispensed price a patient sees. Named in meta.price_basis so callers
+            # are not left guessing which of several PBS prices this tracks.
             "previous_price": prev,
             "current_price": curr,
             "price_delta": delta,

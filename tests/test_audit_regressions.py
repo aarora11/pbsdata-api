@@ -1534,3 +1534,142 @@ async def test_general_charge_is_passed_through_verbatim(app_client, seeded_audi
     assert you_pay != float(published["dispensed_price_max_qty"]), (
         "the fixture no longer distinguishes passthrough from min(price, copayment)"
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Price events — PBS publishes a percentage, not a before/after pair
+# ══════════════════════════════════════════════════════════════════════════════
+
+async def test_fabricated_pricing_event_columns_are_gone(db):
+    """previous_price, new_price and effective_date are not PBS fields.
+
+    Leaving them was not harmless. /market/price-reduction-events filtered on
+    `previous_price > 0`, NULL on every row, so the whole WHERE clause could never be
+    true and the endpoint returned an empty list for every query. The price-pressure
+    index counted reductions the same way, so that signal was permanently zero.
+    """
+    for column in ("previous_price", "new_price", "effective_date"):
+        exists = await db.fetchval(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'item_pricing_events' AND column_name = $1",
+            column,
+        )
+        assert not exists, f"item_pricing_events.{column} is back — PBS does not publish it"
+
+
+def test_no_router_selects_a_fabricated_pricing_event_column():
+    """A column that is always NULL silently disables whatever filters on it."""
+    import re
+    from pathlib import Path
+
+    api_dir = Path(__file__).parent.parent / "api"
+    offenders = []
+    for path in sorted(api_dir.rglob("*.py")):
+        text = path.read_text()
+        # Only flag real SQL/attribute use, not the explanatory comments.
+        for line_no, line in enumerate(text.splitlines(), 1):
+            stripped = line.strip()
+            if stripped.startswith("#") or stripped.startswith("--"):
+                continue
+            if re.search(r"\b(pe|e)\.(previous_price|new_price)\b", line) or \
+               re.search(r'\["(previous_price|new_price)"\]', line):
+                if "item_pricing_events" in text:
+                    offenders.append(f"{path.name}:{line_no}: {stripped[:70]}")
+    assert not offenders, "routers still read fabricated pricing-event columns:\n  " + \
+        "\n  ".join(offenders)
+
+
+async def test_price_reduction_events_filter_can_actually_match(db_pool, seeded_audit):
+    """The reduction filter must key on percentage_applied, which PBS populates."""
+    from pathlib import Path
+
+    source = (Path(__file__).parent.parent / "api" / "routers" / "market.py").read_text()
+    # Ignore comments — the explanatory note quotes the old condition on purpose.
+    active = [ln for ln in source.splitlines()
+              if not ln.strip().startswith("#") and not ln.strip().startswith("--")]
+    active_text = "\n".join(active)
+
+    assert "pe.percentage_applied > 0" in active_text, (
+        "the reduction filter no longer keys on the field PBS actually publishes"
+    )
+    assert "pe.previous_price" not in active_text, (
+        "the filter is back on a column that is NULL on every row"
+    )
+
+
+async def test_safety_net_uses_published_charge_and_recorded_value(
+    app_client, seeded_audit, ent_key
+):
+    """The endpoint read items.general_charge, which PBS does not populate.
+
+    It fell back to the bare copayment, ignoring brand premiums and every program with
+    its own rate, then divided the threshold by that instead of by the amount actually
+    recorded against the safety net card.
+    """
+    r = await app_client.get(
+        f"/v1/drugs/2622M/safety-net?schedule={TEST_MONTH}", headers={"X-API-Key": ent_key})
+    assert r.status_code == 200, r.text
+    data = r.json()["data"]
+
+    assert "general_patient_charge" in data["patient_cost"]
+    assert "records_per_script" in data["safety_net"]
+    assert "derived" in r.json()["meta"]["derivation"]
+
+    charge = data["patient_cost"]["general_patient_charge"]
+    conc = data["patient_cost"]["concessional_patient_charge"]
+    if charge is not None and conc is not None:
+        assert conc <= charge, "a concession card cannot cost more than the general rate"
+
+
+def test_price_events_join_the_listing_view_not_brand_grain():
+    """market.py is allow-listed for pbs_code joins because its aggregates use DISTINCT.
+
+    The price-events query is the exception: it returns rows rather than aggregating, so
+    a pbs_code join onto brand-grain `items` multiplies every event by the brand count —
+    8 real events came back as 32 rows. The allow-list is file-level, so this pins the
+    one query in that file that cannot rely on it.
+    """
+    from pathlib import Path
+
+    source = (Path(__file__).parent.parent / "api" / "routers" / "market.py").read_text()
+    idx = source.index("FROM item_pricing_events pe")
+    block = source[idx:idx + 600]
+    assert "JOIN items_listing i" in block, (
+        "price events join brand-grain items and will duplicate by brand count"
+    )
+
+
+async def test_safety_net_general_charge_is_the_published_value(
+    app_client, seeded_audit, ent_key, db_pool
+):
+    """Not the bare copayment — that ignores premiums and program-specific rates."""
+    async with db_pool.acquire() as conn:
+        published = await conn.fetchval(
+            """
+            SELECT ip.max_general_patient_charge
+            FROM item_pricing ip
+            JOIN schedules s ON s.id = ip.schedule_id
+            LEFT JOIN program_dispensing_rules pdr
+                   ON pdr.rule_code = ip.dispensing_rule_reference
+                  AND pdr.schedule_id = ip.schedule_id
+            WHERE s.month = $1 AND ip.pbs_code = '2622M'
+              AND ip.dispensed_price_max_qty IS NOT NULL
+            ORDER BY COALESCE(pdr.community_pharmacy_indicator, FALSE) DESC,
+                     ip.brand_premium ASC NULLS LAST
+            LIMIT 1
+            """,
+            TEST_MONTH,
+        )
+        copay = await conn.fetchval(
+            "SELECT c.general FROM copayments c JOIN schedules s ON s.id = c.schedule_id "
+            "WHERE s.month = $1", TEST_MONTH)
+    assert published is not None and copay is not None
+    assert float(published) != float(copay), (
+        "the fixture no longer distinguishes the published charge from the copayment"
+    )
+
+    r = await app_client.get(
+        f"/v1/drugs/2622M/safety-net?schedule={TEST_MONTH}", headers={"X-API-Key": ent_key})
+    assert r.status_code == 200, r.text
+    charge = r.json()["data"]["patient_cost"]["general_patient_charge"]
+    assert charge == float(published), "safety-net must use the published charge"

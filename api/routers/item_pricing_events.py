@@ -21,7 +21,8 @@ async def _resolve_schedule_id(db, schedule: Optional[str]) -> str:
     return str(row["id"])
 
 
-_NUMERIC_FIELDS = ["previous_price", "new_price"]
+# PBS publishes percentage_applied; previous_price/new_price are not in the feed.
+_NUMERIC_FIELDS = ["percentage_applied"]
 
 
 @router.get("/item-pricing-events")
@@ -37,7 +38,7 @@ async def list_item_pricing_events(
     schedule_id = await _resolve_schedule_id(db, schedule)
 
     query = """
-        SELECT pbs_code, event_type, effective_date, previous_price, new_price
+        SELECT pbs_code, li_item_id, event_type, percentage_applied
         FROM item_pricing_events WHERE schedule_id = $1
     """
     params = [schedule_id]

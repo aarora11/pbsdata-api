@@ -223,8 +223,13 @@ async def market_price_reduction_events(
     # Fetch price events across the schedule range
     conditions = [
         "pe.schedule_id IN (SELECT id FROM schedules WHERE month >= $1 AND month <= $2)",
-        "(pe.event_type ILIKE '%reduction%' OR pe.new_price < pe.previous_price)",
-        "pe.previous_price > 0",
+        # PBS publishes the reduction as a percentage, not as a before/after pair.
+        # This previously filtered on `pe.previous_price > 0` against a column PBS does
+        # not send, so it was NULL on every row and the whole clause was never true —
+        # the endpoint returned an empty list for every possible query. Event types are
+        # codes like SPR_SINGLE_NB, so matching '%reduction%' never fired either.
+        "pe.percentage_applied IS NOT NULL",
+        "pe.percentage_applied > 0",
     ]
     params: list = [from_schedule, to_month]
 
@@ -251,17 +256,21 @@ async def market_price_reduction_events(
     sql = f"""
         SELECT
             pe.pbs_code,
+            pe.li_item_id,
             pe.event_type,
-            pe.effective_date,
-            pe.previous_price,
-            pe.new_price,
-            (pe.new_price - pe.previous_price) / pe.previous_price * 100 AS pct_change,
+            pe.percentage_applied,
+            -- A statutory price reduction lowers the price, so express it as a negative
+            -- change to keep the sign consistent with what callers expect.
+            (-pe.percentage_applied) AS pct_change,
             s.month AS schedule_month,
             i.brand_name,
             m.ingredient
         FROM item_pricing_events pe
         JOIN schedules s ON s.id = pe.schedule_id
-        LEFT JOIN items i ON i.pbs_code = pe.pbs_code AND i.schedule_id = pe.schedule_id
+        -- items is brand grain, so joining it on pbs_code multiplies each event by the
+        -- item's brand count: 8 events for 10104T came back as 32 rows. items_listing
+        -- keeps it 1:1.
+        LEFT JOIN items_listing i ON i.pbs_code = pe.pbs_code AND i.schedule_id = pe.schedule_id
         LEFT JOIN medicines m ON m.id = i.medicine_id
         WHERE {where}
         ORDER BY {order}
@@ -279,11 +288,10 @@ async def market_price_reduction_events(
             "pbs_code": r["pbs_code"],
             "brand_name": r["brand_name"],
             "ingredient": r["ingredient"],
+            "li_item_id": r["li_item_id"],
             "event_type": r["event_type"],
-            "effective_date": str(r["effective_date"]) if r["effective_date"] else None,
             "schedule_month": r["schedule_month"],
-            "previous_price": float(r["previous_price"]) if r["previous_price"] else None,
-            "new_price": float(r["new_price"]) if r["new_price"] else None,
+            "percentage_applied": float(r["percentage_applied"]) if r["percentage_applied"] is not None else None,
             "pct_change": round(pct, 4) if pct is not None else None,
         })
 
@@ -294,6 +302,12 @@ async def market_price_reduction_events(
             "to_schedule": to_month,
             "total": len(data),
             "tier": tier_label(api_key_data),
+            "join_sources": ["/item-pricing-events", "/items"],
+            "caveat": (
+                "PBS publishes price events as a percentage applied, not a before/after "
+                "price pair, so pct_change is the negated percentage rather than a "
+                "computed difference. Absolute prices are not available on this feed."
+            ),
         },
     }
 
@@ -1165,8 +1179,11 @@ async def market_price_pressure_index(
             'YYYY-MM'
         )
           AND s.month <= (SELECT month FROM schedules WHERE id = $1)
-          AND (pe.new_price < pe.previous_price OR pe.event_type ILIKE '%reduction%')
-          AND pe.previous_price > 0
+          -- Same defect as price-reduction-events: these columns are not in the PBS
+          -- feed, so this signal counted zero reductions on every schedule and pulled
+          -- the index down permanently.
+          AND pe.percentage_applied IS NOT NULL
+          AND pe.percentage_applied > 0
           {f"AND EXISTS (SELECT 1 FROM item_atc_relationships iar WHERE iar.pbs_code = pe.pbs_code AND iar.schedule_id = $1 AND iar.atc_code LIKE ${len(params)})" if atc_prefix else ""}
     """
     reduction_row = await db.fetchrow(reductions_sql, *params)

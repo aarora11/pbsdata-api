@@ -884,19 +884,15 @@ async def insert_item_pricing_events(conn, events: list[dict], schedule_id: str)
         await conn.execute(
             """
             INSERT INTO item_pricing_events (
-                schedule_id, li_item_id, pbs_code, event_type, percentage_applied,
-                effective_date, previous_price, new_price
+                schedule_id, li_item_id, pbs_code, event_type, percentage_applied
             )
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+            VALUES ($1,$2,$3,$4,$5)
             """,
             schedule_id,
             e.get("li_item_id"),
             e.get("pbs_code"),
             e.get("event_type"),
             e.get("percentage_applied"),
-            e.get("effective_date"),
-            e.get("previous_price"),
-            e.get("new_price"),
         )
 
 

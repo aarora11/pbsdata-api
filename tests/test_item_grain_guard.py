@@ -22,6 +22,22 @@ ALLOWED_RAW_ITEMS_READS = {
     "api/services/search.py",
 }
 
+# Joining `items` on pbs_code multiplies rows by the item's brand count. Joining on
+# `id` or `li_item_id` is 1:1 and safe, so only pbs_code joins are checked here.
+#
+# `FROM items` alone missed this: /market/price-reduction-events used
+# `LEFT JOIN items i ON i.pbs_code = ...` and returned 32 rows for 8 events.
+#
+# Each entry below is a pbs_code join that is safe for a stated reason.
+ALLOWED_PBS_CODE_JOINS = {
+    # Deduplicated or aggregated with DISTINCT, so the fan-out cannot reach the output.
+    "api/routers/market.py",
+    "api/routers/atc_codes.py",
+    # Brand grain by design: a sponsor sponsors brands, and the count query fans out
+    # identically to the data query, so pagination stays coherent.
+    "api/routers/organisations.py",
+}
+
 
 def _api_files():
     return sorted(p for p in API_DIR.rglob("*.py"))
@@ -125,3 +141,34 @@ async def test_listing_view_keeps_joins_one_to_one_when_items_would_fan_out(db):
 
     await db.execute("DELETE FROM item_atc_relationships WHERE schedule_id = $1", sched)
     await db.execute("DELETE FROM items WHERE schedule_id = $1", sched)
+
+
+def test_items_joins_on_pbs_code_are_reviewed():
+    """A pbs_code join onto brand-grain `items` multiplies rows.
+
+    The `FROM items` check above does not see `JOIN items`, which is how
+    /market/price-reduction-events came to return 32 rows for 8 pricing events. Joins on
+    `id` or `li_item_id` are 1:1 and ignored; only pbs_code joins need a reason.
+    """
+    offenders = []
+    for path in _api_files():
+        rel = str(path.relative_to(API_DIR.parent))
+        if rel in ALLOWED_PBS_CODE_JOINS:
+            continue
+        text = path.read_text()
+        for m in re.finditer(r"\b(?:LEFT\s+|INNER\s+)?JOIN\s+items\b(?!_listing)", text):
+            on_clause = " ".join(text[m.end():m.end() + 220].split())
+            joins_on_pbs_code = (
+                "pbs_code" in on_clause
+                and "li_item_id" not in on_clause.split("WHERE")[0]
+                and ".id =" not in on_clause.split("WHERE")[0]
+            )
+            if joins_on_pbs_code:
+                line = text[:m.start()].count("\n") + 1
+                offenders.append(f"{rel}:{line}: {on_clause[:80]}")
+
+    assert not offenders, (
+        "items is joined on pbs_code, which fans out by brand count.\n"
+        "Use items_listing, or add the file to ALLOWED_PBS_CODE_JOINS with a reason:\n  "
+        + "\n  ".join(offenders)
+    )
