@@ -361,7 +361,8 @@ async def get_item_patient_cost(
         """
         SELECT ip.dispensed_price_max_qty, ip.max_general_patient_charge, ip.brand_premium,
                ip.special_patient_contribution, ip.max_record_val_for_safety_net,
-               ip.dispensing_rule_reference
+               ip.dispensing_rule_reference, pdr.dispensing_rule_title,
+               COALESCE(pdr.community_pharmacy_indicator, FALSE) AS is_community_pharmacy
         FROM item_pricing ip
         LEFT JOIN program_dispensing_rules pdr
                ON pdr.rule_code = ip.dispensing_rule_reference
@@ -422,11 +423,26 @@ async def get_item_patient_cost(
     extra_gen = additional_patient_fees(dispensed_price, you_pay_gen)
     extra_con = additional_patient_fees(dispensed_price, you_pay_con)
 
-    price_basis = (
-        "item_pricing.dispensed_price_max_qty on the community-pharmacy dispensing rule, "
-        "plus brand_premium — the figure pbs.gov.au publishes as DPMQ"
-        if pricing else "unavailable — no dispensed price held for this item"
-    )
+    # Name the rule actually used. 1,811 of 6,921 PBS codes have no community-pharmacy
+    # rule at all — S100 hospital and extemporaneous items — so claiming one for every
+    # response was untrue for a quarter of the catalogue.
+    if not pricing:
+        price_basis = "unavailable — no dispensed price held for this item"
+        rule_used = None
+    else:
+        rule_used = pricing["dispensing_rule_reference"]
+        rule_title = pricing["dispensing_rule_title"] or rule_used
+        if pricing["is_community_pharmacy"]:
+            price_basis = (
+                f"dispensed_price_max_qty on the community-pharmacy rule ({rule_used}), "
+                f"plus brand_premium — the figure pbs.gov.au publishes as DPMQ"
+            )
+        else:
+            price_basis = (
+                f"dispensed_price_max_qty on {rule_used} ({rule_title}). This item has no "
+                f"community-pharmacy rule, so the price is for that dispensing setting "
+                f"rather than a retail pharmacy"
+            )
     brands = premium_spread["brands"] if premium_spread else 0
     min_prem = _f(premium_spread["min_premium"]) if premium_spread else None
     max_prem = _f(premium_spread["max_premium"]) if premium_spread else None
@@ -480,6 +496,7 @@ async def get_item_patient_cost(
             "tier": tier_label(api_key_data),
             "join_sources": ["/items", "/item-dispensing-rule-relationships", "/copayments"],
             "price_basis": price_basis,
+            "dispensing_rule": rule_used,
             "derivation": "concessional=derived; estimated_scripts_to_safety_net=estimate",
             "caveat": (
                 "general_patient.you_pay is max_general_patient_charge exactly as PBS "
