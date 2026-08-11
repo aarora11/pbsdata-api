@@ -1,0 +1,1009 @@
+{
+ "10209H": {
+  "drug": "LIDOCAINE",
+  "brand": "LIGNOCAINE INJECTION (BRIDGEWEST)",
+  "manuf": "Bridgewest Perth Pharma Pty Ltd",
+  "maxqty": "1 pack / 5 units",
+  "repeats": "0",
+  "dpmq": "$50.68",
+  "charge": "Nil",
+  "listing": "NONE",
+  "restrictions": "No restrictions"
+ },
+ "10283F": {
+  "drug": "dolutegravir 50 mg tablet, 30",
+  "brand": "Tivicay",
+  "manuf": "ViiV Healthcare Pty Ltd",
+  "maxqty": "60 units",
+  "repeats": "5",
+  "dpmq": "$1302.22",
+  "charge": "$25.00",
+  "listing": "S100 HSD Community Access",
+  "restrictions": "Authority Required (Streamlined) initial+continuing HIV"
+ },
+ "10355B": {
+  "drug": "maraviroc 300 mg tablet, 60",
+  "brand": "Celsentri, Maraviroc Waymade",
+  "manuf": "ViiV Healthcare Pty Ltd, Clinect Pty Ltd",
+  "maxqty": "2 packs / 120 units",
+  "repeats": "5",
+  "dpmq": "$1276.80",
+  "charge": "$25.00",
+  "listing": "S100 HSD Community Access",
+  "restrictions": "Authority Required (STREAMLINED) code 5008 HIV infection"
+ },
+ "10399H": {
+  "drug": "adalimumab 40 mg/0.8 mL injection",
+  "brand": "Amgevita, Hadlima, Hyrimoz",
+  "manuf": "Arrotex Pharmaceuticals Pty Ltd, Arrow Pharma Pty Ltd, Sandoz Pty Ltd",
+  "maxqty": "1 pack / 2 units",
+  "repeats": "0",
+  "dpmq": "$495.79",
+  "charge": "$25.00",
+  "listing": "Authority Required",
+  "restrictions": "Severe Crohn disease - balance of supply"
+ },
+ "10473F": {
+  "drug": "sunitinib 37.5 mg capsule, 28",
+  "brand": "ARX-Sunitinib, Sunitinib Sandoz, Sutent",
+  "manuf": "Arrotex Pharmaceuticals Pty Ltd, Sandoz Pty Ltd, Pfizer Australia Pty Ltd",
+  "maxqty": "1 pack, 28 units",
+  "repeats": "5",
+  "dpmq": "$1508.73",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)",
+  "restrictions": "pNET continuing treatment"
+ },
+ "10498M": {
+  "drug": "somatropin 1.6 mg injection",
+  "brand": "Genotropin MiniQuick",
+  "manuf": "Pfizer Australia Pty Ltd",
+  "maxqty": "7",
+  "repeats": "1",
+  "dpmq": "$373.50",
+  "charge": "$25.00",
+  "listing": "S100 Growth Hormone Programme",
+  "restrictions": "multiple growth hormone indications"
+ },
+ "10519P": {
+  "drug": "somatropin 10 mg/1.5 mL injection",
+  "brand": "Omnitrope Surepal 10",
+  "manuf": "Sandoz Pty Ltd",
+  "maxqty": "1",
+  "repeats": "1",
+  "dpmq": "$334.47",
+  "charge": "$25.00",
+  "listing": "S100 Growth Hormone Programme"
+ },
+ "10578R": {
+  "drug": "bisacodyl 10 mg suppository",
+  "brand": "Dulcolax, Petrus Bisacodyl Suppositories",
+  "manuf": "Sanofi-aventis Healthcare Pty Ltd, Petrus Pharmaceuticals Pty Ltd",
+  "maxqty": "3",
+  "repeats": "5",
+  "dpmq": "$28.05",
+  "charge": "$7.70",
+  "listing": "Repatriation Pharmaceutical Benefits"
+ },
+ "10763L": {
+  "drug": "bendamustine hydrochloride 25 mg injection",
+  "brand": "BENDAMUSTINE EUGIA",
+  "manuf": "EUGIA PHARMA (AUSTRALIA) PTY LTD",
+  "maxqty": "200 mg",
+  "repeats": "11",
+  "dpmq": "$258.11",
+  "charge": "$25.00",
+  "listing": "Private"
+ },
+ "10837J": {
+  "drug": "DRESSING HYDROFIBRE ALTERNATE TO ALGINATES",
+  "brand": "Aquacel Foam Non-Adhesive",
+  "manuf": "ConvaTec Australia Pty Ltd",
+  "maxqty": "10",
+  "repeats": "0",
+  "dpmq": "$120.49",
+  "charge": "$7.70",
+  "listing": "Repatriation Pharmaceutical Benefits"
+ },
+ "10955N": {
+  "drug": "adalimumab 40 mg/0.8 mL injection, 2 x 0.8 mL pen devices",
+  "brand": "Abrilada, Amgevita, Hadlima, Hyrimoz",
+  "manuf": "Pfizer Australia Pty Ltd, Arrotex Pharmaceuticals Pty Ltd, Arrow Pharma Pty Ltd, Sandoz Pty Ltd",
+  "maxqty": "1 pack, 2 units",
+  "repeats": "2",
+  "dpmq": "$495.79",
+  "charge": "$25.00",
+  "listing": "Authority Required"
+ },
+ "10967F": {
+  "drug": "omalizumab 75 mg/0.5 mL injection",
+  "brand": "Omlyclo, Xolair",
+  "manuf": "Celltrion Healthcare Australia Pty Ltd, Novartis Pharmaceuticals Australia Pty Limited",
+  "maxqty": "1",
+  "repeats": "6",
+  "dpmq": "$102.99",
+  "charge": "$25.00",
+  "listing": "Authority Required"
+ },
+ "10987G": {
+  "drug": "clostridium botulinum type A toxin 300 units injection",
+  "brand": "Dysport",
+  "manuf": "Ipsen Pty Ltd",
+  "maxqty": "4",
+  "repeats": "0",
+  "dpmq": "$959.36",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "11075X": {
+  "drug": "cobimetinib 20 mg tablet, 63",
+  "brand": "Cotellic",
+  "manuf": "Roche Products Pty Ltd",
+  "maxqty": "63",
+  "repeats": "5",
+  "dpmq": "$7142.32",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "11187T": {
+  "drug": "alprazolam 500 microgram tablet",
+  "brand": "Alprax 0.5, Kalma 0.5",
+  "manuf": "Aspen Pharmacare Australia Pty Limited, Alphapharm Pty Ltd",
+  "maxqty": "10",
+  "repeats": "0",
+  "dpmq": "$23.29",
+  "charge": "$25.00",
+  "listing": "General Schedule, Authority Required"
+ },
+ "11271F": {
+  "drug": "PRALATREXATE",
+  "brand": "Folotyn",
+  "manuf": "Mundipharma Pty Limited",
+  "maxqty": "80 mg",
+  "repeats": "5",
+  "dpmq": "$4339.55",
+  "charge": "$25.00",
+  "listing": "Private"
+ },
+ "11326D": {
+  "drug": "Certolizumab pegol",
+  "brand": "Cimzia",
+  "manuf": "UCB Australia Proprietary Limited",
+  "maxqty": "2",
+  "repeats": "2",
+  "dpmq": "$1036.66",
+  "charge": "$25.00",
+  "listing": "General Schedule - Authority Required"
+ },
+ "11330H": {
+  "drug": "pembrolizumab 100 mg/4 mL injection",
+  "brand": "Keytruda",
+  "manuf": "Merck Sharp & Dohme (Australia) Pty Ltd",
+  "maxqty": "400 mg",
+  "repeats": "6",
+  "dpmq": "$14622.80",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "11353M": {
+  "drug": "Glecaprevir 100 mg + Pibrentasvir 40 mg tablet, 84",
+  "brand": "Maviret",
+  "manuf": "AbbVie Pty Ltd",
+  "maxqty": "84",
+  "repeats": "1",
+  "dpmq": "$17179.03",
+  "charge": "$25.00",
+  "listing": "Authority Required"
+ },
+ "11475Y": {
+  "drug": "apomorphine hydrochloride hemihydrate 30 mg/3 mL injection",
+  "brand": "Movapo Pen",
+  "manuf": "STADA Pharmaceuticals Australia Pty Limited",
+  "maxqty": "20",
+  "repeats": "5",
+  "dpmq": "$2637.24",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "11735P": {
+  "drug": "benzathine benzylpenicillin 600 000 units injection",
+  "brand": "Bicillin L-A",
+  "manuf": "Pfizer Australia Pty Ltd",
+  "maxqty": "10",
+  "repeats": "0",
+  "dpmq": "$211.54",
+  "charge": "$25.00",
+  "listing": "General Schedule"
+ },
+ "11755Q": {
+  "drug": "benzathine benzylpenicillin 1.2 million units injection",
+  "brand": "Bicillin L-A",
+  "manuf": "Pfizer Australia Pty Ltd",
+  "maxqty": "1",
+  "repeats": "0",
+  "dpmq": "$327.06",
+  "charge": "Nil",
+  "listing": "NONE"
+ },
+ "11808L": {
+  "drug": "teduglutide 5 mg injection",
+  "brand": "Revestive",
+  "manuf": "Takeda Pharmaceuticals Australia Pty. Ltd.",
+  "maxqty": "1",
+  "repeats": "0",
+  "dpmq": "$19710.60",
+  "charge": "$25.00",
+  "listing": "Authority Required"
+ },
+ "11812Q": {
+  "drug": "TEDUGLUTIDE",
+  "brand": "Revestive",
+  "manuf": "Takeda Pharmaceuticals Australia Pty. Ltd.",
+  "maxqty": "1",
+  "repeats": "0",
+  "dpmq": "$19759.84",
+  "charge": "$25.00",
+  "listing": "S100 HSD Private"
+ },
+ "11991D": {
+  "drug": "aflibercept 2 mg/0.05 mL injection",
+  "brand": "Eylea",
+  "manuf": "Bayer Australia Ltd",
+  "maxqty": "1",
+  "repeats": "2",
+  "dpmq": "$306.54",
+  "charge": "$25.00",
+  "listing": "General Schedule"
+ },
+ "12015J": {
+  "drug": "AMINO ACID FORMULA WITHOUT PHENYLALANINE AND TYROSINE",
+  "brand": "TYR Easy Tablet",
+  "manuf": "Orpharma Pty Ltd",
+  "maxqty": "4",
+  "repeats": "5",
+  "dpmq": "$2329.00",
+  "charge": "$25.00",
+  "listing": "Restricted Benefit"
+ },
+ "12046B": {
+  "drug": "hydromorphone hydrochloride 4 mg tablet, 20",
+  "brand": "Dilaudid",
+  "manuf": "Mundipharma Pty Limited",
+  "maxqty": "0.5",
+  "repeats": "0",
+  "dpmq": "$26.95",
+  "charge": "$25.00",
+  "listing": "Restricted Benefit"
+ },
+ "12121Y": {
+  "drug": "pembrolizumab 100 mg/4 mL injection",
+  "brand": "Keytruda",
+  "manuf": "Merck Sharp & Dohme (Australia) Pty Ltd",
+  "maxqty": "400 mg",
+  "repeats": "3",
+  "dpmq": "$14873.23",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "12136R": {
+  "drug": "AMINO ACID FORMULA WITHOUT PHENYLALANINE",
+  "brand": "PKU Lophlex",
+  "manuf": "Nutricia Australia Pty Limited",
+  "maxqty": "4",
+  "repeats": "5",
+  "dpmq": "$1686.12",
+  "charge": "$25.00",
+  "listing": "Restricted Benefit"
+ },
+ "12149K": {
+  "drug": "BOSENTAN",
+  "brand": "BOSENTAN DR.REDDY'S, Bosentan APO, Bosentan GH, Bosentan RBX, Bosentan Viatris",
+  "manuf": "Dr Reddy's Laboratories (Australia) Pty Ltd, Apotex Pty Ltd, Generic Health Pty Ltd, Sun Pharma ANZ Pty Ltd, Alphapharm Pty Ltd",
+  "maxqty": "60",
+  "repeats": "5",
+  "dpmq": "$117.53",
+  "charge": "$25.00",
+  "listing": "Authority Required"
+ },
+ "12178Y": {
+  "drug": "clostridium botulinum type A toxin 500 units injection",
+  "brand": "Dysport",
+  "manuf": "Ipsen Pty Ltd",
+  "maxqty": "2",
+  "repeats": "0",
+  "dpmq": "$856.56",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "12400P": {
+  "drug": "adalimumab 40 mg/0.4 mL injection, 2 x 0.4 mL syringes",
+  "brand": "Hadlima, Humira, Hyrimoz, Yuflyma",
+  "manuf": "Arrow Pharma Pty Ltd, AbbVie Pty Ltd, Sandoz Pty Ltd, Celltrion Healthcare Australia Pty Ltd",
+  "maxqty": "1 packs, 2 units",
+  "repeats": "3",
+  "dpmq": "$495.79",
+  "charge": "$25.00",
+  "listing": "Authority Required"
+ },
+ "12472K": {
+  "drug": "morphine hydrochloride trihydrate 10 mg/mL oral liquid, 200 mL",
+  "brand": "Ordine 10",
+  "manuf": "Arrotex Pharmaceuticals Pty Ltd",
+  "maxqty": "400",
+  "repeats": "1",
+  "dpmq": "$288.89",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "12501Y": {
+  "drug": "morphine sulfate pentahydrate 10 mg modified release capsule, 28",
+  "brand": "Kapanol",
+  "manuf": "Mayne Pharma International Pty Ltd",
+  "maxqty": "2",
+  "repeats": "0",
+  "dpmq": "$38.49",
+  "charge": "$25.00",
+  "listing": "Authority Required"
+ },
+ "12553Q": {
+  "drug": "INFLIXIMAB",
+  "brand": "Remsima SC",
+  "manuf": "Celltrion Healthcare Australia Pty Ltd",
+  "maxqty": "2",
+  "repeats": "5",
+  "dpmq": "$738.30",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "12565H": {
+  "drug": "hydromorphone hydrochloride 1 mg/mL oral liquid, 473 mL",
+  "brand": "Hikma",
+  "manuf": "Link Medical Products Pty Ltd",
+  "maxqty": "473",
+  "repeats": "1",
+  "dpmq": "$422.96",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)",
+  "_note": "manufacturer only visible via brand link tooltip; re-verified"
+ },
+ "12589N": {
+  "drug": "tofacitinib 10 mg tablet, 56",
+  "brand": "Xeljanz",
+  "manuf": "Pfizer Australia Pty Ltd",
+  "maxqty": "56",
+  "repeats": "5",
+  "dpmq": "$1889.76",
+  "charge": "$25.00",
+  "listing": "Authority Required"
+ },
+ "12682L": {
+  "drug": "daratumumab 1.8 g/15 mL injection",
+  "brand": "Darzalex SC",
+  "manuf": "Janssen-Cilag Pty Ltd",
+  "maxqty": "1",
+  "repeats": "5",
+  "dpmq": "$6659.77",
+  "charge": "$25.00",
+  "listing": "Section 100 (CT)"
+ },
+ "12722N": {
+  "drug": "IMATINIB",
+  "brand": "ARX-IMATINIB, IMATINIB-DRLA",
+  "manuf": "Arrotex Pharmaceuticals Pty Ltd, Dr Reddy's Laboratories (Australia) Pty Ltd",
+  "maxqty": "1",
+  "repeats": "2",
+  "dpmq": "$97.83",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "1272Y": {
+  "drug": "dapsone 100 mg tablet, 100",
+  "brand": "DAPSOMED",
+  "manuf": "Medsurge Healthcare Pty Ltd",
+  "maxqty": "100",
+  "repeats": "1",
+  "dpmq": "$390.28",
+  "charge": "$25.00",
+  "listing": "General Schedule"
+ },
+ "12879W": {
+  "drug": "human chorionic gonadotrophin 1500 units injection",
+  "brand": "Brevactid 1500 I.E",
+  "manuf": "Medsurge Healthcare Pty Ltd",
+  "maxqty": "1",
+  "repeats": "0",
+  "dpmq": "$154.76",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "13062L": {
+  "drug": "INFLIXIMAB",
+  "brand": "Remsima SC",
+  "manuf": "Celltrion Healthcare Australia Pty Ltd",
+  "maxqty": "2",
+  "repeats": "2",
+  "dpmq": "$562.18",
+  "charge": "$25.00",
+  "listing": "Authority Required"
+ },
+ "13122P": {
+  "drug": "avelumab 200 mg/10 mL injection",
+  "brand": "Bavencio",
+  "manuf": "Merck Healthcare Pty Ltd",
+  "maxqty": "800 mg",
+  "repeats": "7",
+  "dpmq": "$5250.52",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "13130C": {
+  "drug": "somatrogon 24 mg/1.2 mL injection",
+  "brand": "Ngenla",
+  "manuf": "Pfizer Australia Pty Ltd",
+  "maxqty": "1",
+  "repeats": "1",
+  "dpmq": "$384.16",
+  "charge": "$25.00",
+  "listing": "S100 Growth Hormone Programme"
+ },
+ "1313D": {
+  "drug": "diltiazem hydrochloride 240 mg modified release capsule",
+  "brand": "Diltiazem Sandoz CD, Vasocardol CD, Cardizem CD",
+  "manuf": "Sandoz Pty Ltd, sanofi-aventis Australia Pty Ltd",
+  "maxqty": "30",
+  "repeats": "5",
+  "dpmq": "$21.96",
+  "charge": "$25.00",
+  "listing": "General Schedule"
+ },
+ "13165X": {
+  "drug": "ranibizumab 2.3 mg/0.23 mL injection",
+  "brand": "Lucentis",
+  "manuf": "Novartis Pharmaceuticals Australia Pty Limited",
+  "maxqty": "1",
+  "repeats": "5",
+  "dpmq": "$763.96",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "13178N": {
+  "drug": "vericiguat 2.5 mg tablet, 28",
+  "brand": "Verquvo",
+  "manuf": "Bayer Australia Ltd",
+  "maxqty": "28",
+  "repeats": "5",
+  "dpmq": "$141.22",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "13441K": {
+  "drug": "nebivolol 10 mg tablet, 28",
+  "brand": "APO-Nebivolol, NEBIVOLOL-WGR, Nebaloc, Nebilet, Nebivolol Lupin, Nebivolol Sandoz, Nepiten",
+  "manuf": "Apotex Pty Ltd, WAGNER PHARMACEUTICALS PTY LTD, Pharmacor Pty Limited, A.Menarini Australia Pty Limited, Generic Health Pty Ltd, Sandoz Pty Ltd, Alphapharm Pty Ltd",
+  "maxqty": "2 packs / 56 units",
+  "repeats": "5",
+  "dpmq": "$64.92",
+  "charge": "$25.00",
+  "listing": "Restricted Benefit"
+ },
+ "13449W": {
+  "drug": "olmesartan medoxomil 20 mg + amlodipine 5 mg tablet, 30",
+  "brand": "APO-OLMESARTAN/AMLODIPINE 20/5, OLMEKAR, OLMESARTAN AMLODIPINE-WGR 20/5, Olmesartan/Amlodipine - MYL 20/5, Olmesartan/Amlodipine Sandoz, Pharmacor Olmesartan Amlodipine 20/5, Sevikar 20/5",
+  "manuf": "Apotex Pty Ltd, Arrow Pharma Pty Ltd, WAGNER PHARMACEUTICALS PTY LTD, Alphapharm Pty Ltd, Sandoz Pty Ltd, Pharmacor Pty Limited",
+  "maxqty": "2 packs, 60 units",
+  "repeats": "5",
+  "dpmq": "$22.08",
+  "charge": "$25.00",
+  "listing": "Restricted Benefit"
+ },
+ "13542R": {
+  "drug": "propranolol hydrochloride 40 mg tablet",
+  "brand": "APO-Propranolol, PROPRANOLOL-WGR, Deralin 40, Inderal",
+  "manuf": "Apotex Pty Ltd, WAGNER PHARMACEUTICALS PTY LTD, Alphapharm Pty Ltd, Clinect Pty Ltd",
+  "maxqty": "200",
+  "repeats": "5",
+  "dpmq": "$21.46",
+  "charge": "$25.00",
+  "listing": "Restricted Benefit"
+ },
+ "13544W": {
+  "drug": "METOPROLOL SUCCINATE",
+  "brand": "Metrol-XL 95, Minax XL, Topreloc-XL, Toprol-XL 95",
+  "manuf": "Arrow Pharma Pty Ltd, Alphapharm Pty Ltd, Pharmacor Pty Limited, AstraZeneca Pty Ltd",
+  "maxqty": "2",
+  "repeats": "5",
+  "dpmq": "$58.52",
+  "charge": "$25.00",
+  "listing": "Restricted Benefit"
+ },
+ "13556L": {
+  "drug": "ramipril 5 mg capsule, 30",
+  "brand": "APO-Ramipril, Tryzan Caps 5",
+  "manuf": "Apotex Pty Ltd, Alphapharm Pty Ltd",
+  "maxqty": "2 packs, 60 units",
+  "repeats": "5",
+  "dpmq": "$19.84",
+  "charge": "$24.17",
+  "listing": "Restricted Benefit"
+ },
+ "13633M": {
+  "drug": "risdiplam 750 microgram/mL powder for oral liquid, 80 mL",
+  "brand": "Evrysdi",
+  "manuf": "Roche Products Pty Ltd",
+  "maxqty": "3",
+  "repeats": "5",
+  "dpmq": "$32525.67",
+  "charge": "$25.00",
+  "listing": "Authority Required"
+ },
+ "13639W": {
+  "drug": "risdiplam 750 microgram/mL powder for oral liquid, 80 mL",
+  "brand": "Evrysdi",
+  "manuf": "Roche Products Pty Ltd",
+  "maxqty": "3",
+  "repeats": "5",
+  "dpmq": "$32574.90",
+  "charge": "$25.00",
+  "listing": "S100 HSD Private"
+ },
+ "13723G": {
+  "drug": "INFLIXIMAB",
+  "brand": "Inflectra, Ixifi, Remsima, Renflexis",
+  "manuf": "Pfizer Australia Pty Ltd, Celltrion Healthcare Australia Pty Ltd, Organon Pharma Pty Ltd",
+  "maxqty": "1",
+  "repeats": "0",
+  "dpmq": "$186.16",
+  "charge": "$25.00",
+  "listing": "Authority Required"
+ },
+ "13733T": {
+  "drug": "etanercept 50 mg/mL injection, 4 x 1 mL syringes",
+  "brand": "Enbrel, Erelzi, Nepexto",
+  "manuf": "Pfizer Australia Pty Ltd, Sandoz Pty Ltd, Generic Health Pty Ltd",
+  "maxqty": "1",
+  "repeats": "1",
+  "dpmq": "$823.71",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "14028H": {
+  "drug": "dapagliflozin 10 mg + metformin 500 mg modified release tablet",
+  "brand": "Xigduo XR 10/500",
+  "manuf": "AstraZeneca Pty Ltd",
+  "maxqty": "56",
+  "repeats": "5",
+  "dpmq": "$90.22",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "14066H": {
+  "drug": "tacrolimus 750 microgram capsule, 100",
+  "brand": "Tacrolimus Sandoz",
+  "manuf": "Sandoz Pty Ltd",
+  "maxqty": "2",
+  "repeats": "3",
+  "dpmq": "$189.12",
+  "charge": "$25.00",
+  "listing": "Restricted Benefit"
+ },
+ "14091P": {
+  "drug": "methotrexate 7.5 mg/0.15 mL injection",
+  "brand": "Trexject",
+  "manuf": "Link Medical Products Pty Ltd",
+  "maxqty": "4",
+  "repeats": "5",
+  "dpmq": "$89.44",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "14125K": {
+  "drug": "upadacitinib 15 mg modified release tablet, 28",
+  "brand": "Rinvoq",
+  "manuf": "AbbVie Pty Ltd",
+  "maxqty": "28",
+  "repeats": "5",
+  "dpmq": "$1203.55",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "14130Q": {
+  "drug": "dostarlimab 500 mg/10 mL injection",
+  "brand": "Jemperli",
+  "manuf": "GlaxoSmithKline Australia Pty Ltd",
+  "maxqty": "1000 mg",
+  "repeats": "3",
+  "dpmq": "$15387.56",
+  "charge": "$25.00",
+  "listing": "Chemotherapy Items for Public Hospital use"
+ },
+ "14131R": {
+  "drug": "eltrombopag 50 mg tablet, 28",
+  "brand": "Revolade",
+  "manuf": "Novartis Pharmaceuticals Australia Pty Limited",
+  "maxqty": "84",
+  "repeats": "5",
+  "dpmq": "$7368.72",
+  "charge": "$25.00",
+  "listing": "Authority Required"
+ },
+ "14174B": {
+  "drug": "calcium carbonate 1.5 g tablet, 120",
+  "brand": "A-WON Calcium 600, CAL-600, Cal-care 600 mg",
+  "manuf": "A-WON PHARMA PTY LTD, Petrus Pharmaceuticals Pty Ltd, Pharmacor Pty Limited",
+  "maxqty": "2 packs / 240 units",
+  "repeats": "1",
+  "dpmq": "$25.20-27.74",
+  "charge": "$7.70",
+  "listing": "Restricted Benefit"
+ },
+ "14193B": {
+  "drug": "methadone hydrochloride 10 mg/mL injection",
+  "brand": "Physeptone",
+  "manuf": "Aspen Pharmacare Australia Pty Limited",
+  "maxqty": "24",
+  "repeats": "0",
+  "dpmq": "$887.37",
+  "charge": "$25.00",
+  "listing": "Authority Required"
+ },
+ "14232C": {
+  "drug": "nivolumab 40 mg/4 mL injection",
+  "brand": "Opdivo",
+  "manuf": "Bristol-Myers Squibb Australia Pty Ltd",
+  "maxqty": "360 mg",
+  "repeats": "2",
+  "dpmq": "$7341.17",
+  "charge": "$25.00",
+  "listing": "Private"
+ },
+ "1434L": {
+  "drug": "fluoxetine 20 mg capsule, 28",
+  "brand": "APO-Fluoxetine, Blooms the Chemist Fluoxetine, FLUOTEX, FLUOXETINE-WGR, Fluoxetine Sandoz, Fluoxetine generichealth, Zactin",
+  "manuf": "Apotex Pty Ltd, Sandoz Pty Ltd, Arrow Pharma Pty Ltd, WAGNER PHARMACEUTICALS PTY LTD, Generic Health Pty Ltd, Alphapharm Pty Ltd",
+  "maxqty": "28",
+  "repeats": "5",
+  "dpmq": "$18.10",
+  "charge": "$22.43",
+  "listing": "Restricted Benefit"
+ },
+ "14575D": {
+  "drug": "atezolizumab 1.875 g/15 mL injection",
+  "brand": "Tecentriq SC",
+  "manuf": "Roche Products Pty Ltd",
+  "maxqty": "1",
+  "repeats": "8",
+  "dpmq": "$6747.37",
+  "charge": "$25.00",
+  "listing": "Section 100 (CT)"
+ },
+ "14679N": {
+  "drug": "vedolizumab 300 mg injection, 1 vial",
+  "brand": "Entyvio",
+  "manuf": "Takeda Pharmaceuticals Australia Pty. Ltd.",
+  "maxqty": "1",
+  "repeats": "2",
+  "dpmq": "$2851.67",
+  "charge": "$25.00",
+  "listing": "Private"
+ },
+ "14715L": {
+  "drug": "estradiol 100 microgram/24 hours patch, 24",
+  "brand": "Estramon",
+  "manuf": "Sandoz Pty Ltd",
+  "maxqty": "1",
+  "repeats": "1",
+  "dpmq": "$65.05",
+  "charge": "$25.00",
+  "listing": "General Schedule"
+ },
+ "14749G": {
+  "drug": "adalimumab 20 mg/0.4 mL injection",
+  "brand": "Amgevita",
+  "manuf": "Arrotex Pharmaceuticals Pty Ltd",
+  "maxqty": "2",
+  "repeats": "0",
+  "dpmq": "$606.96",
+  "charge": "$25.00",
+  "listing": "Authority Required"
+ },
+ "14806G": {
+  "drug": "edaravone 30 mg/20 mL injection",
+  "brand": "Radicava",
+  "manuf": "Teva Pharma Australia Pty Ltd",
+  "maxqty": "2 packs",
+  "repeats": "2",
+  "dpmq": "$4583.24",
+  "charge": "$25.00",
+  "listing": "Authority Required"
+ },
+ "14836W": {
+  "drug": "esketamine 28 mg/2 actuations nasal spray",
+  "brand": "Spravato",
+  "manuf": "Janssen-Cilag Pty Ltd",
+  "maxqty": "8",
+  "repeats": "0",
+  "dpmq": "$2569.61",
+  "charge": "$25.00",
+  "listing": "Authority Required"
+ },
+ "14936D": {
+  "drug": "ivacaftor 13.4 mg granules, 56 sachets",
+  "brand": "Kalydeco",
+  "manuf": "Vertex Pharmaceuticals (Australia) Pty. Ltd.",
+  "maxqty": "56",
+  "repeats": "2",
+  "dpmq": "$20355.49",
+  "charge": "$25.00",
+  "listing": "S100 HSD Private"
+ },
+ "15092H": {
+  "drug": "daratumumab 1.8 g/15 mL injection",
+  "brand": "Darzalex SC",
+  "manuf": "Janssen-Cilag Pty Ltd",
+  "maxqty": "1",
+  "repeats": "15",
+  "dpmq": "$6659.77",
+  "charge": "$25.00",
+  "listing": "Section 100 (CT)"
+ },
+ "15181B": {
+  "drug": "Odevixibat 600 microgram capsule, 30",
+  "brand": "Bylvay",
+  "manuf": "Ipsen Pty Ltd",
+  "maxqty": "12",
+  "repeats": "2",
+  "dpmq": "$203665.32",
+  "charge": "$25.00",
+  "listing": "General Schedule"
+ },
+ "15318F": {
+  "drug": "mogamulizumab",
+  "brand": "POTELIGEO",
+  "manuf": "KYOWA KIRIN AUSTRALIA PTY LTD",
+  "maxqty": "120 mg",
+  "repeats": "3",
+  "dpmq": "$13190.56",
+  "charge": "$25.00",
+  "listing": "Chemotherapy Items for Public Hospital use"
+ },
+ "1787C": {
+  "drug": "phenoxymethylpenicillin 250 mg tablet, 25",
+  "brand": "Aspecillin VK",
+  "manuf": "Alphapharm Pty Ltd",
+  "maxqty": "2 packs / 50 units",
+  "repeats": "0",
+  "dpmq": "$22.50",
+  "charge": "$25.00",
+  "listing": "General Schedule"
+ },
+ "2036E": {
+  "drug": "human menopausal gonadotrophin 600 units injection",
+  "brand": "Menopur 600",
+  "manuf": "Ferring Pharmaceuticals Pty Limited",
+  "maxqty": "3",
+  "repeats": "0",
+  "dpmq": "$757.08",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "2474F": {
+  "drug": "AMINO ACID FORMULA WITHOUT PHENYLALANINE",
+  "brand": "PKU Cooler 20",
+  "manuf": "Vitaflo Australia Pty Limited",
+  "maxqty": "4",
+  "repeats": "5",
+  "dpmq": "$1706.28",
+  "charge": "$25.00",
+  "listing": "Restricted Benefit"
+ },
+ "2647H": {
+  "drug": "benzylpenicillin 3 g injection, 1 vial",
+  "brand": "BenPen",
+  "manuf": "Sandoz Pty Ltd",
+  "maxqty": "10",
+  "repeats": "0",
+  "dpmq": "$107.24",
+  "charge": "$25.00",
+  "listing": "General Schedule"
+ },
+ "2729P": {
+  "drug": "baclofen 10 mg tablet, 100",
+  "brand": "APO-Baclofen, Clofen 10, Lioresal 10, Stelax 10",
+  "manuf": "Apotex Pty Ltd, Alphapharm Pty Ltd, Novartis Pharmaceuticals Australia Pty Limited, Arrow Pharma Pty Ltd",
+  "maxqty": "1",
+  "repeats": "5",
+  "dpmq": "$22.96",
+  "charge": "$25.00",
+  "listing": "General Schedule"
+ },
+ "2763K": {
+  "drug": "haloperidol 2 mg/mL oral liquid, 100 mL",
+  "brand": "Serenace",
+  "manuf": "Aspen Pharmacare Australia Pty Limited",
+  "maxqty": "1",
+  "repeats": "5",
+  "dpmq": "$24.56",
+  "charge": "$25.00",
+  "listing": "General Schedule"
+ },
+ "2963Y": {
+  "drug": "dabrafenib 50 mg capsule, 120",
+  "brand": "Tafinlar",
+  "manuf": "Novartis Pharmaceuticals Australia Pty Limited",
+  "maxqty": "120",
+  "repeats": "3",
+  "dpmq": "$4889.12",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "3317N": {
+  "drug": "cefalexin 250 mg capsule, 20",
+  "brand": "APO-Cephalexin, Cefalexin Viatris, Ibilex 250, Keflex",
+  "manuf": "Apotex Pty Ltd, Alphapharm Pty Ltd, Aspen Pharmacare Australia Pty Limited",
+  "maxqty": "1 packs / 20 units",
+  "repeats": "0",
+  "dpmq": "$17.10",
+  "charge": "$21.43",
+  "listing": "General Schedule"
+ },
+ "3479D": {
+  "drug": "morphine sulfate pentahydrate 15 mg/mL injection",
+  "brand": "MORPHINE SULFATE 15 mg/1 mL MEDSURGE",
+  "manuf": "Medsurge Healthcare Pty Ltd",
+  "maxqty": "5",
+  "repeats": "0",
+  "dpmq": "$27.58",
+  "charge": "Nil",
+  "listing": "NONE"
+ },
+ "4279F": {
+  "drug": "hyoscine butylbromide 20 mg/mL injection",
+  "brand": "Buscopan",
+  "manuf": "Sanofi-aventis Healthcare Pty Ltd",
+  "maxqty": "1 pack / 5 units",
+  "repeats": "0",
+  "dpmq": "$21.21",
+  "charge": "$7.70",
+  "listing": "Repatriation Pharmaceutical Benefits"
+ },
+ "4632T": {
+  "drug": "trastuzumab 60 mg injection, 1 vial",
+  "brand": "Trazimera",
+  "manuf": "Pfizer Australia Pty Ltd",
+  "maxqty": "500 mg",
+  "repeats": "0",
+  "dpmq": "$414.80",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "4703M": {
+  "drug": "trastuzumab 60 mg injection, 1 vial",
+  "brand": "Trazimera",
+  "manuf": "Pfizer Australia Pty Ltd",
+  "maxqty": "750 mg",
+  "repeats": "3",
+  "dpmq": "$618.46",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "4899W": {
+  "drug": "DRESSING FILM ISLAND",
+  "brand": "Cutifilm Plus 36361371",
+  "manuf": "Smith & Nephew Pty Limited",
+  "maxqty": "2",
+  "repeats": "0",
+  "dpmq": "$56.28",
+  "charge": "$7.70",
+  "listing": "Repatriation Pharmaceutical Benefits"
+ },
+ "4911L": {
+  "drug": "DRESSING HYDROGEL SHEET",
+  "brand": "Nu-Gel 2497",
+  "manuf": "KCI Medical Australia Pty Ltd",
+  "maxqty": "2",
+  "repeats": "0",
+  "dpmq": "$82.08",
+  "charge": "$7.70",
+  "listing": "Repatriation Pharmaceutical Benefits"
+ },
+ "5082L": {
+  "drug": "doxycycline 100 mg tablet, 7",
+  "brand": "Blooms The Chemist Doxycycline, Doxycycline Sandoz",
+  "manuf": "Sandoz Pty Ltd",
+  "maxqty": "1 pack, 7 units",
+  "repeats": "0",
+  "dpmq": "$17.10",
+  "charge": "$21.43",
+  "listing": "General Schedule"
+ },
+ "6292E": {
+  "drug": "filgrastim 480 microgram/0.5 mL injection",
+  "brand": "Nivestim",
+  "manuf": "Pfizer Australia Pty Ltd",
+  "maxqty": "2 packs / 20 units",
+  "repeats": "11",
+  "dpmq": "$400.90",
+  "charge": "$25.00",
+  "listing": "S100 HSD Private"
+ },
+ "7229L": {
+  "drug": "doxorubicin hydrochloride 50 mg/25 mL injection",
+  "brand": "Adriamycin",
+  "manuf": "Pfizer Australia Pty Ltd",
+  "maxqty": "135 mg",
+  "repeats": "11",
+  "dpmq": "$198.83",
+  "charge": "$25.00",
+  "listing": "Private"
+ },
+ "7266K": {
+  "drug": "trastuzumab 60 mg injection, 1 vial",
+  "brand": "Trazimera",
+  "manuf": "Pfizer Australia Pty Ltd",
+  "maxqty": "1000 mg",
+  "repeats": "0",
+  "dpmq": "$761.54",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "7267L": {
+  "drug": "TRASTUZUMAB",
+  "brand": "Herzuma, Kanjinti, Ogivri, Trazimera",
+  "manuf": "Celltrion Healthcare Australia Pty Ltd, Arrotex Pharmaceuticals Pty Ltd, Sandoz Pty Ltd, Pfizer Australia Pty Ltd",
+  "maxqty": "750 mg",
+  "repeats": "3",
+  "dpmq": "$641.29",
+  "charge": "$25.00",
+  "listing": "Private"
+ },
+ "8212F": {
+  "drug": "insulin lispro 100 units/mL injection, 5 x 3 mL cartridges",
+  "brand": "Humalog",
+  "manuf": "Eli Lilly Australia Pty Ltd",
+  "maxqty": "5",
+  "repeats": "1",
+  "dpmq": "$163.64",
+  "charge": "$25.00",
+  "listing": "General Schedule"
+ },
+ "8705E": {
+  "drug": "amoxicillin 500 mg/5 mL powder for oral liquid, 100 mL",
+  "brand": "Maxamox",
+  "manuf": "Sandoz Pty Ltd",
+  "maxqty": "1",
+  "repeats": "1",
+  "dpmq": "$20.62",
+  "charge": "$25.00",
+  "listing": "General Schedule"
+ },
+ "8711L": {
+  "drug": "desmopressin acetate 10 microgram/actuation nasal spray",
+  "brand": "Minirin Nasal Spray",
+  "manuf": "Ferring Pharmaceuticals Pty Limited",
+  "maxqty": "2",
+  "repeats": "5",
+  "dpmq": "$100.50",
+  "charge": "$25.00",
+  "listing": "Authority Required (STREAMLINED)"
+ },
+ "9085E": {
+  "drug": "etanercept 50 mg/mL injection, 4 x 1 mL syringes",
+  "brand": "Brenzys, Enbrel, Erelzi, Nepexto",
+  "manuf": "Organon Pharma Pty Ltd, Pfizer Australia Pty Ltd, Sandoz Pty Ltd, Generic Health Pty Ltd",
+  "maxqty": "1",
+  "repeats": "3",
+  "dpmq": "$823.71",
+  "charge": "$25.00",
+  "listing": "General Schedule"
+ },
+ "9357L": {
+  "drug": "ibandronate 50 mg tablet, 28",
+  "brand": "Bondronat",
+  "manuf": "Clinect Pty Ltd",
+  "maxqty": "28",
+  "repeats": "2",
+  "dpmq": "$213.96",
+  "charge": "$25.00",
+  "listing": "Restricted Benefit"
+ }
+}
