@@ -1498,9 +1498,11 @@ async def get_drug_safety_net(
     "/drugs/{pbs_code}/60-day-pair",
     summary="Get 60-Day Dispensing Eligibility",
     description=(
-        "Returns whether a PBS item is eligible for 60-day dispensing (double the standard quantity per script) "
-        "and lists other PBS items with the same active ingredient that are also 60-day eligible. "
-        "60-day dispensing was introduced to reduce dispensing frequency for stable, chronic conditions.\n\n"
+        "Returns whether a PBS item is part of a 60-day prescribing pair, and its exact counterpart: the "
+        "60-day item for a 30-day item, or the 30-day item for a 60-day one. PBS lists a 60-day script as a "
+        "separate item code with double the maximum quantity (policy_applied_imdq60_flag) and flags the item it "
+        "was created from (policy_applied_imdq60_base_flag), but publishes no link between the two; the pairing "
+        "is derived at ingest from medicine, form, program, conditions and quantity, and is null when not certain.\n\n"
         "Requires **Scale (T3)** tier."
     ),
 )
@@ -1517,7 +1519,7 @@ async def get_drug_60_day_pair(
     item = await db.fetchrow(
         """
         SELECT i.pbs_code, i.brand_name, i.sixty_day_eligible, i.max_quantity, i.pack_size,
-               m.ingredient
+               i.imdq60, i.imdq60_base, i.sixty_day_pair, m.ingredient
         FROM items_listing i JOIN medicines m ON m.id = i.medicine_id
         WHERE i.pbs_code = $1 AND i.schedule_id = $2
         """,
@@ -1541,15 +1543,33 @@ async def get_drug_60_day_pair(
     def _f(v):
         return float(v) if v is not None else None
 
+    pair = None
+    if item["sixty_day_pair"]:
+        pair = await db.fetchrow(
+            "SELECT pbs_code, form, max_quantity, max_repeats, imdq60 FROM items_listing "
+            "WHERE pbs_code = $1 AND schedule_id = $2",
+            item["sixty_day_pair"], schedule_id,
+        )
+
     return {
         "data": {
             "pbs_code": pbs_code.upper(),
             "ingredient": item["ingredient"],
             "sixty_day_eligible": item["sixty_day_eligible"],
+            "is_sixty_day_item": item["imdq60"],
+            "has_sixty_day_item": item["imdq60_base"],
+            "pair": {
+                "pbs_code": pair["pbs_code"],
+                "form": pair["form"],
+                "max_quantity": pair["max_quantity"],
+                "max_repeats": pair["max_repeats"],
+                "is_sixty_day_item": pair["imdq60"],
+            } if pair else None,
             "note": (
-                "60-day dispensing allows 2 months supply on one prescription where "
-                "eligible. Paired items are same-ingredient matches that also carry the "
-                "PBS 60-day flag; STRENGTH, FORM AND PACK SIZE ARE NOT MATCHED."
+                "A 60-day script is a separate PBS item with double the maximum quantity. "
+                "`pair` is this item's exact 30-day/60-day counterpart, or null if it has none "
+                "or the match was not certain. `same_ingredient_60_day_eligible` is kept for "
+                "compatibility: STRENGTH, FORM AND PACK SIZE ARE NOT MATCHED there."
             ),
             "same_ingredient_60_day_eligible": [
                 {

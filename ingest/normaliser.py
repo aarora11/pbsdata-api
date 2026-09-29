@@ -6,6 +6,10 @@ import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
+import structlog
+
+from ingest.sixty_day import pair_sixty_day
+
 from ingest.reference import (
     BENEFIT_TYPE_LABELS,
     canonical_authority_method,
@@ -299,11 +303,13 @@ def normalise_schedule(
         # concessional_charge: schedule-level, not per-item in real API
         concessional_charge = parse_decimal(raw.get("concession_charge"))
 
-        # Sixty day: real field is continued_dispensing_flag (Y/N)
-        sixty_day = (
-            yn(raw.get("continued_dispensing_flag"))
-            or bool(raw.get("sixty_day_prescribing", False))  # legacy
-        )
+        # 60-day prescriptions are a second item code with double the quantity. PBS
+        # flags both sides (data dictionary): the increased-quantity item and the base
+        # item it was created from. continued_dispensing_flag, read here previously, is
+        # the unrelated Continued Dispensing emergency-supply measure. See ingest/sixty_day.py.
+        imdq60 = yn(raw.get("policy_applied_imdq60_flag"))
+        imdq60_base = yn(raw.get("policy_applied_imdq60_base_flag"))
+        sixty_day = imdq60 or imdq60_base or bool(raw.get("sixty_day_prescribing", False))  # legacy fixtures
 
         # Restrictions for this item
         res_codes = item_restriction_map.get(pbs_code, [])
@@ -367,6 +373,8 @@ def normalise_schedule(
             "brand_premium": brand_premium,
             "brand_premium_counts_to_safety_net": False,  # PBS rule: never counts
             "sixty_day_eligible": sixty_day,
+            "imdq60": imdq60,
+            "imdq60_base": imdq60_base,
             # max_quantity is units of the drug; maximum_amount is an amount in
             # unit_of_measure and is sent only for infusibles (program IN/IP/TY/TZ).
             # They partition exactly and are deliberately kept in separate columns —
@@ -404,6 +412,10 @@ def normalise_schedule(
             "restrictions": item_restrictions,
         }
         normalised_items.append(item)
+
+    # Pair each 30-day listing with its 60-day listing (PBS publishes no link).
+    sixty_day_stats = pair_sixty_day(normalised_items)
+    structlog.get_logger().info("normalise.sixty_day_paired", **sixty_day_stats)
 
     # ── Organisations ─────────────────────────────────────────────────────────
     normalised_organisations = []
