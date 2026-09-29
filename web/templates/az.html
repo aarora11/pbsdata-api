@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "_macros.html" import med_row %}
+{% block description %}Every medicine on the PBS, A to Z, with what you pay per script. PBS schedule {{ site.month_label }}.{% endblock %}
+{% block main %}
+<article class="wrap">
+  <header class="page-head">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">›</span><span aria-current="page">Medicines A to Z</span></nav>
+    <h1>Medicines A to Z</h1>
+    <p class="page-sub">All {{ "{:,}".format(site.counts.medicines) }} medicines on the PBS, with the most you'll pay per script. Prefer to start from a part of the body? <a href="/browse/">Browse by body system</a>.</p>
+  </header>
+  <nav class="letters" aria-label="Jump to letter">
+    {% set present = site.az | map(attribute="letter") | list %}
+    {% for l in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}{% if l in present %}<a href="#letter-{{ l }}">{{ l }}</a>{% else %}<span aria-hidden="true">{{ l }}</span>{% endif %}{% endfor %}
+    {% if "#" in present %}<a href="#letter-other">#</a>{% endif %}
+  </nav>
+  {% for g in site.az %}
+  <section class="letter-group" id="letter-{{ 'other' if g.letter == '#' else g.letter }}">
+    <h2>{{ g.letter }}</h2>
+    <ul class="med-index">{% for m in g.meds %}{{ med_row(m) }}{% endfor %}</ul>
+  </section>
+  {% endfor %}
+</article>
+{% endblock %}

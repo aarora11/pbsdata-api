@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_macros.html" import med_row %}
+{% block description %}{{ area.name }}: PBS medicines in this body system, with what you pay per script. PBS schedule {{ site.month_label }}.{% endblock %}
+{% block main %}
+<article class="wrap browse-layout">
+  <nav class="rail-left" aria-label="Groups">
+    <div class="rail-inner">
+      <p class="rail-title">In this area</p>
+      {% for g in area.groups %}<a href="#{{ g.code | lower }}" data-spy-link>{{ g.name }}</a>{% endfor %}
+      <p class="rail-title">Other areas</p>
+      {% for a in site.areas if a.code != area.code %}<a href="/browse/{{ a.code | lower }}/">{{ a.name }}</a>{% endfor %}
+    </div>
+  </nav>
+  <div>
+    <header class="page-head">
+      <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">›</span><a href="/browse/">Browse</a><span aria-hidden="true">›</span><span aria-current="page">{{ area.name }}</span></nav>
+      <h1>{{ area.name }}</h1>
+      <p class="page-sub">{{ area.count }} medicines, in {{ area.groups | length }} groups. Official classification: {{ area.official }}.</p>
+    </header>
+    {% for g in area.groups %}
+    <section class="letter-group" id="{{ g.code | lower }}" data-spy>
+      <h2>{{ g.name }} <span class="count">{{ g.meds | length }}</span></h2>
+      <ul class="med-index">{% for m in g.meds %}{{ med_row(m) }}{% endfor %}</ul>
+    </section>
+    {% endfor %}
+    <p class="meta-line">Prices are the most you'll pay per script under the PBS; many pharmacies charge less. Grouped by the WHO ATC classification PBS assigns to each item. This is not a guide to what a medicine treats; ask your doctor or pharmacist.</p>
+  </div>
+</article>
+<script src="/static/browse.js" defer></script>
+{% endblock %}

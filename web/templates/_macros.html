@@ -1,0 +1,7 @@
+{% macro med_row(m) %}
+<li><a class="mi" href="/medicine/{{ m.slug }}/">
+  <span class="mi-name">{{ m.name }}{% if m.sixty_day %} <span class="tag-60">60-day</span>{% endif %}</span>
+  <span class="mi-meta">{{ m.class or "" }}</span>
+  <span class="mi-price">{% if m.general_min is not none %}{% if m.general_max - m.general_min > 0.005 %}<small>from</small> {% endif %}{{ m.general_min | money }}{% else %}<small>No standard pharmacy price</small>{% endif %}</span>
+</a></li>
+{% endmacro %}

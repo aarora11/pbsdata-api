@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block main %}
+<article class="wrap prose">
+  <h1>How we check this data</h1>
+  <p class="lede">A PBS medicine is described across more than 30 separate government data tables. Joining them correctly is
+    where most errors happen, so we check our joined result against independent sources, every month.</p>
+
+  <h2>Against pbs.gov.au itself</h2>
+  <p>In August 2026 we compared 100 items, across 15 PBS programs and all four access types, field by field with their pages on
+    pbs.gov.au. <strong>658 of 659 checks matched (99.8%)</strong>: medicine name, brands, manufacturer, quantity, repeats,
+    patient charge and listing type. The one difference was a naming choice we have since changed.</p>
+  <p>You can repeat that check on any item: every item on this site has a <em>Check on PBS</em> link to its official page.</p>
+
+  <h2>Against PBS's own joined data, on every update</h2>
+  <p>PBS publishes one pre-joined view of each item. Every month, before anything is published, we compare our drug classes,
+    restrictions, prescribing notes, dispensing rules, prescriber types and manufacturers against it. If any of them disagree,
+    the month is rejected and the previous month stays online.</p>
+
+  <h2>What we leave out</h2>
+  <p>Anything we can't check against PBS isn't shown. 60-day prescriptions are shown because they can be checked: in August 2026
+    we checked every 60-day item code against PBS's own published 60-day list, and all 806 matched. PBS doesn't
+    publish which 30-day listing each one replaces, so we pair them ourselves and show no saving where a pairing isn't certain.</p>
+
+  <h2>What we calculate</h2>
+  <p>PBS doesn't publish a concession-card price per brand. We calculate it with PBS's own patient-charge formula, which
+    reproduces PBS's published general charge on over 99% of items. Everything else is shown as PBS publishes it.</p>
+
+  <p class="meta-line">This build: PBS schedule {{ site.month_label }}.</p>
+</article>
+{% endblock %}

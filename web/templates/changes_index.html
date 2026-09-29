@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block main %}
+<article class="wrap">
+  <header class="page-head">
+    <h1>PBS changes by month</h1>
+    <p class="page-sub">What was listed, removed or repriced in each PBS schedule we hold.</p>
+  </header>
+  <ul class="month-list">
+    {% for ch in site.changes %}
+    <li class="reveal"><a href="/changes/{{ ch.month }}/">
+      <span class="month-name">{{ ch.label }}</span>
+      <span class="month-stats">{% for kind, label in change_groups if ch.groups[kind] and kind != "price" %}<span><strong>{{ ch.groups[kind] | length }}</strong> {{ change_short[kind] }}</span>{% endfor %}</span>
+      <span class="month-arrow" aria-hidden="true">→</span>
+    </a></li>
+    {% endfor %}
+  </ul>
+</article>
+{% endblock %}

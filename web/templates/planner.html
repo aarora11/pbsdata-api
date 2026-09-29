@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block description %}Estimate what your PBS medicines cost over a year, and when the PBS Safety Net will lower your costs. PBS schedule {{ site.month_label }}.{% endblock %}
+{% block main %}
+<article class="wrap planner" data-planner data-month="{{ site.month }}">
+  <header class="page-head planner-head">
+    <div>
+      <h1>My medicines</h1>
+      <p class="page-sub">Add your PBS medicines to estimate what they'll cost you this year, and when the Safety Net will lower that cost.</p>
+    </div>
+    <div class="seg seg-lg" role="group" aria-label="Patient type">
+      <button type="button" data-patient="general" aria-pressed="true">General</button>
+      <button type="button" data-patient="concession" aria-pressed="false">Concession card</button>
+    </div>
+  </header>
+
+  <noscript><p class="empty-state">The planner needs JavaScript. Every medicine's price is still on its own page.</p></noscript>
+
+  <div class="planner-grid">
+    <section class="planner-main" aria-label="Your medicines">
+      <div class="add-box">
+        <form class="search search-hero" role="search" data-planner-search autocomplete="off">
+          <svg class="search-icon" viewBox="0 0 256 256" aria-hidden="true"><path fill="currentColor" d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></svg>
+          <input type="search" placeholder="Add a medicine by name or brand" aria-label="Add a medicine">
+          <ul class="results" role="listbox" hidden></ul>
+        </form>
+        <div class="pick" data-pick hidden></div>
+      </div>
+
+      <ul class="med-list" data-med-list></ul>
+
+      <div class="empty-state planner-empty" data-empty>
+        <strong>No medicines yet</strong>
+        <p>Search above, or use <em>Add to my medicines</em> on any medicine page. Your list stays in this browser only.</p>
+      </div>
+    </section>
+
+    <aside class="planner-summary" aria-live="polite" data-summary hidden>
+      <span class="panel-label">The most you'd pay this year</span>
+      <div class="hero-figure" data-total></div>
+      <p class="panel-sub" data-total-sub></p>
+      <p class="sixty-tip" data-sixty-tip hidden></p>
+
+      <div class="sn">
+        <div class="sn-row"><span>PBS Safety Net</span><strong data-sn-status></strong></div>
+        <div class="meter" role="img" data-meter><span data-meter-fill></span></div>
+        <p class="panel-hint" data-sn-hint></p>
+      </div>
+
+      <dl class="panel-facts">
+        <div><dt>Per script, all medicines</dt><dd data-per-script></dd></div>
+        <div><dt>Scripts this year</dt><dd data-scripts></dd></div>
+      </dl>
+
+      <details class="sn-settings">
+        <summary>Already part-way through the year?</summary>
+        <label>Start counting from
+          <select data-start>{% for mo in ["January","February","March","April","May","June","July","August","September","October","November","December"] %}<option value="{{ loop.index0 }}">{{ mo }}</option>{% endfor %}</select>
+        </label>
+        <label>Already recorded on your Safety Net this year
+          <span class="money-input"><span>$</span><input type="number" min="0" step="0.01" inputmode="decimal" value="0" data-recorded></span>
+        </label>
+        <p class="panel-hint">Your pharmacy can tell you this, or check your Prescription Record Form.</p>
+      </details>
+    </aside>
+  </div>
+
+  <section class="year" data-year hidden>
+    <div class="year-head">
+      <div>
+        <h2>Your year, month by month</h2>
+        <p class="takeaway" data-takeaway></p>
+      </div>
+      <p class="panel-hint" data-year-sub></p>
+    </div>
+    <div class="chart" data-chart></div>
+    <details class="table-view">
+      <summary>Show as a table</summary>
+      <div class="grid-wrap"><table class="grid"><thead><tr><th>Month</th><th class="n">Scripts</th><th class="n">You pay</th><th class="n">Recorded on Safety Net</th></tr></thead><tbody data-table></tbody></table></div>
+    </details>
+  </section>
+
+  <section class="planner-notes">
+    <h2>How this estimate works</h2>
+    <ul>
+      <li><strong>Prices are the PBS's own</strong>, from the {{ site.month_label }} schedule: the most a pharmacy can charge per script, and the amount PBS lets a pharmacy record towards your Safety Net.</li>
+      <li><strong>Your real cost may be lower.</strong> Many pharmacies charge less than the PBS maximum, especially for lower-priced medicines. Ask your pharmacist how any discount affects your Safety Net.</li>
+      <li><strong>The Safety Net counts your whole family's scripts together.</strong> Add everyone's medicines here to see your family's total. It resets every 1 January.</li>
+      <li><strong>Brand premiums don't count</strong> towards the Safety Net, and you still pay them after reaching it.</li>
+      <li>Once you reach it, general patients pay the concession price for the rest of the year, and concession card holders pay nothing (apart from any brand premium).</li>
+      <li>Some repeat scripts filled too soon after the last one may not count. Your pharmacist can tell you, and keeps your Prescription Record Form.</li>
+    </ul>
+    <p class="panel-hint">An estimate for planning, not a quote. Thresholds for {{ site.month_label[-4:] }}: {{ site.threshold_general | money }} general, {{ site.threshold_conc | money }} concession, as published by
+      <a href="https://www.servicesaustralia.gov.au/pbs-safety-net-thresholds" rel="noopener">Services Australia</a>.</p>
+  </section>
+</article>
+<script src="/static/planner.js" defer></script>
+{% endblock %}

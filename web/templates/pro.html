@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block description %}Look up any PBS item fast: item codes, streamlined authority codes, restrictions, DPMQs and dispensing rules, checked against PBS every month.{% endblock %}
+{% block main %}
+<script>
+  // Arriving here is choosing the professional view.
+  try { localStorage.setItem("view", "pharmacist"); } catch (e) {}
+  document.documentElement.dataset.view = "pharmacist";
+</script>
+
+<section class="hero wrap pro-hero">
+  <div class="hero-copy">
+    <span class="chip chip-ok pro-for">For pharmacists and prescribers</span>
+    <h1>The PBS, one search away.</h1>
+    <p class="lede">Item codes, streamlined authority codes, restrictions, DPMQs and dispensing rules. Checked against PBS every month.</p>
+    <form class="search search-hero" role="search" action="/pro/" data-search data-examples='{{ site.examples | tojson }}'>
+      <svg class="search-icon" viewBox="0 0 256 256" aria-hidden="true"><path fill="currentColor" d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></svg>
+      <input type="search" name="q" placeholder="Item code, streamlined code, medicine or brand" aria-label="Search the PBS" autocomplete="off">
+      <button class="search-go" type="submit">Search</button>
+      <ul class="results" role="listbox" hidden></ul>
+    </form>
+    <p class="try">Try
+      <a href="/pro/?q=10001J">10001J</a>
+      <a href="/pro/?q=4246">Streamlined 4246</a>
+      <a href="/pro/?q=Lipitor">Lipitor</a>
+    </p>
+  </div>
+
+  {% if showcase %}
+  <div class="pro-preview" aria-label="Example: every listing of {{ showcase.name }}">
+    <div class="pro-card">
+      <div class="pro-card-head">
+        <div><strong>{{ showcase.name }}</strong><span>{{ showcase['items'] | length }} listings, one table</span></div>
+        <a href="/medicine/{{ showcase.slug }}/#listings">Open <span aria-hidden="true">→</span></a>
+      </div>
+      <div class="grid-wrap">
+      <table class="grid">
+        <thead><tr><th>Item</th><th>Form</th><th>Listing</th><th class="n">Max</th><th class="n">Rpt</th><th class="n">Most, general</th></tr></thead>
+        <tbody>
+        {% set n = namespace(i=0) %}
+        {% for f in showcase.forms %}{% for it in f['items'] %}{% if n.i < 7 %}{% set n.i = n.i + 1 %}
+        <tr><td class="mono">{{ it.code }}</td><td>{{ f.form }}</td><td>{{ it.variant or "" }}</td>
+          <td class="n">{{ it.max_units or "" }}</td><td class="n">{{ it.repeats if it.repeats is not none else "" }}</td>
+          <td class="n">{{ it.general_min | money if it.general_min is not none else "" }}</td></tr>
+        {% endif %}{% endfor %}{% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+<section class="wrap pro-section">
+  <div class="bento-head reveal"><h2>What's quicker here</h2><p>Everything pbs.gov.au publishes, without the clicking through.</p></div>
+  <ul class="pro-features">
+    <li class="reveal"><strong>Search a streamlined code</strong><span>Type the 4 or 5 digits from the script and see every listing it authorises, with its criteria.</span></li>
+    <li class="reveal"><strong>Every listing in one table</strong><span>All strengths, conditions and quantities of a medicine, with max quantity, repeats, access and price side by side.</span></li>
+    <li class="reveal"><strong>Criteria with their codes</strong><span>Restriction text word for word, labelled with restriction and streamlined codes. Notes and cautions kept separate.</span></li>
+    <li class="reveal"><strong>DPMQ by dispensing rule</strong><span>Community pharmacy, private hospital and public hospital prices, and each brand's premium and manufacturer.</span></li>
+    <li class="reveal"><strong>This month's changes, filtered</strong><span>New listings, deletions, access and PBS price changes. Filter by type, or to the medicines you follow.</span></li>
+    <li class="reveal"><strong>Every 60-day listing, paired</strong><span>PBS's full 60-day list, each linked to its 30-day listing with the yearly saving. <a href="/60-day/">See the list</a>.</span></li>
+    <li class="reveal"><strong>Keyboard first</strong><span>Press <kbd>/</kbd> or <kbd>⌘K</kbd> anywhere to search. Every listing has its own link to share.</span></li>
+  </ul>
+</section>
+
+{% if latest_changes %}
+<section class="wrap pro-section">
+  <div class="bento-head reveal"><h2>Dispensing changes, {{ latest_changes.label }}</h2><p>Compared with {{ latest_changes.prev_label }}.</p></div>
+  <ul class="stats pro-stats">
+    {% for kind, label in change_groups if latest_changes.groups[kind] %}
+    <li class="reveal"><a href="/changes/{{ latest_changes.month }}/#{{ kind }}"><strong>{{ latest_changes.groups[kind] | length }}</strong><span>{{ change_short[kind] }}</span></a></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="wrap pro-section pro-split">
+  <div class="reveal">
+    <h2>Hand patients the plain-English version</h2>
+    <p>Every medicine page has a patient view: what they'll pay at most, whether they can get it, and who can prescribe it. Share a link to the exact listing, or print a one-page summary at the counter.</p>
+    {% if showcase %}<a class="btn btn-soft" href="/medicine/{{ showcase.slug }}/?view=simple">See the patient view <span aria-hidden="true">→</span></a>{% endif %}
+  </div>
+  <a class="tile tile-trust reveal" href="/about/data/">
+    <span class="tile-num">99.8%</span>
+    <span class="tile-label">of 659 checks matched pbs.gov.au exactly</span>
+    <p>Every join is checked against PBS's own data before a schedule goes live, and every item links to its official page.</p>
+    <span class="tile-link">How we check <span aria-hidden="true">→</span></span>
+  </a>
+</section>
+{% endblock %}

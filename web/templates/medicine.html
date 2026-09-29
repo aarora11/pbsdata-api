@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% macro range(lo, hi) %}{% if lo is none %}Not listed{% elif hi is none or (hi - lo) < 0.005 %}{{ lo | money }}{% else %}{{ lo | money }}<span class="to">to</span>{{ hi | money }}{% endif %}{% endmacro %}
+{% macro access_chip(benefit, label) %}<span class="chip chip-{{ 'ok' if benefit == 'U' else 'warn' if benefit in ('A', 'S') else 'plain' }}">{{ label }}</span>{% endmacro %}
+{% macro arrow() %}<svg viewBox="0 0 256 256" aria-hidden="true"><path fill="currentColor" d="M200,64V168a8,8,0,0,1-16,0V83.31L69.66,197.66a8,8,0,0,1-11.32-11.32L172.69,72H88a8,8,0,0,1,0-16H192A8,8,0,0,1,200,64Z"/></svg>{% endmacro %}
+{% macro plus() %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>{% endmacro %}
+{% macro item_label(f, it) %}<p class="item-label">{{ f.form }}{% if it.variant %} · {{ it.variant }}{% endif %}</p>{% endmacro %}
+{% block description %}{{ m.name }} on the PBS: what you pay, access rules, brands and who can prescribe it. PBS schedule {{ site.month_label }}.{% endblock %}
+{% block main %}
+{% set varies = m.general_max is not none and m.general_max - m.general_min > 0.005 %}
+<article class="med" data-med>
+<script type="application/json" data-picker-data>{{ m.picker | tojson }}</script>
+<div class="wrap med-layout">
+
+  <nav class="rail-left" aria-label="On this page">
+    <div class="rail-inner">
+      <p class="rail-title">On this page</p>
+      <a href="#prescription" data-spy-link>Your prescription</a>
+      <a href="#pay" data-spy-link>What will I pay?</a>
+      <a href="#access" data-spy-link>Can I get it?</a>
+      <a href="#prescribers" data-spy-link>Who can prescribe it?</a>
+      <a href="#listings" data-spy-link class="ph">All listings</a>
+      <a href="#changes" data-spy-link>Recent changes</a>
+      <p class="rail-title">Related</p>
+      <a href="/my-medicines/">Plan your year's costs</a>
+      <a href="/changes/">Monthly PBS changes</a>
+      <a href="/about/data/">How we check this data</a>
+    </div>
+  </nav>
+
+  <div class="med-main">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">›</span><a href="/medicines/">Medicines</a><span aria-hidden="true">›</span><span aria-current="page">{{ m.name }}</span></nav>
+    <header class="med-top">
+      <h1>{{ m.name }}</h1>
+      <div class="chips">
+        {% if m.class %}<span class="chip">{{ m.class }}</span>{% endif %}
+        <span class="chip">{{ m.forms | length }} form{{ "s" if m.forms | length != 1 }}</span>
+        {% if m.brand_names %}<span class="chip">{{ m.brand_names | length }} brand{{ "s" if m.brand_names | length != 1 }}</span>{% endif %}
+        {% for p in m.programs %}<span class="chip">{{ p }}</span>{% endfor %}
+        {% if m.sixty_day %}<a class="chip chip-ok" href="/60-day/">60-day scripts available</a>{% endif %}
+        <span class="chip ph mono">ATC {{ m.atc | join(", ") }}</span>
+      </div>
+    </header>
+    <p class="stale-note" data-stale-only>These prices are from the {{ site.month_label }} schedule. PBS has published a newer one, so pbs.gov.au may show different figures.</p>
+
+    <section class="sec" id="prescription" data-spy>
+      <h2>Find your prescription</h2>
+      <p class="sec-sub">{% if m['items'] | length > 1 %}Choose what's printed on your medicine's box. Everything below updates to match.{% else %}{{ m.name }} has one listing on the PBS.{% endif %}</p>
+      <div class="picker" data-picker hidden></div>
+      {% for f in m.forms %}{% for it in f['items'] %}
+      <div class="rx" data-item="{{ it.code }}">
+        {{ item_label(f, it) }}
+        <dl class="rx-facts">
+          <div><dt>Most per script</dt><dd>{% if it.max_packs %}{{ it.max_packs }} pack{{ "s" if it.max_packs != 1 }} of {{ it.pack_size }}{% elif it.max_amount %}{{ it.max_amount | round(2) }} {{ it.unit or "" }}{% elif it.pack_size %}Pack of {{ it.pack_size }}{% else %}Not specified{% endif %}</dd></div>
+          <div><dt>Repeats</dt><dd>{{ it.repeats if it.repeats is not none else "Not specified" }}</dd></div>
+          <div><dt>Access</dt><dd>{{ access_chip(it.benefit, it.access) }}</dd></div>
+          <div><dt>PBS item</dt><dd class="mono">{{ it.code }}</dd></div>
+        </dl>
+        {% if it.imdq60_base %}
+        <div class="sixty">
+          <strong>A 60-day script is available</strong>
+          <p>Two months' supply on one script.{% if it.saving %} If you take this every month, that's about <b>{{ it.saving | money }} less a year</b>{% if it.saving_conc %} ({{ it.saving_conc | money }} with a concession card){% endif %}.{% endif %}
+            It's for stable, ongoing conditions, and your doctor decides whether it suits you.</p>
+          {% if it.pair_item %}<a href="#item-{{ it.pair }}">See the 60-day listing, item {{ it.pair }} <span aria-hidden="true">→</span></a>{% endif %}
+        </div>
+        {% elif it.imdq60 %}
+        <div class="sixty">
+          <strong>This is a 60-day script</strong>
+          <p>Up to two months' supply on one script.{% if it.saving %} Compared with the 30-day script, that's about <b>{{ it.saving | money }} less a year</b> if you take it every month.{% endif %}
+            It's for stable, ongoing conditions, and your doctor decides whether it suits you.</p>
+          {% if it.pair_item %}<a href="#item-{{ it.pair }}">See the 30-day listing, item {{ it.pair }} <span aria-hidden="true">→</span></a>
+          {% elif it.replaces %}<p>It replaces the 30-day listings {% for c in it.replaces %}<a href="#item-{{ c }}">{{ c }}</a>{{ ", " if not loop.last }}{% endfor %}.</p>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}{% endfor %}
+    </section>
+
+    <section class="sec" id="pay" data-spy>
+      <h2>What will I pay?</h2>
+      <p class="sec-sub">These are the most a pharmacy can charge under the PBS. Many pharmacies charge less, especially for lower-priced medicines, so it can pay to ask or compare.</p>
+      {% for f in m.forms %}{% for it in f['items'] %}
+      {% set plain = it.brands | selectattr("premium", "none") | list + it.brands | selectattr("premium", "equalto", 0.0) | list %}
+      {% set premium = it.brands | rejectattr("premium", "none") | rejectattr("premium", "equalto", 0.0) | list %}
+      <div class="block" data-item="{{ it.code }}">
+        {{ item_label(f, it) }}
+        {% if it.retail %}
+        <div class="price-table" role="table" aria-label="Price per script by brand">
+          <div class="pt-row pt-head" role="row"><span role="columnheader">Brand</span><span role="columnheader">Most, general</span><span role="columnheader">Most, concession</span></div>
+          {% for b in (plain + premium) if b.retail and b.general is not none %}
+          <div class="pt-row" role="row">
+            <span role="cell">{{ b.name }}{% if b.premium %} <span class="prem-tag">+{{ b.premium | money }} brand premium</span>{% endif %}</span>
+            <span role="cell" class="num">{{ b.general | money }}</span>
+            <span role="cell" class="num">{{ b.concession | money }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% if premium %}<p class="hint">A brand premium is set by the manufacturer. You pay it on top of the PBS price, and it doesn't count towards your Safety Net. Your pharmacist can tell you which brands they stock.</p>{% endif %}
+        <a class="inline-cta" href="/my-medicines/">Take more than one medicine? Plan your year's costs, including the Safety Net <span aria-hidden="true">→</span></a>
+        {% else %}
+        <p class="empty-state">No community pharmacy price. This listing is supplied through {{ it.program }}; ask the hospital or clinic about cost.</p>
+        {% endif %}
+      </div>
+      {% endfor %}{% endfor %}
+    </section>
+
+    <section class="sec" id="access" data-spy>
+      <h2>Can I get it?</h2>
+      {% for f in m.forms %}{% for it in f['items'] %}
+      <div class="block" data-item="{{ it.code }}">
+        {{ item_label(f, it) }}
+        <div class="access-row">{{ access_chip(it.benefit, it.access) }}<p>{{ it.access_help }}</p></div>
+        {% if it.conditions %}
+        <div class="conditions">
+          <span class="lbl">Subsidised on the PBS for</span>
+          <ul>{% for c in it.conditions %}<li>{{ c }}</li>{% endfor %}</ul>
+        </div>
+        {% endif %}
+        {% if it.restrictions %}
+        <details class="criteria">
+          <summary><span>Read the official PBS criteria</span>{% if it.restrictions | length > 1 %}<span class="count">{{ it.restrictions | length }}</span>{% endif %}</summary>
+          <div class="criteria-body">
+            <p class="hint">The PBS's own words. Whether you meet them is for your prescriber to decide.</p>
+            {% for r in it.restrictions %}
+            <div class="crit">
+              <p class="crit-code ph">Restriction {{ r.code }}{% if r.streamlined %}, streamlined code <strong>{{ r.streamlined }}</strong>{% endif %}</p>
+              {% for para in r.text %}<p>{{ para }}</p>{% endfor %}
+            </div>
+            {% endfor %}
+          </div>
+        </details>
+        {% endif %}
+        {% for r in it.cautions %}<div class="note note-caution ph"><strong>Caution</strong>{% for p in r.text %}<p>{{ p }}</p>{% endfor %}</div>{% endfor %}
+        {% for r in it.notes %}<div class="note ph"><strong>Note</strong>{% for p in r.text %}<p>{{ p }}</p>{% endfor %}</div>{% endfor %}
+      </div>
+      {% endfor %}{% endfor %}
+    </section>
+
+    <section class="sec" id="prescribers" data-spy>
+      <h2>Who can prescribe it?</h2>
+      {% for f in m.forms %}{% for it in f['items'] %}
+      <div class="block" data-item="{{ it.code }}">
+        {{ item_label(f, it) }}
+        {% if it.prescribers %}
+        <ul class="prescriber-list">{% for p in it.prescribers %}<li>{{ p }}</li>{% endfor %}</ul>
+        <p class="hint">On the PBS, only these prescribers can write a subsidised script for this listing.</p>
+        {% else %}<p class="hint">PBS doesn't list prescriber types for this listing.</p>{% endif %}
+      </div>
+      {% endfor %}{% endfor %}
+    </section>
+
+    <section class="sec ph" id="listings" data-spy>
+      <h2>All listings</h2>
+      <p class="sec-sub">Every PBS listing of {{ m.name }}. Choose a row to see its detail.</p>
+      <div class="grid-wrap">
+      <table class="grid listing-table">
+        <thead><tr><th>Item</th><th>Form</th><th>Listing</th><th class="n">Max</th><th class="n">Rpt</th><th>Access</th><th>60-day</th><th class="n">General</th></tr></thead>
+        <tbody>
+        {% for f in m.forms %}{% for it in f['items'] %}
+        <tr data-select="{{ it.code }}" tabindex="0"><td class="mono">{{ it.code }}</td><td>{{ f.form }}</td><td>{{ it.variant or "" }}</td>
+          <td class="n">{% if it.max_units %}{{ it.max_units }}{% elif it.max_amount %}{{ it.max_amount }}{% endif %}</td><td class="n">{{ it.repeats if it.repeats is not none else "" }}</td>
+          <td>{{ it.access }}</td><td>{% if it.imdq60 %}<span class="chip chip-ok">60-day</span>{% if it.pair %} <span class="mono dim">of {{ it.pair }}</span>{% endif %}{% elif it.pair %}<span class="mono dim">60-day: {{ it.pair }}</span>{% elif it.imdq60_base %}<span class="dim">Has 60-day</span>{% endif %}</td><td class="n">{% if it.retail %}{{ range(it.general_min, it.general_max) }}{% endif %}</td></tr>
+        {% endfor %}{% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% for f in m.forms %}{% for it in f['items'] %}
+      <div class="block pharm" data-item="{{ it.code }}">
+        {{ item_label(f, it) }}
+        <dl class="facts">
+          <div><dt>Item code</dt><dd class="mono">{{ it.code }}</dd></div>
+          <div><dt>Program</dt><dd>{{ it.program }} <span class="mono dim">{{ it.program_code }}</span></dd></div>
+          <div><dt>Max quantity</dt><dd>{% if it.max_units %}{{ it.max_units }} units{% endif %}{% if it.max_packs %}, {{ it.max_packs }} pack{{ "s" if it.max_packs != 1 }}{% endif %}{% if it.max_amount %}{{ it.max_amount }} {{ it.unit or "" }}{% endif %}</dd></div>
+          <div><dt>Repeats</dt><dd>{{ it.repeats }}</dd></div>
+          {% if it.atc %}<div><dt>ATC</dt><dd class="mono">{{ it.atc | join(", ") }}</dd></div>{% endif %}
+          {% if it.first_listed %}<div><dt>First listed</dt><dd>{{ it.first_listed }}</dd></div>{% endif %}
+        </dl>
+        {% if it.brands %}
+        <div class="grid-wrap">
+        <table class="grid">
+          <thead><tr><th>Brand</th><th>Manufacturer</th><th class="n">DPMQ</th><th class="n">Premium</th><th class="n">General</th><th class="n">Concession*</th></tr></thead>
+          <tbody>
+          {% for b in it.brands %}<tr><td>{{ b.name }}</td><td>{{ b.sponsor or "" }}</td><td class="n">{{ b.dpmq | money }}</td><td class="n">{{ b.premium | money if b.premium else "" }}</td><td class="n">{{ b.general | money }}</td><td class="n">{{ b.concession | money }}</td></tr>{% endfor %}
+          </tbody>
+        </table>
+        </div>
+        <p class="hint">* PBS publishes no concessional charge. This applies PBS's patient-charge formula with the concessional copayment.</p>
+        {% endif %}
+        {% if it.settings | length > 1 %}
+        <div class="grid-wrap">
+        <table class="grid">
+          <thead><tr><th>Dispensing rule</th><th class="n">DPMQ</th><th class="n">General charge</th></tr></thead>
+          <tbody>{% for s in it.settings %}<tr><td>{{ s.title }}</td><td class="n">{{ s.dpmq | money }}</td><td class="n">{{ s.charge | money }}</td></tr>{% endfor %}</tbody>
+        </table>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}{% endfor %}
+    </section>
+
+    <section class="sec" id="changes" data-spy>
+      <h2>Recent changes</h2>
+      {% set visible = m.history | selectattr("public") | list %}
+      {% if m.history %}
+      <ol class="timeline">
+        {% for e in m.history %}
+        <li class="{% if not e.public %}ph{% endif %}">
+          <span class="when">{{ e.month | month_label }}</span>
+          <span>{{ e.text }} <span class="ph mono dim">{{ e.code }}</span></span>
+        </li>
+        {% endfor %}
+      </ol>
+      {% endif %}
+      {% if not visible %}<p class="empty-state {% if m.history %}simple-only{% endif %}">No changes to {{ m.name }} in the schedules we hold.</p>{% endif %}
+    </section>
+  </div>
+
+  <aside class="rail-right" aria-label="Price summary">
+    <div class="buybox">
+      <div class="buy buy-all">
+        <span class="panel-label">Most you'll pay per script</span>
+        {% if m.general_min is not none %}
+          <div class="panel-price">{{ range(m.general_min, m.general_max) }}</div>
+          {% if m.conc_min is not none %}<p class="panel-sub">{{ m.conc_min | money }}{% if varies %} or more{% endif %} with a concession card</p>{% endif %}
+        {% else %}
+          <div class="panel-price panel-price-none">No pharmacy price</div>
+        {% endif %}
+      </div>
+      {% for f in m.forms %}{% for it in f['items'] %}
+      <div class="buy" data-item="{{ it.code }}">
+        <span class="buy-for">{{ f.form }}{% if it.variant %}<span>{{ it.variant }}</span>{% endif %}</span>
+        {% if it.retail %}
+        <div class="panel-price">{% if it.general_max - it.general_min > 0.005 %}<span class="from">from</span>{% endif %}{{ it.general_min | money }}</div>
+        <p class="panel-sub">most you'll pay per script{% if it.conc_min is not none %}; {{ it.conc_min | money }} with a concession card{% endif %}</p>
+        <p class="panel-hint">Many pharmacies charge less.</p>
+        {% if it.imdq60_base and it.saving %}<a class="buy-sixty" href="#item-{{ it.pair }}">60-day script available: about {{ it.saving | money }} less a year <span aria-hidden="true">→</span></a>{% endif %}
+        {% else %}
+        <div class="panel-price panel-price-none">No pharmacy price</div>
+        <p class="panel-sub">Supplied through {{ it.program }}</p>
+        {% endif %}
+        <dl class="panel-facts">
+          <div><dt>Access</dt><dd>{{ access_chip(it.benefit, it.access) }}</dd></div>
+          <div><dt>Prescribed by</dt><dd>{{ it.prescribers | join(", ") if it.prescribers else "Not specified" }}</dd></div>
+        </dl>
+        <div class="buy-actions">
+          {% if it.retail %}<button type="button" class="btn btn-soft" data-add-med="{{ it.code }}" data-n="{{ 6 if it.imdq60 else 12 }}" data-label="{{ m.name }} {{ f.form }}{% if it.imdq60 %} (60-day){% endif %}">{{ plus() }}<span>Add to my medicines</span></button>{% endif %}
+          {% if it.pbs_url %}<a class="btn btn-primary" href="{{ it.pbs_url }}" target="_blank" rel="noopener">Check on PBS {{ arrow() }}</a>
+          {% else %}<span class="btn btn-disabled" title="pbs.gov.au publishes no page for this program">No PBS page</span>{% endif %}
+        </div>
+        <div class="buy-util">
+          <button type="button" data-share>Share</button>
+          <button type="button" data-print>Print</button>
+        </div>
+      </div>
+      {% endfor %}{% endfor %}
+    </div>
+  </aside>
+</div>
+
+<div class="bottom-bar" data-bottom-bar hidden>
+  <div class="bb-text"><strong data-bb-price></strong><span data-bb-label></span></div>
+  <button type="button" class="btn btn-primary" data-add-med="" data-short="1" data-label="">{{ plus() }}<span>Add</span></button>
+</div>
+</article>
+<script src="/static/medicine.js" defer></script>
+{% endblock %}

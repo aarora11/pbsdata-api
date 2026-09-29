@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% macro preview(m, cls) %}
+<a class="preview {{ cls }}" href="/medicine/{{ m.slug }}/" {% if cls == "preview-back" %}tabindex="-1" aria-hidden="true"{% endif %}>
+  <div class="preview-head">
+    <div>
+      <span class="preview-name">{{ m.name }}</span>
+      {% if m.class %}<span class="preview-class">{{ m.class }}</span>{% endif %}
+    </div>
+    {% if m.access %}{% set b = m['items'][0].benefit %}<span class="chip chip-{{ 'ok' if b == 'U' else 'warn' if b in ('A', 'S') else 'plain' }}">{{ m.access[0] }}</span>{% endif %}
+  </div>
+  <div class="preview-price">
+    <span class="preview-amt">{{ m.general_min | money }}</span>
+    <span class="preview-unit">most per script</span>
+  </div>
+  <p class="preview-sub">{{ m.conc_min | money }} with a concession card</p>
+  <div class="preview-rows">
+    <div><span>Forms on the PBS</span><strong>{{ m.forms | length }}</strong></div>
+    <div><span>Brands</span><strong>{{ m.brand_names | length }}</strong></div>
+    <div><span>Prescribed by</span><strong>{{ m.prescribers | join(", ") }}</strong></div>
+  </div>
+  <span class="preview-cta">View {{ m.name }} <span aria-hidden="true">→</span></span>
+</a>
+{% endmacro %}
+
+{% block main %}
+<section class="hero wrap">
+  <div class="hero-copy">
+    <h1>What will my medicine <em>cost</em> on the PBS?</h1>
+    <p class="lede">Prices, access rules and prescribers for every PBS medicine. Plain English, linked to the official source.</p>
+    <form class="search search-hero" role="search" action="/" data-search data-examples='{{ site.examples | tojson }}'>
+      <svg class="search-icon" viewBox="0 0 256 256" aria-hidden="true"><path fill="currentColor" d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></svg>
+      <input type="search" name="q" placeholder="Search a medicine, brand or item code" aria-label="Search medicines" autocomplete="off">
+      <button class="search-go" type="submit">Search</button>
+      <ul class="results" role="listbox" hidden></ul>
+    </form>
+    {% if examples %}
+    <p class="try">Try
+      {% for m in examples[:4] %}<a href="/medicine/{{ m.slug }}/">{{ m.name }}</a>{% endfor %}
+    </p>
+    {% endif %}
+  </div>
+  {% if featured %}
+  <div class="hero-visual" aria-label="Example medicine">
+    {% if featured_back %}{{ preview(featured_back, "preview-back") }}{% endif %}
+    {{ preview(featured, "preview-front") }}
+  </div>
+  {% endif %}
+</section>
+
+<section class="wrap browse-home">
+  <div class="bento-head reveal">
+    <h2>Browse the PBS</h2>
+    <p>Can't remember the name? Start from a letter or a part of the body.</p>
+  </div>
+  <nav class="letters letters-home reveal" aria-label="Medicines by first letter">
+    {% set present = site.az | map(attribute="letter") | list %}
+    {% for l in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}{% if l in present %}<a href="/medicines/#letter-{{ l }}">{{ l }}</a>{% else %}<span aria-hidden="true">{{ l }}</span>{% endif %}{% endfor %}
+    <a class="letters-all" href="/medicines/">All A to Z</a>
+  </nav>
+  <ul class="areas areas-home">
+    {% for a in site.areas %}
+    <li class="reveal"><a class="area" href="/browse/{{ a.code | lower }}/">
+      <span class="area-name">{{ a.name }}</span>
+      <span class="area-count">{{ a.count }} medicine{{ "s" if a.count != 1 }}</span>
+    </a></li>
+    {% endfor %}
+  </ul>
+  <a class="home-sixty reveal" href="/60-day/">
+    <span><strong>On the same medicine every month?</strong><span>For {{ site.sixty_medicines }} medicines, a 60-day script gives two months' supply for one script.</span></span>
+    <em>See the 60-day list <span aria-hidden="true">→</span></em>
+  </a>
+</section>
+
+<section class="wrap bento-wrap">
+  <div class="bento-head reveal">
+    <h2>This month on the PBS</h2>
+    {% if latest_changes %}<p>{{ latest_changes.label }} schedule, compared with {{ latest_changes.prev_label }}.</p>{% endif %}
+  </div>
+  <div class="bento">
+    {% if latest_changes and latest_changes.groups['new'] %}
+    {% set news = latest_changes.groups['new'] %}
+    <div class="tile tile-new reveal">
+      <span class="tile-num">{{ news | length }}</span>
+      <span class="tile-label">medicines newly listed</span>
+      <ul class="tile-list">
+        {% for e in news[:6] %}
+        <li><a href="/medicine/{{ e.slug }}/">{{ e.name }}</a><span>{{ e.forms[0] if e.forms else "" }}</span></li>
+        {% endfor %}
+      </ul>
+      <a class="tile-link" href="/changes/{{ latest_changes.month }}/#new">All new listings <span aria-hidden="true">→</span></a>
+    </div>
+    {% endif %}
+    {% if latest_changes and latest_changes.groups['delisted'] %}
+    <a class="tile tile-small tile-del reveal" href="/changes/{{ latest_changes.month }}/#delisted">
+      <span class="tile-kicker">Removed from the PBS</span>
+      <span class="tile-num">{{ latest_changes.groups['delisted'] | length }}</span>
+      <span class="tile-link">See which <span aria-hidden="true">→</span></span>
+    </a>
+    {% endif %}
+    {% if latest_changes and latest_changes.groups['premium'] %}
+    <a class="tile tile-small tile-prem reveal" href="/changes/{{ latest_changes.month }}/#premium">
+      <span class="tile-kicker">Brand premium changes</span>
+      <span class="tile-num">{{ latest_changes.groups['premium'] | length }}</span>
+      <span class="tile-link">See the changes <span aria-hidden="true">→</span></span>
+    </a>
+    {% endif %}
+    <div class="tile tile-cost reveal">
+      <div class="cost-pair">
+        <div><span class="tile-num">{{ site.copay_general | money }}</span><span class="tile-label">the most you pay per script</span></div>
+        <div><span class="tile-num">{{ site.copay_conc | money }}</span><span class="tile-label">with a concession card</span></div>
+      </div>
+      <p>Some brands cost a little more. That extra is a <strong>brand premium</strong>, and every medicine page shows it.</p>
+    </div>
+    <a class="tile tile-trust reveal" href="/about/data/">
+      <span class="tile-num">99.8%</span>
+      <span class="tile-label">of 659 checks matched pbs.gov.au exactly</span>
+      <p>Every item links to its official PBS page, so you can check any figure in one click.</p>
+      <span class="tile-link">How we check <span aria-hidden="true">→</span></span>
+    </a>
+  </div>
+</section>
+{% endblock %}

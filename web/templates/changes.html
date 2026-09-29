@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block main %}
+<article class="wrap changes-layout" data-changes>
+  <aside class="filters" aria-label="Filter changes">
+    <div class="rail-inner">
+      <p class="rail-title">Show</p>
+      {% for kind, label in change_groups if ch.groups[kind] %}
+      <label class="filter{% if kind == 'price' %} ph{% endif %}"><input type="checkbox" data-kind="{{ kind }}" checked><span>{{ label }}</span><em data-kind-count="{{ kind }}">{{ ch.groups[kind] | length }}</em></label>
+      {% endfor %}
+      <label class="filter filter-mine"><input type="checkbox" data-mine><span>Only my medicines</span><em data-mine-count></em></label>
+      <p class="hint" data-mine-hint hidden>Add medicines on any medicine page, or in <a href="/my-medicines/">My medicines</a>, to follow them here.</p>
+    </div>
+  </aside>
+
+  <div>
+    <header class="page-head">
+      <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">›</span><a href="/changes/">Changes</a><span aria-hidden="true">›</span><span aria-current="page">{{ ch.label }}</span></nav>
+      <h1>PBS changes, {{ ch.label }}</h1>
+      <p class="page-sub">Compared with {{ ch.prev_label }}.{% if ch.gap %} We don't hold the schedules in between, so this covers more than one month.{% endif %}</p>
+    </header>
+
+    <p class="empty-state" data-none hidden>None of your medicines changed in this schedule.</p>
+
+    {% for kind, label in change_groups if ch.groups[kind] %}
+    {% set entries = ch.groups[kind] %}
+    <section id="{{ kind }}" class="change-group {% if kind == 'price' %}ph{% endif %}" data-group="{{ kind }}">
+      <header class="group-head">
+        <h2>{{ label }}</h2><span class="count" data-group-count>{{ entries | length }}</span>
+      </header>
+      {% if kind == "premium" %}<p class="hint">A brand premium is the extra a patient pays for a particular brand, on top of the PBS price.</p>{% endif %}
+      {% if kind == "price" %}<p class="hint">Changes to the price PBS pays for an item. Most don't change what a patient pays, because the copayment caps it.</p>{% endif %}
+      {% if entries | length > 25 and kind in ("premium", "price") %}<details class="more" data-more><summary>Show all {{ entries | length }}</summary>{% endif %}
+      <ul class="change-list">
+        {% for e in entries %}
+        <li data-codes="{{ e.codes | join(' ') }}">
+          {% if e.slug %}<a href="/medicine/{{ e.slug }}/#item-{{ e.codes[0] }}">{{ e.name }}</a>{% else %}<span class="gone">{{ e.name }}</span>{% endif %}
+          <span class="what">{% if kind in ("premium", "price", "access", "quantity") %}{{ e.text }}{% if e.forms %}<span class="dim">, {{ e.forms | join("; ") }}</span>{% endif %}{% else %}{{ e.forms | join("; ") }}{% endif %}<span class="ph mono dim"> {{ e.codes | join(", ") }}</span></span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% if entries | length > 25 and kind in ("premium", "price") %}</details>{% endif %}
+    </section>
+    {% endfor %}
+  </div>
+</article>
+<script src="/static/changes.js" defer></script>
+{% endblock %}

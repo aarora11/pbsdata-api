@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block main %}
+<article class="wrap prose">
+  <h1>About</h1>
+  <p class="lede">PBS Lookup shows the Pharmaceutical Benefits Scheme schedule in plain language: what a medicine costs, what
+    it takes to get it, and who can prescribe it.</p>
+  <h2>What this site is not</h2>
+  <p>It isn't medical advice, and it never recommends a medicine or a brand. It doesn't cover side effects, interactions,
+    dosing, or prices outside the PBS. For any decision about your medicines, talk to your doctor or pharmacist.</p>
+  <h2>Where the data comes from</h2>
+  <p>The Australian Government's PBS API, published by the Department of Health, Disability and Ageing. This site is updated
+    when each monthly schedule is released. It is independent and not endorsed by the Australian Government.
+    <a href="/about/data/">How we check this data</a>.</p>
+  <h2>Pharmacist view</h2>
+  <p>The switch in the header shows everything PBS publishes for each item: item codes, dispensed prices, quantities in units
+    and packs, dispensing rules, restriction and streamlined authority codes, notes and cautions. Add
+    <code>?view=pharmacist</code> to any link to open it that way.</p>
+</article>
+{% endblock %}

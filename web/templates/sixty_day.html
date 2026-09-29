@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block description %}Every PBS medicine you can get on a 60-day script: two months' supply for one script, and how much it saves in a year. PBS schedule {{ site.month_label }}.{% endblock %}
+{% block main %}
+<article class="wrap sixty-page">
+  <header class="page-head">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">›</span><span aria-current="page">60-day prescriptions</span></nav>
+    <h1>60-day prescriptions</h1>
+    <p class="page-sub">For {{ meds | length }} medicines, a doctor can write a script for two months' supply instead of one. You pay for one script and fill it half as often. This is PBS's full list for {{ site.month_label }}: {{ listings }} listings.</p>
+  </header>
+
+  <section class="sixty-facts">
+    <div><strong>Half the scripts</strong><span>A 60-day script covers two months, so a monthly medicine needs 6 scripts a year instead of 12.</span></div>
+    <div><strong>For stable, ongoing conditions</strong><span>Such as blood pressure, cholesterol, diabetes and asthma. Your doctor decides whether it suits you.</span></div>
+    <div><strong>Ask at your next appointment</strong><span>Many people are still on 30-day scripts only because nobody has switched them. Your doctor can write a new script.</span></div>
+  </section>
+
+  <div class="sixty-tools">
+    <label class="search sixty-filter"><svg class="search-icon" viewBox="0 0 256 256" aria-hidden="true"><path fill="currentColor" d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></svg>
+      <input type="search" placeholder="Filter this list" aria-label="Filter the 60-day list" data-sixty-filter></label>
+    <p class="hint">Savings assume a medicine taken every month, at the most a pharmacy can charge under the PBS. <a href="/my-medicines/">Plan your own costs</a>.</p>
+  </div>
+
+  <ul class="sixty-list" data-sixty-list>
+    {% for m in meds %}
+    {% set rows = m['items'] | selectattr("imdq60") | list %}
+    <li data-name="{{ m.name | lower }}">
+      <a class="sixty-row" href="/medicine/{{ m.slug }}/#item-{{ rows[0].code }}">
+        <span class="sixty-name">{{ m.name }}<small>{{ m.class or "" }}</small></span>
+        <span class="sixty-forms">{{ rows | map(attribute="form") | unique | list | length }} form{{ "s" if rows | map(attribute="form") | unique | list | length != 1 }}</span>
+        <span class="sixty-save">{% if m.sixty_day_saving %}<small>up to</small> {{ m.sixty_day_saving | money }}<small> a year</small>{% else %}<small>Saving not shown</small>{% endif %}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="empty-state" data-sixty-none hidden>No 60-day medicine matches that.</p>
+
+  <p class="meta-line">In August 2026 we checked every 60-day item code against PBS's published 60-day list, and all 806 matched. PBS lists each 60-day script as its own item code; we pair it with its 30-day listing to work out the saving, and show no saving where the pairing isn't certain. This is general information, not advice.</p>
+</article>
+<script>
+  (function () {
+    var input = document.querySelector("[data-sixty-filter]"), rows = document.querySelectorAll("[data-sixty-list] li"),
+        none = document.querySelector("[data-sixty-none]");
+    if (!input) return;
+    input.addEventListener("input", function () {
+      var q = input.value.trim().toLowerCase(), shown = 0;
+      rows.forEach(function (li) { var hit = !q || li.dataset.name.indexOf(q) >= 0; li.hidden = !hit; if (hit) shown++; });
+      none.hidden = shown > 0;
+    });
+  })();
+</script>
+{% endblock %}

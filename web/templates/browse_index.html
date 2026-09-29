@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block description %}Browse PBS medicines by body system: heart, skin, lungs, mental health and more. PBS schedule {{ site.month_label }}.{% endblock %}
+{% block main %}
+<article class="wrap">
+  <header class="page-head">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">›</span><span aria-current="page">Browse by body system</span></nav>
+    <h1>Browse by body system</h1>
+    <p class="page-sub">PBS medicines grouped the way pharmacists and the World Health Organization classify them. Looking for a name? <a href="/medicines/">See all medicines A to Z</a>.</p>
+  </header>
+  <ul class="areas">
+    {% for a in site.areas %}
+    <li><a class="area" href="/browse/{{ a.code | lower }}/">
+      <span class="area-name">{{ a.name }}</span>
+      <span class="area-official">{{ a.official }}</span>
+      <span class="area-count">{{ a.count }} medicine{{ "s" if a.count != 1 }}</span>
+    </a></li>
+    {% endfor %}
+  </ul>
+  <p class="meta-line">Groups follow the WHO Anatomical Therapeutic Chemical (ATC) classification that PBS assigns to each item. A medicine used in more than one area appears in each. This is not a guide to what a medicine treats; ask your doctor or pharmacist.</p>
+</article>
+{% endblock %}
