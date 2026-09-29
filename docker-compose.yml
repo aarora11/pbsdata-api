@@ -4,6 +4,10 @@ x-app: &app
   env_file: .env
   environment:
     DATABASE_URL: postgresql://pbsapi:pbsapi@postgres:5432/pbsapi
+  # The ingest archives older raw months here and deletes them from Postgres, so this
+  # must outlive the container. See ingest/raw_archive.py.
+  volumes:
+    - ./data/raw_archive:/app/data/raw_archive
   depends_on:
     postgres:
       condition: service_healthy
@@ -13,6 +17,9 @@ services:
   # pbsdata_fresh_pgdata, which predates this stack — see volumes: below.
   postgres:
     image: postgres:16-alpine
+    # The 1 GB default max_wal_size kept a full 1 GB of WAL on disk. Monthly bulk
+    # loads don't need it; this only makes checkpoints more frequent during an ingest.
+    command: ["postgres", "-c", "max_wal_size=256MB"]
     environment:
       POSTGRES_USER: pbsapi
       POSTGRES_PASSWORD: pbsapi

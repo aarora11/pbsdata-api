@@ -24,6 +24,8 @@ from decimal import Decimal
 
 import asyncpg
 
+from ingest.raw_archive import load_raw_endpoint
+
 # The showcase must never recompute a patient charge in JavaScript — that would be a
 # second implementation of the model, which is the defect class this project keeps
 # finding. Figures come from the same module the API serves.
@@ -65,6 +67,22 @@ def clean(html):
 
 def f(v):
     return float(v) if isinstance(v, (Decimal, int, float)) else None
+
+
+_overview_cache: dict[str, dict[str, list]] = {}
+
+
+async def _overview_by_code(conn, month):
+    """/item-overview rows for a month grouped by pbs_code, from Postgres or the raw archive.
+
+    Loaded once per month: an archived month has to be read from its file in full.
+    """
+    if month not in _overview_cache:
+        grouped: dict[str, list] = {}
+        for r in await load_raw_endpoint(conn, month, "/item-overview"):
+            grouped.setdefault(r.get("pbs_code"), []).append(r)
+        _overview_cache[month] = grouped
+    return _overview_cache[month]
 
 
 async def item_payload(conn, month, code, blurb):
@@ -187,15 +205,9 @@ async def item_payload(conn, month, code, blurb):
 
     # Per-item verification against PBS's own pre-joined view. This is the whole point
     # of the showcase, so it is computed per item rather than asserted globally.
-    overview = await conn.fetch(
-        "SELECT payload FROM raw_feed_rows WHERE month = $1 AND endpoint = '/item-overview' "
-        "AND payload->>'pbs_code' = $2",
-        month, code,
-    )
+    rows = (await _overview_by_code(conn, month)).get(code, [])
     checks = []
-    if overview:
-        rows = [json.loads(r["payload"]) if isinstance(r["payload"], str) else r["payload"]
-                for r in overview]
+    if rows:
 
         def pbs_set(field, key):
             out = set()

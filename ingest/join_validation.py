@@ -19,6 +19,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ingest.raw_archive import load_raw_endpoint
+
 CACHE = Path(os.environ.get("PBS_CACHE_DIR", "/tmp/pbs_raw_cache"))
 
 OVERVIEW_ENDPOINT = "/item-overview"
@@ -45,17 +47,13 @@ async def load_overview(conn, month: str) -> list[dict]:
     raw_feed_rows is the better source: it is reconciled against the fetch on every
     ingest (ingest.quality.check_raw_layer), so it is guaranteed to equal what PBS
     served, and it survives the on-disk fetch cache being cleared — /tmp/pbs_raw_cache
-    is not durable. The cache is kept as a fallback so this still works against a
-    database predating the raw layer.
+    is not durable. Older months are read from the raw archive (ingest.raw_archive).
+    The cache is kept as a fallback so this still works against a database predating
+    the raw layer.
     """
-    rows = await conn.fetch(
-        "SELECT payload FROM raw_feed_rows WHERE month = $1 AND endpoint = $2 "
-        "ORDER BY row_index",
-        month, OVERVIEW_ENDPOINT,
-    )
+    rows = await load_raw_endpoint(conn, month, OVERVIEW_ENDPOINT)
     if rows:
-        return [json.loads(r["payload"]) if isinstance(r["payload"], str) else r["payload"]
-                for r in rows]
+        return rows
     cached = CACHE / month / "item_overviews.json"
     return json.loads(cached.read_text()) if cached.exists() else []
 

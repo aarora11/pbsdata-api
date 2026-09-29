@@ -37,10 +37,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS raw_feed_rows_unique
 CREATE INDEX IF NOT EXISTS raw_feed_rows_endpoint_month
     ON raw_feed_rows (endpoint, month);
 
--- Containment queries over the payload, e.g. finding every raw row for a
--- pbs_code without knowing which endpoint carries it.
-CREATE INDEX IF NOT EXISTS raw_feed_rows_payload_gin
-    ON raw_feed_rows USING GIN (payload jsonb_path_ops);
+-- A GIN index on payload was created here and dropped by migration 019: no query
+-- ever used it, and at ~36 MB per month it was a third of the raw layer's indexes.
 
 -- Per-feed row counts, for reconciling what was fetched against what landed.
 CREATE OR REPLACE VIEW raw_feed_summary AS

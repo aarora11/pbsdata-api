@@ -7,7 +7,7 @@ to run this. This script is for inspecting the detail across arbitrary months.
 
 Usage:
     python scripts/validate_tier_a_joins.py [month ...]
-With no months, validates every month held in the raw landing layer.
+With no months, validates every month held in the raw landing layer or its archive.
 Exits non-zero if any join mismatches, or if nothing could be validated.
 """
 import asyncio
@@ -17,6 +17,7 @@ import sys
 import asyncpg
 
 from ingest.join_validation import load_overview, validate_month
+from ingest.raw_archive import archived_months
 
 DSN = os.environ.get("DATABASE_URL", "postgresql://pbsapi:pbsapi@localhost:5432/pbsapi")
 
@@ -25,10 +26,10 @@ async def main(months):
     conn = await asyncpg.connect(DSN)
     try:
         if not months:
-            months = [r["month"] for r in await conn.fetch(
-                "SELECT DISTINCT month FROM raw_feed_rows WHERE endpoint = '/item-overview' "
-                "ORDER BY month"
-            )]
+            held = {r["month"] for r in await conn.fetch(
+                "SELECT DISTINCT month FROM raw_feed_rows WHERE endpoint = '/item-overview'"
+            )}
+            months = sorted(held | set(archived_months()))
         failed = False
         no_data = []
         validated = 0

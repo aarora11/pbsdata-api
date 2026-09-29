@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Rebuild the on-disk fetch cache from the raw landing layer.
 
-The raw layer stores every row of every feed exactly as PBS served it, reconciled
+The raw layer (Postgres, plus compressed archives of older months) stores every row of every feed exactly as PBS served it, reconciled
 against the fetch on each ingest. That makes it a complete substitute for the fetch
 cache, which is the point of holding it: normalisation and join changes can be
 replayed over real data without re-hitting the PBS API.
@@ -22,6 +22,7 @@ from pathlib import Path
 
 import asyncpg
 
+from ingest.raw_archive import archived_months, load_raw_endpoint
 from ingest.raw_store import FEED_ENDPOINTS
 
 DSN = os.environ.get("DATABASE_URL", "postgresql://pbsapi:pbsapi@localhost:5432/pbsapi")
@@ -33,18 +34,11 @@ async def rebuild(conn, month: str) -> int:
     out.mkdir(parents=True, exist_ok=True)
     written = 0
     for cache_name, endpoint in FEED_ENDPOINTS.items():
-        rows = await conn.fetch(
-            "SELECT payload FROM raw_feed_rows WHERE month = $1 AND endpoint = $2 "
-            "ORDER BY row_index",
-            month, endpoint,
-        )
-        if not rows:
+        # Postgres for recent months, the compressed archive for older ones.
+        payloads = await load_raw_endpoint(conn, month, endpoint)
+        if not payloads:
             print(f"  {cache_name:<36} MISSING ({endpoint})")
             continue
-        payloads = [
-            json.loads(r["payload"]) if isinstance(r["payload"], str) else r["payload"]
-            for r in rows
-        ]
         (out / f"{cache_name}.json").write_text(json.dumps(payloads))
         print(f"  {cache_name:<36} {len(payloads):>7,} rows")
         written += 1
@@ -55,11 +49,12 @@ async def main(months: list[str]) -> int:
     conn = await asyncpg.connect(DSN)
     try:
         if not months:
-            months = [r["month"] for r in await conn.fetch(
-                "SELECT DISTINCT month FROM raw_feed_rows ORDER BY month"
-            )]
+            held = {r["month"] for r in await conn.fetch(
+                "SELECT DISTINCT month FROM raw_feed_rows"
+            )}
+            months = sorted(held | set(archived_months()))
         if not months:
-            print("No months in raw_feed_rows — nothing to rebuild.")
+            print("No months in raw_feed_rows or the raw archive — nothing to rebuild.")
             return 1
         for month in months:
             print(f"\n=== {month} -> {CACHE / month}")

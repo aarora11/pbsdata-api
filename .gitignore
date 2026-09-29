@@ -16,3 +16,5 @@ node_modules/
 PHASE3_HANDOFF.md
 OFFERING.md
 memory/
+# Raw PBS feed archives (ingest/raw_archive.py): large, and the data is not ours to publish
+data/raw_archive/

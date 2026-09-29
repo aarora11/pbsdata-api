@@ -10,6 +10,7 @@ from ingest.normaliser import normalise_schedule
 from ingest.differ import compute_changes
 from ingest.loader import load_to_database
 from ingest.quality import assert_schedule_usable
+from ingest.raw_archive import prune_raw_layer
 from ingest.raw_store import store_raw_feeds
 
 logger = structlog.get_logger()
@@ -447,6 +448,17 @@ async def run_ingest(
             )
 
         log.info("ingest.complete", warnings=report.warnings)
+
+        # Move raw months beyond the newest few out to compressed archive files. Only
+        # after the gate: the gate reads this month's raw rows from the table. A
+        # failure here leaves the rows in Postgres, so it must not fail the ingest.
+        try:
+            async with pool.acquire() as conn:
+                moved = await prune_raw_layer(conn)
+            if moved:
+                log.info("ingest.raw_archived", months=moved)
+        except Exception as exc:
+            log.warning("ingest.raw_archive_failed", error=str(exc))
         if report.warnings:
             log.warning("ingest.completed_with_warnings", month=month, warnings=report.warnings)
 
